@@ -74,8 +74,7 @@ fun PartyFormationScreen(
                     PartyFormationListItem(
                         name = character.name,
                         isSelected = character.id in uiState.selectedIds,
-                        onSelect = { viewModel.onSelect(character.id) },
-                        onDeselect = { viewModel.onDeselect(character.id) },
+                        onToggleSelected = { viewModel.onToggleSelected(character.id) },
                     )
                     HorizontalDivider()
                 }

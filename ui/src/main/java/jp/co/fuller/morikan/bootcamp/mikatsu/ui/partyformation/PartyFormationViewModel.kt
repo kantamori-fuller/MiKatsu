@@ -39,31 +39,22 @@ class PartyFormationViewModel @Inject constructor(
     }
 
     /**
-     * 一覧アイテムの選択アイコンが押されたときに呼ばれる。
+     * 一覧アイテムがタップされたときに呼ばれる。
      *
-     * 既に選択済み、または選択数が上限([MAX_SELECTABLE_COUNT])に達している場合は何もしない。
+     * 既に選択済みの場合は選択を解除し、未選択の場合は選択状態にする。ただし選択数が
+     * 上限([MAX_SELECTABLE_COUNT])に達している状態で未選択のキャラクターがタップされた
+     * 場合は何もしない。
      *
-     * @param id 選択対象として指定されたキャラクターのID。
+     * @param id タップされたキャラクターのID。
      */
-    fun onSelect(id: Int) {
+    fun onToggleSelected(id: Int) {
         _uiState.update { state ->
-            if (id in state.selectedIds || state.selectedIds.size >= MAX_SELECTABLE_COUNT) {
-                state
-            } else {
-                state.copy(selectedIds = state.selectedIds + id)
+            when {
+                id in state.selectedIds -> state.copy(selectedIds = state.selectedIds - id)
+                state.selectedIds.size >= MAX_SELECTABLE_COUNT -> state
+                else -> state.copy(selectedIds = state.selectedIds + id)
             }
         }
-    }
-
-    /**
-     * 一覧アイテムの選択アイコン以外(行のサイド部分)がタップされたときに呼ばれる。
-     *
-     * 対象キャラクターの選択状態を解除する。
-     *
-     * @param id 選択解除対象のキャラクターID。
-     */
-    fun onDeselect(id: Int) {
-        _uiState.update { it.copy(selectedIds = it.selectedIds - id) }
     }
 
     companion object {

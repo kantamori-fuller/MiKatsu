@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -21,37 +20,33 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.ui.R
 /**
  * 編成画面のキャラ一覧の1行を表すUIコンポーネント。
  *
- * 名前の表示、選択アイコンタップによる選択、行タップ(選択アイコン以外の部分)による
- * 選択解除という、この画面固有の1行分の見た目と操作をまとめて提供することを目的とする。
+ * 行のどこをタップしても選択状態が反転する。選択アイコンはあくまで現在の選択状態を
+ * 示す表示専用の要素であり、単独のタップ対象ではない。
  *
  * @param name 表示するキャラクターの名前。
  * @param isSelected 選択済みかどうか。選択済みの場合、アイコンが緑色になる。
- * @param onSelect 選択アイコンがタップされたときに呼ばれるコールバック。
- * @param onDeselect 選択アイコン以外の部分がタップされたときに呼ばれるコールバック。
+ * @param onToggleSelected 行がタップされたときに呼ばれるコールバック。
  * @param modifier このComposableに適用する[Modifier]。
  */
 @Composable
 internal fun PartyFormationListItem(
     name: String,
     isSelected: Boolean,
-    onSelect: () -> Unit,
-    onDeselect: () -> Unit,
+    onToggleSelected: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clickable(onClick = onDeselect)
+            .clickable(onClick = onToggleSelected)
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(name, modifier = Modifier.weight(1f))
-        IconButton(onClick = onSelect) {
-            Icon(
-                Icons.Default.CheckCircle,
-                contentDescription = stringResource(R.string.content_description_select),
-                tint = if (isSelected) SelectionGreen else LocalContentColor.current,
-            )
-        }
+        Icon(
+            Icons.Default.CheckCircle,
+            contentDescription = stringResource(R.string.content_description_select),
+            tint = if (isSelected) SelectionGreen else LocalContentColor.current,
+        )
     }
 }
