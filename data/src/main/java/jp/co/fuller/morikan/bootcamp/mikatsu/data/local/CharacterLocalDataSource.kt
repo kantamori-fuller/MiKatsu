@@ -1,6 +1,8 @@
 package jp.co.fuller.morikan.bootcamp.mikatsu.data.local
 
 import android.content.Context
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import dagger.hilt.android.qualifiers.ApplicationContext
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.Character
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.CharacterDraft
@@ -13,17 +15,17 @@ import javax.inject.Inject
  * キャラクターデータを端末内ローカルストレージへ読み書きするデータソース。
  *
  * 一覧データは端末内ファイル(`characters.json`)にJSON配列として保存し、
- * 次に採番すべきキャラクターIDは[SharedPreferences]で永続管理する。
+ * 次に採番すべきキャラクターIDは[mikatsuDataStore](DataStore)で永続管理する。
  * このクラスはストレージの実装詳細を隠蔽し、[CharacterRepositoryImpl]からのみ利用される。
  *
  * @constructor Hiltにより自動的に生成される。
- * @param context キャラクターデータの保存先(ファイル・SharedPreferences)を得るためのアプリケーションContext。
+ * @param context キャラクターデータの保存先(ファイル・DataStore)を得るためのアプリケーションContext。
  */
 class CharacterLocalDataSource @Inject constructor(@ApplicationContext context: Context) {
 
     private val appContext = context.applicationContext
     private val dataFile = File(appContext.filesDir, "characters.json")
-    private val prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    private val dataStore = appContext.mikatsuDataStore
 
     /**
      * 保存されている全キャラクターを読み込む。
@@ -53,7 +55,7 @@ class CharacterLocalDataSource @Inject constructor(@ApplicationContext context: 
      * @param draft 保存する入力内容。
      * @return 保存後のキャラクター(採番されたIDを含む)。
      */
-    fun save(draft: CharacterDraft): Character {
+    suspend fun save(draft: CharacterDraft): Character {
         val characters = getAll().toMutableList()
         val resolvedId = draft.id ?: reserveNextId()
         val character = Character(
@@ -86,15 +88,20 @@ class CharacterLocalDataSource @Inject constructor(@ApplicationContext context: 
     /**
      * 新規キャラクター用のIDを採番する。
      *
-     * 採番済みの次IDを[SharedPreferences]に永続化しているため、
+     * 採番済みの次IDをDataStoreへ永続化しているため、
      * キャラクターが削除されて総数が減ってもIDが再利用されることはない。
+     * 読み取りと書き込みを[DataStore.edit]のトランザクション内で行うことで、
+     * 同時に保存操作が発生してもID の重複採番が起きないようにする。
      *
      * @return 新規キャラクターに割り当てるID。
      */
-    private fun reserveNextId(): Int {
-        val nextId = prefs.getInt(KEY_NEXT_ID, 1)
-        prefs.edit().putInt(KEY_NEXT_ID, nextId + 1).apply()
-        return nextId
+    private suspend fun reserveNextId(): Int {
+        var reservedId = 1
+        dataStore.edit { preferences ->
+            reservedId = preferences[KEY_NEXT_ID] ?: 1
+            preferences[KEY_NEXT_ID] = reservedId + 1
+        }
+        return reservedId
     }
 
     /**
@@ -147,7 +154,6 @@ class CharacterLocalDataSource @Inject constructor(@ApplicationContext context: 
     }
 
     companion object {
-        private const val PREFS_NAME = "mikatsu_prefs"
-        private const val KEY_NEXT_ID = "next_character_id"
+        private val KEY_NEXT_ID = intPreferencesKey("next_character_id")
     }
 }
