@@ -18,7 +18,9 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import jp.co.fuller.morikan.bootcamp.mikatsu.ui.R
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.characterlist.components.CharacterListItem
 
 /**
@@ -48,10 +50,13 @@ fun CharacterListScreen(
         modifier = modifier,
         topBar = {
             TopAppBar(
-                title = { Text("キャラ一覧") },
+                title = { Text(stringResource(R.string.character_list_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "戻る")
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.content_description_back),
+                        )
                     }
                 },
             )
@@ -77,13 +82,13 @@ fun CharacterListScreen(
     if (targetId != null) {
         AlertDialog(
             onDismissRequest = viewModel::onDeleteCancelled,
-            title = { Text("確認") },
-            text = { Text("キャラを削除しますか？") },
+            title = { Text(stringResource(R.string.delete_confirmation_title)) },
+            text = { Text(stringResource(R.string.delete_confirmation_message)) },
             confirmButton = {
-                TextButton(onClick = viewModel::onDeleteConfirmed) { Text("削除") }
+                TextButton(onClick = viewModel::onDeleteConfirmed) { Text(stringResource(R.string.action_delete)) }
             },
             dismissButton = {
-                TextButton(onClick = viewModel::onDeleteCancelled) { Text("キャンセル") }
+                TextButton(onClick = viewModel::onDeleteCancelled) { Text(stringResource(R.string.action_cancel)) }
             },
         )
     }

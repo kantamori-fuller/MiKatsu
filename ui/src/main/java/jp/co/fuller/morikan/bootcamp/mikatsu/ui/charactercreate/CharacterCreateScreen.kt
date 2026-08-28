@@ -22,8 +22,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import jp.co.fuller.morikan.bootcamp.mikatsu.ui.R
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.charactercreate.components.StatField
 
 /**
@@ -56,10 +58,19 @@ fun CharacterCreateScreen(
         modifier = modifier,
         topBar = {
             TopAppBar(
-                title = { Text(if (uiState.isEditing) "キャラを編集" else "キャラを作成") },
+                title = {
+                    Text(
+                        stringResource(
+                            if (uiState.isEditing) R.string.character_edit_title else R.string.character_create_title,
+                        ),
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "戻る")
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.content_description_back),
+                        )
                     }
                 },
             )
@@ -75,24 +86,32 @@ fun CharacterCreateScreen(
             OutlinedTextField(
                 value = uiState.name,
                 onValueChange = viewModel::onNameChange,
-                label = { Text("名前") },
+                label = { Text(stringResource(R.string.label_name)) },
                 modifier = Modifier.fillMaxWidth(),
             )
             Spacer(Modifier.height(8.dp))
-            StatField(label = "H. 体力", value = uiState.hp, onValueChange = viewModel::onHpChange)
-            StatField(label = "M. マナ総量", value = uiState.mana, onValueChange = viewModel::onManaChange)
-            StatField(label = "A. 破壊力", value = uiState.attack, onValueChange = viewModel::onAttackChange)
-            StatField(label = "B. 耐久力", value = uiState.defense, onValueChange = viewModel::onDefenseChange)
-            StatField(label = "C. マナ出力", value = uiState.manaOutput, onValueChange = viewModel::onManaOutputChange)
-            StatField(label = "D. マナ耐性", value = uiState.manaResistance, onValueChange = viewModel::onManaResistanceChange)
-            StatField(label = "S. 敏捷", value = uiState.agility, onValueChange = viewModel::onAgilityChange)
-            StatField(label = "L. 幸運", value = uiState.luck, onValueChange = viewModel::onLuckChange)
+            StatField(label = stringResource(R.string.label_hp), value = uiState.hp, onValueChange = viewModel::onHpChange)
+            StatField(label = stringResource(R.string.label_mana), value = uiState.mana, onValueChange = viewModel::onManaChange)
+            StatField(label = stringResource(R.string.label_attack), value = uiState.attack, onValueChange = viewModel::onAttackChange)
+            StatField(label = stringResource(R.string.label_defense), value = uiState.defense, onValueChange = viewModel::onDefenseChange)
+            StatField(
+                label = stringResource(R.string.label_mana_output),
+                value = uiState.manaOutput,
+                onValueChange = viewModel::onManaOutputChange,
+            )
+            StatField(
+                label = stringResource(R.string.label_mana_resistance),
+                value = uiState.manaResistance,
+                onValueChange = viewModel::onManaResistanceChange,
+            )
+            StatField(label = stringResource(R.string.label_agility), value = uiState.agility, onValueChange = viewModel::onAgilityChange)
+            StatField(label = stringResource(R.string.label_luck), value = uiState.luck, onValueChange = viewModel::onLuckChange)
             Spacer(Modifier.height(24.dp))
             Button(
                 onClick = viewModel::onSaveClick,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text("保存")
+                Text(stringResource(R.string.action_save))
             }
         }
     }

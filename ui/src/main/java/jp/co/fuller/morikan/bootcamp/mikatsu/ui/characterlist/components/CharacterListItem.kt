@@ -12,7 +12,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import jp.co.fuller.morikan.bootcamp.mikatsu.ui.R
 
 /**
  * キャラ一覧の1行を表すUIコンポーネント。
@@ -41,7 +43,7 @@ internal fun CharacterListItem(
     ) {
         Text(name, modifier = Modifier.weight(1f))
         IconButton(onClick = onDeleteClick) {
-            Icon(Icons.Default.Delete, contentDescription = "削除")
+            Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.action_delete))
         }
     }
 }
