@@ -3,6 +3,7 @@
 
     <string name="menu_action_create_character">キャラを作成</string>
     <string name="menu_action_character_list">キャラ一覧</string>
+    <string name="menu_action_party_formation">編成</string>
 
     <string name="character_list_title">キャラ一覧</string>
     <string name="content_description_back">戻る</string>
@@ -23,4 +24,13 @@
     <string name="label_agility">S. 敏捷</string>
     <string name="label_luck">L. 幸運</string>
     <string name="action_save">保存</string>
+
+    <string name="party_formation_title">編成</string>
+    <string name="content_description_select">選択</string>
+    <string name="action_confirm">決定</string>
+
+    <string name="action_attack">攻撃</string>
+    <string name="action_retreat">撤退</string>
+    <string name="battle_hp_format">HP %1$d/%2$d</string>
+    <string name="battle_mp_format">MP %1$d/%2$d</string>
 </resources>

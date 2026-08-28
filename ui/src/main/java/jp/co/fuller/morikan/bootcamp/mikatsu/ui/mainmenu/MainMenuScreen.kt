@@ -21,19 +21,22 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.ui.R
 /**
  * アプリ起動時に最初に表示されるメインメニュー画面。
  *
- * 「キャラを作成」「キャラ一覧」の2つの導線を提供することを目的とする。
+ * 「キャラを作成」「キャラ一覧」「編成」の3つの導線を提供することを目的とする。
  * 状態や入力を持たない画面のため専用のViewModelは設けていない。
  *
  * @param onCreateCharacter 「キャラを作成」ボタンが押されたときに呼ばれるコールバック。
  *   キャラ作成画面(新規作成)への遷移をNavHost側に委ねる。
  * @param onShowCharacterList 「キャラ一覧」ボタンが押されたときに呼ばれるコールバック。
  *   キャラ一覧画面への遷移をNavHost側に委ねる。
+ * @param onShowPartyFormation 「編成」ボタンが押されたときに呼ばれるコールバック。
+ *   編成画面への遷移をNavHost側に委ねる。
  * @param modifier このComposableに適用する[Modifier]。
  */
 @Composable
 fun MainMenuScreen(
     onCreateCharacter: () -> Unit,
     onShowCharacterList: () -> Unit,
+    onShowPartyFormation: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Scaffold(modifier = modifier) { innerPadding ->
@@ -53,6 +56,10 @@ fun MainMenuScreen(
             Spacer(Modifier.height(16.dp))
             Button(onClick = onShowCharacterList, modifier = Modifier.fillMaxWidth()) {
                 Text(stringResource(R.string.menu_action_character_list))
+            }
+            Spacer(Modifier.height(16.dp))
+            Button(onClick = onShowPartyFormation, modifier = Modifier.fillMaxWidth()) {
+                Text(stringResource(R.string.menu_action_party_formation))
             }
         }
     }

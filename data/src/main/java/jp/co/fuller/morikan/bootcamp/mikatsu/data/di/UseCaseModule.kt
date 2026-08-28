@@ -5,8 +5,10 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.repository.CharacterRepository
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.repository.EnemyRepository
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.DeleteCharacterUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.GetCharacterUseCase
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.GetEnemiesUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.ObserveCharactersUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.SaveCharacterUseCase
 
@@ -52,4 +54,12 @@ object UseCaseModule {
     @Provides
     fun provideDeleteCharacterUseCase(repository: CharacterRepository): DeleteCharacterUseCase =
         DeleteCharacterUseCase(repository)
+
+    /**
+     * @param repository 注入される[EnemyRepository]。
+     * @return 今回のバトルに登場する敵の一覧を取得する[GetEnemiesUseCase]。
+     */
+    @Provides
+    fun provideGetEnemiesUseCase(repository: EnemyRepository): GetEnemiesUseCase =
+        GetEnemiesUseCase(repository)
 }
