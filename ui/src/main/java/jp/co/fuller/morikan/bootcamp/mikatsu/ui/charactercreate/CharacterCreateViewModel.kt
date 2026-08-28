@@ -1,9 +1,10 @@
 package jp.co.fuller.morikan.bootcamp.mikatsu.ui.charactercreate
 
-import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import androidx.navigation.toRoute
+import dagger.assisted.Assisted
+import dagger.assisted.AssistedFactory
+import dagger.assisted.AssistedInject
 import dagger.hilt.android.lifecycle.HiltViewModel
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.CharacterDraft
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.GetCharacterUseCase
@@ -13,30 +14,30 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import javax.inject.Inject
 
 /**
  * キャラ作成/編集画面(CharacterCreateScreen)のViewModel。
  *
- * ナビゲーション引数([CharacterCreateRoute])から編集対象のキャラクターIDを読み取り、
- * 既存データがあればフォームへ復元する。各ステータス入力の検証(半角数字のみ許可)と、
+ * 編集対象のキャラクターID([characterId])は、Nav3のルート([CharacterCreateRoute])が
+ * 直接保持する値をAssisted Injectionで受け取る。Nav3はNav2と異なりバックスタックの
+ * エントリーにナビゲーション引数用のSavedStateHandleを自動で紐付けないため、
+ * DI(Hilt)で解決できる依存(UseCase)とルートが持つ実行時の値(characterId)を
+ * `@AssistedFactory`で組み合わせて生成する。
+ *
+ * 既存データがあればフォームへ復元し、各ステータス入力の検証(半角数字のみ許可)と、
  * 保存処理の実行を担当することを目的とする。Screen側は本ViewModelの[uiState]を購読して
  * 描画するのみで、ロジックは持たない。
  *
+ * @property characterId 編集対象のキャラクターID。新規作成の場合は`null`。
  * @property getCharacterUseCase 編集対象キャラクターの既存データを取得するUseCase。
  * @property saveCharacterUseCase 入力内容を保存するUseCase。
- * @constructor Hiltがコンストラクタインジェクションで生成する。
- * @param savedStateHandle 型安全ナビゲーション引数([CharacterCreateRoute])を復元するためのハンドル。
  */
-@HiltViewModel
-class CharacterCreateViewModel @Inject constructor(
-    savedStateHandle: SavedStateHandle,
+@HiltViewModel(assistedFactory = CharacterCreateViewModel.Factory::class)
+class CharacterCreateViewModel @AssistedInject constructor(
+    @Assisted private val characterId: Int?,
     private val getCharacterUseCase: GetCharacterUseCase,
     private val saveCharacterUseCase: SaveCharacterUseCase,
 ) : ViewModel() {
-
-    /** 編集対象のキャラクターID。ナビゲーション引数が指定されていなければ`null`(新規作成)。 */
-    private val characterId: Int? = savedStateHandle.toRoute<CharacterCreateRoute>().characterId
 
     private val _uiState = MutableStateFlow(CharacterCreateUiState(isEditing = characterId != null))
 
@@ -175,5 +176,20 @@ class CharacterCreateViewModel @Inject constructor(
             )
             _uiState.update { it.copy(isSaved = true) }
         }
+    }
+
+    /**
+     * Hiltが[CharacterCreateViewModel]を生成するためのAssisted Factory。
+     *
+     * DIコンテナが解決できないルート由来の実行時の値([characterId])を
+     * 呼び出し側([CharacterCreateNavigation])から受け取るための橋渡し役を担う。
+     */
+    @AssistedFactory
+    interface Factory {
+        /**
+         * @param characterId 編集対象のキャラクターID。新規作成の場合は`null`。
+         * @return 生成された[CharacterCreateViewModel]。
+         */
+        fun create(characterId: Int?): CharacterCreateViewModel
     }
 }
