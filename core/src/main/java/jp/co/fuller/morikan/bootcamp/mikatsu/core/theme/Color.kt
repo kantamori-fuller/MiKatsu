@@ -1,4 +1,4 @@
-package jp.co.fuller.morikan.bootcamp.mikatsu.ui.theme
+package jp.co.fuller.morikan.bootcamp.mikatsu.core.theme
 
 import androidx.compose.ui.graphics.Color
 

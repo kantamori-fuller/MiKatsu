@@ -21,24 +21,21 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import jp.co.fuller.morikan.bootcamp.mikatsu.data.CharacterRepository
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import jp.co.fuller.morikan.bootcamp.mikatsu.ui.viewmodel.CharacterListViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CharacterListScreen(
-    repository: CharacterRepository,
+    viewModel: CharacterListViewModel,
     onBack: () -> Unit,
     onSelectCharacter: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var characters by remember { mutableStateOf(repository.getAll()) }
-    var pendingDeleteId by remember { mutableStateOf<Int?>(null) }
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     Scaffold(
         modifier = modifier,
@@ -58,7 +55,7 @@ fun CharacterListScreen(
                 .padding(innerPadding)
                 .fillMaxSize(),
         ) {
-            items(characters, key = { it.id }) { character ->
+            items(uiState.characters, key = { it.id }) { character ->
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -67,7 +64,7 @@ fun CharacterListScreen(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(character.name, modifier = Modifier.weight(1f))
-                    IconButton(onClick = { pendingDeleteId = character.id }) {
+                    IconButton(onClick = { viewModel.onDeleteRequested(character.id) }) {
                         Icon(Icons.Default.Delete, contentDescription = "削除")
                     }
                 }
@@ -76,21 +73,17 @@ fun CharacterListScreen(
         }
     }
 
-    val targetId = pendingDeleteId
+    val targetId = uiState.pendingDeleteId
     if (targetId != null) {
         AlertDialog(
-            onDismissRequest = { pendingDeleteId = null },
+            onDismissRequest = viewModel::onDeleteCancelled,
             title = { Text("確認") },
             text = { Text("キャラを削除しますか？") },
             confirmButton = {
-                TextButton(onClick = {
-                    repository.delete(targetId)
-                    characters = repository.getAll()
-                    pendingDeleteId = null
-                }) { Text("削除") }
+                TextButton(onClick = viewModel::onDeleteConfirmed) { Text("削除") }
             },
             dismissButton = {
-                TextButton(onClick = { pendingDeleteId = null }) { Text("キャンセル") }
+                TextButton(onClick = viewModel::onDeleteCancelled) { Text("キャンセル") }
             },
         )
     }

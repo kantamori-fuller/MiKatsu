@@ -1,11 +1,13 @@
-package jp.co.fuller.morikan.bootcamp.mikatsu.data
+package jp.co.fuller.morikan.bootcamp.mikatsu.data.local
 
 import android.content.Context
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.Character
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.CharacterDraft
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 
-class CharacterRepository(context: Context) {
+class CharacterLocalDataSource(context: Context) {
 
     private val appContext = context.applicationContext
     private val dataFile = File(appContext.filesDir, "characters.json")
@@ -19,31 +21,20 @@ class CharacterRepository(context: Context) {
 
     fun getById(id: Int): Character? = getAll().find { it.id == id }
 
-    fun save(
-        id: Int?,
-        name: String,
-        hp: Int,
-        mana: Int,
-        attack: Int,
-        defense: Int,
-        manaOutput: Int,
-        manaResistance: Int,
-        agility: Int,
-        luck: Int,
-    ): Character {
+    fun save(draft: CharacterDraft): Character {
         val characters = getAll().toMutableList()
-        val resolvedId = id ?: reserveNextId()
+        val resolvedId = draft.id ?: reserveNextId()
         val character = Character(
             id = resolvedId,
-            name = name,
-            hp = hp,
-            mana = mana,
-            attack = attack,
-            defense = defense,
-            manaOutput = manaOutput,
-            manaResistance = manaResistance,
-            agility = agility,
-            luck = luck,
+            name = draft.name,
+            hp = draft.hp,
+            mana = draft.mana,
+            attack = draft.attack,
+            defense = draft.defense,
+            manaOutput = draft.manaOutput,
+            manaResistance = draft.manaResistance,
+            agility = draft.agility,
+            luck = draft.luck,
         )
         val index = characters.indexOfFirst { it.id == resolvedId }
         if (index >= 0) characters[index] = character else characters.add(character)

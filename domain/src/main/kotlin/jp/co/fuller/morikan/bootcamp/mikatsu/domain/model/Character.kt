@@ -1,4 +1,4 @@
-package jp.co.fuller.morikan.bootcamp.mikatsu.data
+package jp.co.fuller.morikan.bootcamp.mikatsu.domain.model
 
 data class Character(
     val id: Int,
