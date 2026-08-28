@@ -113,6 +113,7 @@ fun CharacterCreateScreen(
             Spacer(Modifier.height(24.dp))
             Button(
                 onClick = viewModel::onSaveClick,
+                enabled = uiState.isSaveEnabled,
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Text(stringResource(R.string.action_save))

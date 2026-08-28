@@ -18,6 +18,8 @@ package jp.co.fuller.morikan.bootcamp.mikatsu.ui.charactercreate.model
  * @property luck L. 幸運フィールドの入力値。
  * @property isSaved 保存処理が完了したかどうか。`true`になったタイミングで
  *   Screen側が前の画面へ戻る。
+ * @property isSaveEnabled 「保存」ボタンを押せる状態かどうか。[name]が空文字
+ *   (または空白のみ)の場合は保存不可となる。
  */
 data class CharacterCreateUiState(
     val isEditing: Boolean = false,
@@ -31,4 +33,12 @@ data class CharacterCreateUiState(
     val agility: String = "",
     val luck: String = "",
     val isSaved: Boolean = false,
-)
+) {
+    /**
+     * 「保存」ボタンを押せる状態かどうか。
+     *
+     * 名前が空文字(または空白のみ)の場合は保存不可とする。
+     */
+    val isSaveEnabled: Boolean
+        get() = name.isNotBlank()
+}

@@ -155,10 +155,11 @@ class CharacterCreateViewModel @AssistedInject constructor(
      *
      * 現在の入力内容から[CharacterDraft]を組み立てて保存し、完了後に
      * [CharacterCreateUiState.isSaved]を`true`にすることでScreen側へ画面遷移を促す。
-     * 空文字のステータスは0として扱う。
+     * 空文字のステータスは0として扱う。名前が未入力の場合は何もしない。
      */
     fun onSaveClick() {
         val state = _uiState.value
+        if (!state.isSaveEnabled) return
         viewModelScope.launch {
             saveCharacterUseCase(
                 CharacterDraft(
