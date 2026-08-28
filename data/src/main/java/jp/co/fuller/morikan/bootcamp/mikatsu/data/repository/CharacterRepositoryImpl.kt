@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
+import javax.inject.Singleton
 
 /**
  * [CharacterRepository]のローカルストレージによる実装。
@@ -17,9 +18,13 @@ import javax.inject.Inject
  * データの正(Single Source of Truth)として[charactersFlow]をメモリ上に保持し、
  * [CharacterLocalDataSource]への読み書きが発生するたびに最新化することで、
  * UI層が常に最新のキャラクター一覧を購読できるようにすることを目的とする。
+ * アプリ全体で[charactersFlow]を1つに保つため、[Singleton]としてアプリ全体で
+ * インスタンスを共有する(共有しない場合、購読側と更新側で別インスタンスの
+ * [charactersFlow]を参照してしまい、更新が即座に反映されなくなる)。
  *
  * @property localDataSource 実際の永続化を担うローカルデータソース。
  */
+@Singleton
 class CharacterRepositoryImpl @Inject constructor(
     private val localDataSource: CharacterLocalDataSource,
 ) : CharacterRepository {
