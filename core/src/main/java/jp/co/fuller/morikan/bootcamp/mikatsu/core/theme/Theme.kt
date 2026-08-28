@@ -1,6 +1,5 @@
-package jp.co.fuller.morikan.bootcamp.mikatsu.ui.theme
+package jp.co.fuller.morikan.bootcamp.mikatsu.core.theme
 
-import android.app.Activity
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
@@ -11,32 +10,33 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 
+/** ダイナミックカラーが使えない環境向けのダークテーマ配色。 */
 private val DarkColorScheme = darkColorScheme(
     primary = Purple80,
     secondary = PurpleGrey80,
     tertiary = Pink80
 )
 
+/** ダイナミックカラーが使えない環境向けのライトテーマ配色。 */
 private val LightColorScheme = lightColorScheme(
     primary = Purple40,
     secondary = PurpleGrey40,
     tertiary = Pink40
-
-    /* Other default colors to override
-    background = Color(0xFFFFFBFE),
-    surface = Color(0xFFFFFBFE),
-    onPrimary = Color.White,
-    onSecondary = Color.White,
-    onTertiary = Color.White,
-    onBackground = Color(0xFF1C1B1F),
-    onSurface = Color(0xFF1C1B1F),
-    */
 )
 
+/**
+ * アプリ全体のテーマを提供するルートComposable。
+ *
+ * 全ての画面(Screen)を[MaterialTheme]で包み、配色・タイポグラフィをアプリ内で
+ * 統一することを目的とする。
+ *
+ * @param darkTheme ダークテーマを適用するかどうか。デフォルトは端末の設定に追従する。
+ * @param dynamicColor Android 12(S)以降で壁紙連動のダイナミックカラーを使用するかどうか。
+ * @param content テーマを適用する対象のコンテンツ。
+ */
 @Composable
 fun MiKatsuTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    // Dynamic color is available on Android 12+
     dynamicColor: Boolean = true,
     content: @Composable () -> Unit
 ) {

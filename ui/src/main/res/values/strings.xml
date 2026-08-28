@@ -1,0 +1,26 @@
+<resources>
+    <string name="app_title">MiKatsu</string>
+
+    <string name="menu_action_create_character">キャラを作成</string>
+    <string name="menu_action_character_list">キャラ一覧</string>
+
+    <string name="character_list_title">キャラ一覧</string>
+    <string name="content_description_back">戻る</string>
+    <string name="action_delete">削除</string>
+    <string name="action_cancel">キャンセル</string>
+    <string name="delete_confirmation_title">確認</string>
+    <string name="delete_confirmation_message">キャラを削除しますか？</string>
+
+    <string name="character_create_title">キャラを作成</string>
+    <string name="character_edit_title">キャラを編集</string>
+    <string name="label_name">名前</string>
+    <string name="label_hp">H. 体力</string>
+    <string name="label_mana">M. マナ総量</string>
+    <string name="label_attack">A. 破壊力</string>
+    <string name="label_defense">B. 耐久力</string>
+    <string name="label_mana_output">C. マナ出力</string>
+    <string name="label_mana_resistance">D. マナ耐性</string>
+    <string name="label_agility">S. 敏捷</string>
+    <string name="label_luck">L. 幸運</string>
+    <string name="action_save">保存</string>
+</resources>
