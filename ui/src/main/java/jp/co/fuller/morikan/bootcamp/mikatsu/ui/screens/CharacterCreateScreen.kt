@@ -28,6 +28,18 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.viewmodel.CharacterCreateViewModel
 
+/**
+ * キャラクターの名前と8つのステータスを入力し、保存するための画面。
+ *
+ * [CharacterCreateViewModel.uiState]を購読して描画するのみに徹し、入力検証や保存処理は
+ * 一切持たない(MVVMにおけるViewの責務のみを担う)。編集対象のキャラクターIDが指定されている
+ * 場合は、[viewModel]側で既存データが復元された状態で表示される。
+ *
+ * @param viewModel この画面に対応する[CharacterCreateViewModel]。
+ * @param onBack 画面上部の戻るボタンが押されたときに呼ばれるコールバック。
+ * @param onSaved 保存が完了し、前の画面へ戻るべきタイミングで呼ばれるコールバック。
+ * @param modifier このComposableに適用する[Modifier]。
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CharacterCreateScreen(
@@ -88,6 +100,16 @@ fun CharacterCreateScreen(
     }
 }
 
+/**
+ * ステータス入力用の1行のテキストフィールド。
+ *
+ * 数値キーボードを表示する見た目上の設定のみを担い、半角数字以外の入力を弾く実際の
+ * 検証ロジックは[onValueChange]の呼び出し先([CharacterCreateViewModel]側)が担当する。
+ *
+ * @param label フィールド上部に表示するラベル(例: "H. 体力")。
+ * @param value 現在の入力値。
+ * @param onValueChange 入力が変化したときに呼ばれるコールバック。
+ */
 @Composable
 private fun StatField(label: String, value: String, onValueChange: (String) -> Unit) {
     OutlinedTextField(

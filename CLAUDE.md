@@ -47,3 +47,9 @@
 - ViewModelは`@HiltViewModel`を付与し、コンストラクタインジェクションで必要なUseCaseを受け取る。
 - `app`モジュールの`Application`クラスに`@HiltAndroidApp`、`MainActivity`に`@AndroidEntryPoint`を付与する。
 - Compose画面でのViewModel取得には`hiltViewModel()`を用いる。
+
+## ドキュメンテーション(KDoc)
+
+- クラス・インターフェース・関数(private関数を含む)には、その機能と目的を説明するKDocを丁寧に記述する。
+- 引数を持つ関数には`@param`で各引数の意味を、戻り値がある場合は`@return`で戻り値の意味を記述する。
+- 「何をしているか」だけでなく、「何のために存在するか(目的)」が伝わるように書く。

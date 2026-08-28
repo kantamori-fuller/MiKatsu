@@ -15,6 +15,17 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.ui.screens.MainMenuScreen
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.viewmodel.CharacterCreateViewModel
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.viewmodel.CharacterListViewModel
 
+/**
+ * アプリ全体の画面遷移を定義するNavHost。
+ *
+ * [MiKatsuDestinations]で定義したルートと、各画面(Screen)・ViewModelとの
+ * 対応付けを一箇所にまとめることを目的とする。ViewModelは各ルートに紐づく
+ * バックスタックエントリごとに[hiltViewModel]でスコープされ、Hiltが自動的に
+ * 依存関係を解決して生成する。
+ *
+ * @param modifier このComposableに適用する[Modifier]。
+ * @param navController 画面遷移を制御する[NavHostController]。テスト等で差し替え可能。
+ */
 @Composable
 fun MiKatsuNavHost(
     modifier: Modifier = Modifier,

@@ -6,6 +6,12 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
+/**
+ * アプリ全体で使用するMaterial3のタイポグラフィ設定。
+ *
+ * [MiKatsuTheme]から[androidx.compose.material3.MaterialTheme]へ渡され、
+ * 各画面のテキストスタイルの基準として使われることを目的とする。
+ */
 val Typography = Typography(
     bodyLarge = TextStyle(
         fontFamily = FontFamily.Default,
