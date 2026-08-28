@@ -2,8 +2,7 @@ package jp.co.fuller.morikan.bootcamp.mikatsu.ui.navigation
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -18,7 +17,6 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.ui.viewmodel.CharacterListViewModel
 
 @Composable
 fun MiKatsuNavHost(
-    viewModelFactory: ViewModelProvider.Factory,
     modifier: Modifier = Modifier,
     navController: NavHostController = rememberNavController(),
 ) {
@@ -34,7 +32,7 @@ fun MiKatsuNavHost(
             )
         }
         composable(MiKatsuDestinations.CHARACTER_LIST) {
-            val viewModel: CharacterListViewModel = viewModel(factory = viewModelFactory)
+            val viewModel: CharacterListViewModel = hiltViewModel()
             CharacterListScreen(
                 viewModel = viewModel,
                 onBack = { navController.popBackStack() },
@@ -50,7 +48,7 @@ fun MiKatsuNavHost(
                 },
             ),
         ) {
-            val viewModel: CharacterCreateViewModel = viewModel(factory = viewModelFactory)
+            val viewModel: CharacterCreateViewModel = hiltViewModel()
             CharacterCreateScreen(
                 viewModel = viewModel,
                 onBack = { navController.popBackStack() },

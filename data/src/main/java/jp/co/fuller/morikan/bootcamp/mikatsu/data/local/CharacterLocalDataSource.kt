@@ -1,13 +1,15 @@
 package jp.co.fuller.morikan.bootcamp.mikatsu.data.local
 
 import android.content.Context
+import dagger.hilt.android.qualifiers.ApplicationContext
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.Character
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.CharacterDraft
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import javax.inject.Inject
 
-class CharacterLocalDataSource(context: Context) {
+class CharacterLocalDataSource @Inject constructor(@ApplicationContext context: Context) {
 
     private val appContext = context.applicationContext
     private val dataFile = File(appContext.filesDir, "characters.json")

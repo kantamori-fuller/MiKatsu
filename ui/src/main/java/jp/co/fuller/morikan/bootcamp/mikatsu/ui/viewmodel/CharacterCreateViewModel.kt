@@ -3,6 +3,7 @@ package jp.co.fuller.morikan.bootcamp.mikatsu.ui.viewmodel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import dagger.hilt.android.lifecycle.HiltViewModel
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.CharacterDraft
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.GetCharacterUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.SaveCharacterUseCase
@@ -11,8 +12,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
-class CharacterCreateViewModel(
+@HiltViewModel
+class CharacterCreateViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val getCharacterUseCase: GetCharacterUseCase,
     private val saveCharacterUseCase: SaveCharacterUseCase,

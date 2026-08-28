@@ -1,6 +1,8 @@
 plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.hilt.android)
+    alias(libs.plugins.ksp)
 }
 
 android {
@@ -38,6 +40,10 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.viewmodel.savedstate)
     implementation(libs.kotlinx.coroutines.core)
+
+    implementation(libs.dagger.hilt.android)
+    implementation(libs.androidx.hilt.lifecycle.viewmodel.compose)
+    ksp(libs.dagger.hilt.android.compiler)
 
     debugImplementation(libs.androidx.compose.ui.tooling)
 }
