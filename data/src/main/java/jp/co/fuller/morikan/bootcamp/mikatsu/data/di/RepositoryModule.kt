@@ -6,6 +6,7 @@ import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import jp.co.fuller.morikan.bootcamp.mikatsu.data.repository.CharacterRepositoryImpl
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.repository.CharacterRepository
+import javax.inject.Singleton
 
 /**
  * [CharacterRepository]インターフェースと、その実装である[CharacterRepositoryImpl]を
@@ -26,5 +27,6 @@ abstract class RepositoryModule {
      * @return [CharacterRepository]として扱われる実装。
      */
     @Binds
+    @Singleton
     abstract fun bindCharacterRepository(impl: CharacterRepositoryImpl): CharacterRepository
 }
