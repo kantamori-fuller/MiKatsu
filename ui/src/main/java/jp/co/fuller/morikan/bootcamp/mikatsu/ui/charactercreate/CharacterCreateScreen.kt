@@ -1,4 +1,4 @@
-package jp.co.fuller.morikan.bootcamp.mikatsu.ui.screens
+package jp.co.fuller.morikan.bootcamp.mikatsu.ui.charactercreate
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -23,10 +22,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import jp.co.fuller.morikan.bootcamp.mikatsu.ui.viewmodel.CharacterCreateViewModel
+import jp.co.fuller.morikan.bootcamp.mikatsu.ui.charactercreate.components.StatField
 
 /**
  * キャラクターの名前と8つのステータスを入力し、保存するための画面。
@@ -98,26 +96,4 @@ fun CharacterCreateScreen(
             }
         }
     }
-}
-
-/**
- * ステータス入力用の1行のテキストフィールド。
- *
- * 数値キーボードを表示する見た目上の設定のみを担い、半角数字以外の入力を弾く実際の
- * 検証ロジックは[onValueChange]の呼び出し先([CharacterCreateViewModel]側)が担当する。
- *
- * @param label フィールド上部に表示するラベル(例: "H. 体力")。
- * @param value 現在の入力値。
- * @param onValueChange 入力が変化したときに呼ばれるコールバック。
- */
-@Composable
-private fun StatField(label: String, value: String, onValueChange: (String) -> Unit) {
-    OutlinedTextField(
-        value = value,
-        onValueChange = onValueChange,
-        label = { Text(label) },
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-        modifier = Modifier.fillMaxWidth(),
-    )
-    Spacer(Modifier.height(8.dp))
 }

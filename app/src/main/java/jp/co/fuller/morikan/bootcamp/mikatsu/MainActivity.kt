@@ -8,7 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
 import dagger.hilt.android.AndroidEntryPoint
 import jp.co.fuller.morikan.bootcamp.mikatsu.core.theme.MiKatsuTheme
-import jp.co.fuller.morikan.bootcamp.mikatsu.ui.navigation.MiKatsuNavHost
+import jp.co.fuller.morikan.bootcamp.mikatsu.ui.MiKatsuNavHost
 
 /**
  * アプリの唯一のActivityであり、Compose画面全体の起点となるエントリポイント。

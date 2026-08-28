@@ -1,13 +1,14 @@
-package jp.co.fuller.morikan.bootcamp.mikatsu.ui.viewmodel
+package jp.co.fuller.morikan.bootcamp.mikatsu.ui.charactercreate
 
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.navigation.toRoute
 import dagger.hilt.android.lifecycle.HiltViewModel
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.CharacterDraft
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.GetCharacterUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.SaveCharacterUseCase
-import jp.co.fuller.morikan.bootcamp.mikatsu.ui.navigation.MiKatsuDestinations
+import jp.co.fuller.morikan.bootcamp.mikatsu.ui.charactercreate.model.CharacterCreateUiState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
@@ -17,15 +18,15 @@ import javax.inject.Inject
 /**
  * キャラ作成/編集画面(CharacterCreateScreen)のViewModel。
  *
- * ナビゲーション引数から編集対象のキャラクターIDを読み取り、既存データがあれば
- * フォームへ復元する。各ステータス入力の検証(半角数字のみ許可)と、保存処理の実行を
- * 担当することを目的とする。Screen側は本ViewModelの[uiState]を購読して描画するのみで、
- * ロジックは持たない。
+ * ナビゲーション引数([CharacterCreateRoute])から編集対象のキャラクターIDを読み取り、
+ * 既存データがあればフォームへ復元する。各ステータス入力の検証(半角数字のみ許可)と、
+ * 保存処理の実行を担当することを目的とする。Screen側は本ViewModelの[uiState]を購読して
+ * 描画するのみで、ロジックは持たない。
  *
  * @property getCharacterUseCase 編集対象キャラクターの既存データを取得するUseCase。
  * @property saveCharacterUseCase 入力内容を保存するUseCase。
  * @constructor Hiltがコンストラクタインジェクションで生成する。
- * @param savedStateHandle ナビゲーション引数(編集対象のキャラクターID)を受け取るためのハンドル。
+ * @param savedStateHandle 型安全ナビゲーション引数([CharacterCreateRoute])を復元するためのハンドル。
  */
 @HiltViewModel
 class CharacterCreateViewModel @Inject constructor(
@@ -34,15 +35,8 @@ class CharacterCreateViewModel @Inject constructor(
     private val saveCharacterUseCase: SaveCharacterUseCase,
 ) : ViewModel() {
 
-    /**
-     * 編集対象のキャラクターID。
-     *
-     * ナビゲーション引数が[MiKatsuDestinations.NEW_CHARACTER_ID](新規作成を表す番兵値)の場合は
-     * `null`として扱う。
-     */
-    private val characterId: Int? = savedStateHandle
-        .get<Int>(MiKatsuDestinations.ARG_CHARACTER_ID)
-        ?.takeIf { it != MiKatsuDestinations.NEW_CHARACTER_ID }
+    /** 編集対象のキャラクターID。ナビゲーション引数が指定されていなければ`null`(新規作成)。 */
+    private val characterId: Int? = savedStateHandle.toRoute<CharacterCreateRoute>().characterId
 
     private val _uiState = MutableStateFlow(CharacterCreateUiState(isEditing = characterId != null))
 

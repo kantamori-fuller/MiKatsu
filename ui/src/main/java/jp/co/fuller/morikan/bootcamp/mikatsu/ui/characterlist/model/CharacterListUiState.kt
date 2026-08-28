@@ -1,4 +1,4 @@
-package jp.co.fuller.morikan.bootcamp.mikatsu.ui.viewmodel
+package jp.co.fuller.morikan.bootcamp.mikatsu.ui.characterlist.model
 
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.Character
 

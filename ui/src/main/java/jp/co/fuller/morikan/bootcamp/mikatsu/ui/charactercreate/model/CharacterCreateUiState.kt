@@ -1,4 +1,4 @@
-package jp.co.fuller.morikan.bootcamp.mikatsu.ui.viewmodel
+package jp.co.fuller.morikan.bootcamp.mikatsu.ui.charactercreate.model
 
 /**
  * キャラ作成/編集画面(CharacterCreateScreen)の画面状態を表すUiState。

@@ -26,6 +26,24 @@
 ## 画面遷移
 
 - 画面遷移はNavigation(Navigation Compose)を用いる。sealed classの手動切り替えなど、自前の画面状態管理による遷移は行わない。
+- ルートはKotlin Serialization(`@Serializable`)による型安全ナビゲーションで定義する。文字列ルート+`navArgument`による手動の引数定義は行わない。
+- ナビゲーションを1つのファイルに一括管理しない。各画面が自分自身のルート定義・画面遷移関数を`<画面名>Navigation.kt`として個別に持つ(詳細は「uiモジュールのディレクトリ構成」を参照)。
+- アプリ全体のNavHostは、各画面の`<画面名>Navigation.kt`が公開する`NavGraphBuilder`拡張関数を呼び出して画面グラフを組み立てるだけの薄い集約点とする。ルートの定義や画面遷移先の詳細をNavHost自身に書かない。
+
+## uiモジュールのディレクトリ構成
+
+`ui`モジュールは画面(Screen)単位のディレクトリで構成する。各画面ディレクトリは以下の形を基本とする。
+
+```
+ui/<screenName>/
+    model/                       画面固有のUiStateなどのモデル
+    components/                  画面固有の再利用可能なComposable部品
+    <ScreenName>Screen.kt        画面本体のComposable
+    <ScreenName>ViewModel.kt     画面に対応するViewModel
+    <ScreenName>Navigation.kt    画面のルート定義・NavGraphBuilder拡張・NavController拡張
+```
+
+- 複数画面から共有されるNavHostなど、特定の画面に属さないものだけを`ui`直下に置く。
 
 ## モジュール構成
 

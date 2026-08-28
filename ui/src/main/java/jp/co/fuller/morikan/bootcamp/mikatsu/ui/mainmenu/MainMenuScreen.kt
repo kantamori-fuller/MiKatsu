@@ -1,4 +1,4 @@
-package jp.co.fuller.morikan.bootcamp.mikatsu.ui.screens
+package jp.co.fuller.morikan.bootcamp.mikatsu.ui.mainmenu
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column

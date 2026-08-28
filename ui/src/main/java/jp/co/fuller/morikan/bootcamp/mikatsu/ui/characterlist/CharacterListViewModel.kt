@@ -1,10 +1,11 @@
-package jp.co.fuller.morikan.bootcamp.mikatsu.ui.viewmodel
+package jp.co.fuller.morikan.bootcamp.mikatsu.ui.characterlist
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.DeleteCharacterUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.ObserveCharactersUseCase
+import jp.co.fuller.morikan.bootcamp.mikatsu.ui.characterlist.model.CharacterListUiState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.launchIn
