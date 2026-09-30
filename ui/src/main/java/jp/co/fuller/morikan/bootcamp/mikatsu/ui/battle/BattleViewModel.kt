@@ -8,6 +8,7 @@ import dagger.assisted.AssistedInject
 import dagger.hilt.android.lifecycle.HiltViewModel
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleAlly
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleEnemy
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.Formation
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.GetBattleFieldUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleUiState
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleUnitUiModel
@@ -19,18 +20,18 @@ import kotlinx.coroutines.launch
 /**
  * バトル画面(BattleScreen)のViewModel。
  *
- * 編成画面で選択されたキャラクターID([partyCharacterIds])をもとに、[getBattleFieldUseCase]
- * 経由でFPID(フィールドポーンID)を割り当てた味方・敵陣営のデータを取得し、[uiState]として
- * 公開することを目的とする。戦闘の具体的なロジック(ダメージ計算やターン進行など)は
+ * 編成画面で編成された陣形([formation])をもとに、[getBattleFieldUseCase]
+ * 経由でFPID(フィールドポーンID)を割り当てた味方・敵陣営のデータを取得し、味方は陣形の
+ * マスごとに並べ直したうえで[uiState]として公開することを目的とする。戦闘の具体的なロジック(ダメージ計算やターン進行など)は
  * 本ViewModelの責務ではなく、今後別途実装される想定である。
  *
- * @property partyCharacterIds 編成画面で選択された、味方として参戦するキャラクターのID一覧。
+ * @property formation 編成画面で編成された、味方として参戦するキャラクターの陣形。
  * @property getBattleFieldUseCase 今回のバトルの味方・敵に、陣営を通じて一意なFPIDを
  *   割り当てたフィールドデータを取得するUseCase。
  */
 @HiltViewModel(assistedFactory = BattleViewModel.Factory::class)
 class BattleViewModel @AssistedInject constructor(
-    @Assisted private val partyCharacterIds: List<Int>,
+    @Assisted private val formation: Formation,
     private val getBattleFieldUseCase: GetBattleFieldUseCase,
 ) : ViewModel() {
 
@@ -41,11 +42,12 @@ class BattleViewModel @AssistedInject constructor(
 
     init {
         viewModelScope.launch {
-            val battleField = getBattleFieldUseCase(partyCharacterIds)
+            val battleField = getBattleFieldUseCase(formation)
+            val alliesBySlot = battleField.allies.associateBy(BattleAlly::slot)
             _uiState.update {
                 it.copy(
                     enemies = battleField.enemies.map(BattleEnemy::toUiModel),
-                    party = battleField.allies.map(BattleAlly::toUiModel),
+                    partySlots = List(Formation.SLOT_COUNT) { slot -> alliesBySlot[slot]?.toUiModel() },
                 )
             }
         }
@@ -62,16 +64,16 @@ class BattleViewModel @AssistedInject constructor(
     /**
      * Hiltが[BattleViewModel]を生成するためのAssisted Factory。
      *
-     * DIコンテナが解決できないルート由来の実行時の値([partyCharacterIds])を
+     * DIコンテナが解決できないルート由来の実行時の値([formation])を
      * 呼び出し側([BattleNavigation])から受け取るための橋渡し役を担う。
      */
     @AssistedFactory
     interface Factory {
         /**
-         * @param partyCharacterIds 編成画面で選択された味方キャラクターのID一覧。
+         * @param formation 編成画面で編成された味方キャラクターの陣形。
          * @return 生成された[BattleViewModel]。
          */
-        fun create(partyCharacterIds: List<Int>): BattleViewModel
+        fun create(formation: Formation): BattleViewModel
     }
 }
 

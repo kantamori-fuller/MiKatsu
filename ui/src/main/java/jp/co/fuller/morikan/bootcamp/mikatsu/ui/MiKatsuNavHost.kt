@@ -58,7 +58,7 @@ fun MiKatsuNavHost(modifier: Modifier = Modifier) {
             )
             partyFormationEntry(
                 onBack = { backStack.removeLastOrNull() },
-                onConfirm = { characterIds -> backStack.add(BattleRoute(characterIds)) },
+                onConfirm = { formation -> backStack.add(BattleRoute(formation)) },
             )
             battleEntry(
                 onRetreat = { backStack.removeLastOrNull() },

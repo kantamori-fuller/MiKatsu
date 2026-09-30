@@ -1,5 +1,7 @@
 package jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model
 
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.Formation
+
 /**
  * バトル画面に表示する、敵または味方1体分の状態を表すUIモデル。
  *
@@ -32,9 +34,10 @@ data class BattleUnitUiModel(
  * バトル画面(BattleScreen)の画面状態を表すUiState。
  *
  * @property enemies 敵陣営の一覧。最大6体を想定する。
- * @property party 味方(プレイヤー)陣営の一覧。現状は最大2名までとなる。
+ * @property partySlots 味方(プレイヤー)陣営の陣形の、スロット番号ごとの味方。要素数は
+ *   [Formation.SLOT_COUNT]であり、味方が配置されていないマスは`null`となる。
  */
 data class BattleUiState(
     val enemies: List<BattleUnitUiModel> = emptyList(),
-    val party: List<BattleUnitUiModel> = emptyList(),
+    val partySlots: List<BattleUnitUiModel?> = List(Formation.SLOT_COUNT) { null },
 )

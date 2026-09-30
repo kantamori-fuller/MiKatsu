@@ -28,6 +28,8 @@
     <string name="party_formation_title">編成</string>
     <string name="content_description_select">選択</string>
     <string name="action_confirm">決定</string>
+    <string name="formation_hint">キャラを長押しして下の表へドラッグすると編成できます。マスをタップすると編成から外せます。</string>
+    <string name="formation_empty_slot">空き</string>
 
     <string name="action_attack">攻撃</string>
     <string name="action_retreat">撤退</string>

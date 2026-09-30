@@ -3,7 +3,6 @@ package jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.components
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Card
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -22,6 +21,8 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleUnitUiModel
  * 敵陣営・味方陣営の双方から共通で利用され、この画面における
  * 「四角いカード」という見た目を1箇所にまとめることを目的とする。
  *
+ * カードの幅は並べ方によって異なるため、呼び出し側が[modifier]で指定する。
+ *
  * @param unit 表示する敵またはキャラクターの状態。
  * @param modifier このComposableに適用する[Modifier]。
  */
@@ -30,7 +31,7 @@ internal fun UnitStatCard(
     unit: BattleUnitUiModel,
     modifier: Modifier = Modifier,
 ) {
-    Card(modifier = modifier.width(100.dp)) {
+    Card(modifier = modifier) {
         Column(modifier = Modifier.padding(8.dp)) {
             Text(
                 unit.name,
