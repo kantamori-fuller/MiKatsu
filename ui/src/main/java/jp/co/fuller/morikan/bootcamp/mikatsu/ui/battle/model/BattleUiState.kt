@@ -9,7 +9,10 @@ package jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model
  * 表示専用の型としてこの1つに集約する。戦闘の具体的なロジック実装前の現段階では
  * 被ダメージ等の状態を持たないため、[hp]/[mana]は常にそれぞれ[maxHp]/[maxMana]と同じ値になる。
  *
- * @property id 表示元(敵またはキャラクター)のID。
+ * @property id 表示元のFPID(フィールドポーンID)。味方・敵を問わず、フィールド全体を
+ *   通じて一意な値となる([jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleFieldPawn.fpid]
+ *   参照)。同じ敵種(EID)がフィールドに複数体登場し得るため、キャラクターIDやEIDでは
+ *   なくFPIDを用いる。
  * @property name 表示する名前。
  * @property hp 現在のHP。
  * @property maxHp 最大HP。
