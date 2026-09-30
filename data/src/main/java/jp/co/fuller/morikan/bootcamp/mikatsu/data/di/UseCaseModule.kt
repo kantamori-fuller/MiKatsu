@@ -7,8 +7,8 @@ import dagger.hilt.components.SingletonComponent
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.repository.CharacterRepository
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.repository.EnemyRepository
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.DeleteCharacterUseCase
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.GetBattleFieldUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.GetCharacterUseCase
-import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.GetEnemiesUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.ObserveCharactersUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.SaveCharacterUseCase
 
@@ -56,10 +56,13 @@ object UseCaseModule {
         DeleteCharacterUseCase(repository)
 
     /**
-     * @param repository 注入される[EnemyRepository]。
-     * @return 今回のバトルに登場する敵の一覧を取得する[GetEnemiesUseCase]。
+     * @param characterRepository 注入される[CharacterRepository]。
+     * @param enemyRepository 注入される[EnemyRepository]。
+     * @return 今回のバトルの味方・敵にFPIDを割り当てて取得する[GetBattleFieldUseCase]。
      */
     @Provides
-    fun provideGetEnemiesUseCase(repository: EnemyRepository): GetEnemiesUseCase =
-        GetEnemiesUseCase(repository)
+    fun provideGetBattleFieldUseCase(
+        characterRepository: CharacterRepository,
+        enemyRepository: EnemyRepository,
+    ): GetBattleFieldUseCase = GetBattleFieldUseCase(characterRepository, enemyRepository)
 }

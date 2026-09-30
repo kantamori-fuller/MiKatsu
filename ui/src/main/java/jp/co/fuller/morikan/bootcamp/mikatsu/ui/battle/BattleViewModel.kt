@@ -6,10 +6,9 @@ import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
 import dagger.hilt.android.lifecycle.HiltViewModel
-import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.Character
-import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.Enemy
-import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.GetCharacterUseCase
-import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.GetEnemiesUseCase
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleAlly
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleEnemy
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.GetBattleFieldUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleUiState
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleUnitUiModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,20 +19,19 @@ import kotlinx.coroutines.launch
 /**
  * バトル画面(BattleScreen)のViewModel。
  *
- * 編成画面で選択されたキャラクターID([partyCharacterIds])をもとに味方陣営のデータを、
- * [getEnemiesUseCase]経由で敵陣営のデータを取得し、[uiState]として公開することを目的とする。
- * 戦闘の具体的なロジック(ダメージ計算やターン進行など)は本ViewModelの責務ではなく、
- * 今後別途実装される想定である。
+ * 編成画面で選択されたキャラクターID([partyCharacterIds])をもとに、[getBattleFieldUseCase]
+ * 経由でFPID(フィールドポーンID)を割り当てた味方・敵陣営のデータを取得し、[uiState]として
+ * 公開することを目的とする。戦闘の具体的なロジック(ダメージ計算やターン進行など)は
+ * 本ViewModelの責務ではなく、今後別途実装される想定である。
  *
  * @property partyCharacterIds 編成画面で選択された、味方として参戦するキャラクターのID一覧。
- * @property getEnemiesUseCase 今回のバトルに登場する敵の一覧を取得するUseCase。
- * @property getCharacterUseCase 指定IDのキャラクターを取得するUseCase。
+ * @property getBattleFieldUseCase 今回のバトルの味方・敵に、陣営を通じて一意なFPIDを
+ *   割り当てたフィールドデータを取得するUseCase。
  */
 @HiltViewModel(assistedFactory = BattleViewModel.Factory::class)
 class BattleViewModel @AssistedInject constructor(
     @Assisted private val partyCharacterIds: List<Int>,
-    private val getEnemiesUseCase: GetEnemiesUseCase,
-    private val getCharacterUseCase: GetCharacterUseCase,
+    private val getBattleFieldUseCase: GetBattleFieldUseCase,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(BattleUiState())
@@ -43,11 +41,13 @@ class BattleViewModel @AssistedInject constructor(
 
     init {
         viewModelScope.launch {
-            val enemies = getEnemiesUseCase().map(Enemy::toUiModel)
-            val party = partyCharacterIds
-                .mapNotNull { id -> getCharacterUseCase(id) }
-                .map(Character::toUiModel)
-            _uiState.update { it.copy(enemies = enemies, party = party) }
+            val battleField = getBattleFieldUseCase(partyCharacterIds)
+            _uiState.update {
+                it.copy(
+                    enemies = battleField.enemies.map(BattleEnemy::toUiModel),
+                    party = battleField.allies.map(BattleAlly::toUiModel),
+                )
+            }
         }
     }
 
@@ -76,34 +76,39 @@ class BattleViewModel @AssistedInject constructor(
 }
 
 /**
- * [Enemy]をバトル画面表示用の[BattleUnitUiModel]へ変換する。
+ * [BattleEnemy]をバトル画面表示用の[BattleUnitUiModel]へ変換する。
  *
- * @receiver 変換元の敵。
+ * 同じ敵種がフィールドに複数体登場してもUI上で区別できるよう、[id][BattleUnitUiModel.id]には
+ * EID(敵種のID)ではなく、[BattleAlly]を含めたフィールド全体で一意な[BattleEnemy.fpid]を用いる。
+ * また敵は被ダメージ等の状態を持たないため、現在値・最大値ともにステータス値をそのまま用いる。
+ *
+ * @receiver 変換元のフィールド上の敵個体。
  * @return 変換後の[BattleUnitUiModel]。
  */
-private fun Enemy.toUiModel() = BattleUnitUiModel(
-    id = id,
-    name = name,
-    hp = hp,
-    maxHp = maxHp,
-    mana = mana,
-    maxMana = maxMana,
+private fun BattleEnemy.toUiModel() = BattleUnitUiModel(
+    id = fpid,
+    name = enemy.name,
+    hp = enemy.hp,
+    maxHp = enemy.hp,
+    mana = enemy.mana,
+    maxMana = enemy.mana,
 )
 
 /**
- * [Character]をバトル画面表示用の[BattleUnitUiModel]へ変換する。
+ * [BattleAlly]をバトル画面表示用の[BattleUnitUiModel]へ変換する。
  *
- * [Character]は被ダメージ等の状態を持たないため、現在値・最大値ともに
- * ステータス値をそのまま用いる。
+ * [id][BattleUnitUiModel.id]にはキャラクター自身のIDではなく、[BattleEnemy]を含めた
+ * フィールド全体で一意な[BattleAlly.fpid]を用いる。また味方は被ダメージ等の状態を
+ * 持たないため、現在値・最大値ともにステータス値をそのまま用いる。
  *
- * @receiver 変換元のキャラクター。
+ * @receiver 変換元のフィールド上の味方個体。
  * @return 変換後の[BattleUnitUiModel]。
  */
-private fun Character.toUiModel() = BattleUnitUiModel(
-    id = id,
-    name = name,
-    hp = hp,
-    maxHp = hp,
-    mana = mana,
-    maxMana = mana,
+private fun BattleAlly.toUiModel() = BattleUnitUiModel(
+    id = fpid,
+    name = character.name,
+    hp = character.hp,
+    maxHp = character.hp,
+    mana = character.mana,
+    maxMana = character.mana,
 )
