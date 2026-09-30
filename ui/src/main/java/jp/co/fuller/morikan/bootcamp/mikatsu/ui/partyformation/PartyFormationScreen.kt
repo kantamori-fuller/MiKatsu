@@ -13,6 +13,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -22,20 +23,25 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.Formation
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.R
+import jp.co.fuller.morikan.bootcamp.mikatsu.ui.components.FormationGrid
+import jp.co.fuller.morikan.bootcamp.mikatsu.ui.partyformation.components.FormationSlot
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.partyformation.components.PartyFormationListItem
 
 /**
  * バトルに連れて行くキャラクターを選択する編成画面。
  *
- * [PartyFormationViewModel.uiState]を購読して描画するのみに徹し、選択状態の管理は
- * 一切持たない(MVVMにおけるViewの責務のみを担う)。「決定」ボタンは画面下部、
- * かつ一覧の下に常に表示され、1体以上選択されている場合のみ押せるようになる。
+ * [PartyFormationViewModel.uiState]を購読して描画するのみに徹し、陣形の状態管理は
+ * 一切持たない(MVVMにおけるViewの責務のみを担う)。画面上部のキャラ一覧から
+ * キャラクターを長押しでドラッグし、その下の陣形の表(縦2マス×横3マス)のマスへ
+ * ドロップすることで編成する。「決定」ボタンは画面最下部に常に表示され、
+ * 1体以上配置されている場合のみ押せるようになる。
  *
  * @param viewModel この画面に対応する[PartyFormationViewModel]。
  * @param onBack 画面上部の戻るボタンが押されたときに呼ばれるコールバック。
  * @param onConfirm 「決定」ボタンが押されたときに呼ばれるコールバック。
- *   選択済みキャラクターIDの一覧を引数に、バトル画面への遷移をNavHost側に委ねる。
+ *   編成した陣形を引数に、バトル画面への遷移をNavHost側に委ねる。
  * @param modifier このComposableに適用する[Modifier]。
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -43,7 +49,7 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.ui.partyformation.components.PartyF
 fun PartyFormationScreen(
     viewModel: PartyFormationViewModel,
     onBack: () -> Unit,
-    onConfirm: (List<Int>) -> Unit,
+    onConfirm: (Formation) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -72,15 +78,33 @@ fun PartyFormationScreen(
             LazyColumn(modifier = Modifier.weight(1f)) {
                 items(uiState.characters, key = { it.id }) { character ->
                     PartyFormationListItem(
+                        characterId = character.id,
                         name = character.name,
-                        isSelected = character.id in uiState.selectedIds,
-                        onToggleSelected = { viewModel.onToggleSelected(character.id) },
+                        isPlaced = character.id in uiState.formation.memberIds,
                     )
                     HorizontalDivider()
                 }
             }
+            HorizontalDivider()
+            Text(
+                stringResource(R.string.formation_hint),
+                modifier = Modifier.padding(start = 16.dp, top = 12.dp, end = 16.dp),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            FormationGrid(
+                slotContent = { slot, slotModifier ->
+                    FormationSlot(
+                        character = uiState.slotCharacters[slot],
+                        onDrop = { characterId -> viewModel.onDropToSlot(characterId, slot) },
+                        onClick = { viewModel.onSlotClick(slot) },
+                        modifier = slotModifier,
+                    )
+                },
+                modifier = Modifier.padding(start = 16.dp, top = 12.dp, end = 16.dp),
+            )
             Button(
-                onClick = { onConfirm(uiState.selectedIds) },
+                onClick = { onConfirm(uiState.formation) },
                 enabled = uiState.isConfirmEnabled,
                 modifier = Modifier
                     .fillMaxWidth()

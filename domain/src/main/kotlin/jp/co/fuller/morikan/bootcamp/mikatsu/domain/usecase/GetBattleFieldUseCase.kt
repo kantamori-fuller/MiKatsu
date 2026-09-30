@@ -3,6 +3,7 @@ package jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleAlly
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleEnemy
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleField
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.Formation
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.repository.CharacterRepository
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.repository.EnemyRepository
 
@@ -29,15 +30,19 @@ class GetBattleFieldUseCase(
     /**
      * 味方・敵にFPIDを割り当てた[BattleField]を組み立てる。
      *
-     * @param partyCharacterIds 味方として参戦するキャラクターのID一覧。
+     * 味方のFPIDは陣形のスロット番号順に割り当てる。
+     *
+     * @param formation 味方として参戦するキャラクターの陣形。
      * @return FPIDを割り当てた[BattleField]。
      */
-    suspend operator fun invoke(partyCharacterIds: List<Int>): BattleField {
+    suspend operator fun invoke(formation: Formation): BattleField {
         var nextFpid = 1
 
-        val allies = partyCharacterIds
-            .mapNotNull { id -> characterRepository.getCharacter(id) }
-            .map { character -> BattleAlly(fpid = nextFpid++, character = character) }
+        val allies = formation.characterIdsBySlot
+            .mapIndexedNotNull { slot, id ->
+                id?.let { characterRepository.getCharacter(it) }?.let { character -> slot to character }
+            }
+            .map { (slot, character) -> BattleAlly(fpid = nextFpid++, character = character, slot = slot) }
 
         val enemies = enemyRepository.getEnemies().flatMap { enemy ->
             List(ENCOUNTER_COUNT_PER_ENEMY) { BattleEnemy(fpid = nextFpid++, enemy = enemy) }

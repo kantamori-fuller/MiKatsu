@@ -15,9 +15,11 @@ import javax.inject.Inject
 /**
  * 編成画面(PartyFormationScreen)のViewModel。
  *
- * 保存済みキャラクターの一覧表示と、バトルへ連れて行くキャラクターの選択状態管理を
- * 担当することを目的とする。Screen側は本ViewModelの[uiState]を購読して描画するのみで、
- * ロジックは持たない。
+ * 保存済みキャラクターの一覧表示と、バトルへ連れて行くキャラクターの陣形(どのマスに誰を
+ * 置くか)の編集を担当することを目的とする。配置のルール自体はドメインモデルである
+ * [jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.Formation]が持ち、本ViewModelは
+ * 画面からのイベントをそれへ橋渡しする。Screen側は本ViewModelの[uiState]を購読して
+ * 描画するのみで、ロジックは持たない。
  *
  * @constructor Hiltがコンストラクタインジェクションで生成する。
  * @param observeCharactersUseCase 全キャラクター一覧を購読するUseCase。
@@ -39,26 +41,27 @@ class PartyFormationViewModel @Inject constructor(
     }
 
     /**
-     * 一覧アイテムがタップされたときに呼ばれる。
+     * キャラクターが陣形のマスへドロップされたときに呼ばれる。
      *
-     * 既に選択済みの場合は選択を解除し、未選択の場合は選択状態にする。ただし選択数が
-     * 上限([MAX_SELECTABLE_COUNT])に達している状態で未選択のキャラクターがタップされた
-     * 場合は何もしない。
+     * 一覧から新たに配置する場合と、既に配置済みのキャラクターを別のマスへ移動する場合の
+     * 双方を扱う。配置の可否や入れ替えの挙動は
+     * [Formation.place][jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.Formation.place]に従う。
      *
-     * @param id タップされたキャラクターのID。
+     * @param characterId ドロップされたキャラクターのID。
+     * @param slot ドロップ先のスロット番号。
      */
-    fun onToggleSelected(id: Int) {
-        _uiState.update { state ->
-            when {
-                id in state.selectedIds -> state.copy(selectedIds = state.selectedIds - id)
-                state.selectedIds.size >= MAX_SELECTABLE_COUNT -> state
-                else -> state.copy(selectedIds = state.selectedIds + id)
-            }
-        }
+    fun onDropToSlot(characterId: Int, slot: Int) {
+        _uiState.update { state -> state.copy(formation = state.formation.place(characterId, slot)) }
     }
 
-    companion object {
-        /** 編成に選択できるキャラクターの最大数。 */
-        private const val MAX_SELECTABLE_COUNT = 2
+    /**
+     * 陣形のマスがタップされたときに呼ばれる。
+     *
+     * そのマスに配置されているキャラクターを陣形から外す。空きマスの場合は何も変わらない。
+     *
+     * @param slot タップされたマスのスロット番号。
+     */
+    fun onSlotClick(slot: Int) {
+        _uiState.update { state -> state.copy(formation = state.formation.removeAt(slot)) }
     }
 }

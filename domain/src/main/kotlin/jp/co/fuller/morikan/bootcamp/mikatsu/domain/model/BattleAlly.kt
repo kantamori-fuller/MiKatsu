@@ -10,8 +10,10 @@ package jp.co.fuller.morikan.bootcamp.mikatsu.domain.model
  * @property fpid その戦闘限定で一意な、フィールド上の個体を識別するID。敵([BattleEnemy])を
  *   含めたフィールド全体で重複しない。
  * @property character 個体の元になった味方キャラクターのデータ。
+ * @property slot 陣形([Formation])上で配置されているマスのスロット番号。
  */
 data class BattleAlly(
     override val fpid: Int,
     val character: Character,
+    val slot: Int,
 ) : BattleFieldPawn
