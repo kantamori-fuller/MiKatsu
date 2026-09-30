@@ -8,12 +8,16 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
+import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.BattleRoute
+import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.battleEntry
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.charactercreate.CharacterCreateRoute
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.charactercreate.characterCreateEntry
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.characterlist.CharacterListRoute
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.characterlist.characterListEntry
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.mainmenu.MainMenuRoute
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.mainmenu.mainMenuEntry
+import jp.co.fuller.morikan.bootcamp.mikatsu.ui.partyformation.PartyFormationRoute
+import jp.co.fuller.morikan.bootcamp.mikatsu.ui.partyformation.partyFormationEntry
 
 /**
  * アプリ全体の画面遷移を組み立てるNavHost(Navigation 3 / [NavDisplay]ベース)。
@@ -42,6 +46,7 @@ fun MiKatsuNavHost(modifier: Modifier = Modifier) {
             mainMenuEntry(
                 onNavigateToCharacterCreate = { backStack.add(CharacterCreateRoute()) },
                 onNavigateToCharacterList = { backStack.add(CharacterListRoute) },
+                onNavigateToPartyFormation = { backStack.add(PartyFormationRoute) },
             )
             characterListEntry(
                 onBack = { backStack.removeLastOrNull() },
@@ -50,6 +55,13 @@ fun MiKatsuNavHost(modifier: Modifier = Modifier) {
             characterCreateEntry(
                 onBack = { backStack.removeLastOrNull() },
                 onSaved = { backStack.removeLastOrNull() },
+            )
+            partyFormationEntry(
+                onBack = { backStack.removeLastOrNull() },
+                onConfirm = { characterIds -> backStack.add(BattleRoute(characterIds)) },
+            )
+            battleEntry(
+                onRetreat = { backStack.removeLastOrNull() },
             )
         },
     )

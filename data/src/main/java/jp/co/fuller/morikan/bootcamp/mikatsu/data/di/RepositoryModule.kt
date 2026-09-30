@@ -5,7 +5,9 @@ import dagger.Module
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import jp.co.fuller.morikan.bootcamp.mikatsu.data.repository.CharacterRepositoryImpl
+import jp.co.fuller.morikan.bootcamp.mikatsu.data.repository.EnemyRepositoryImpl
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.repository.CharacterRepository
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.repository.EnemyRepository
 import javax.inject.Singleton
 
 /**
@@ -29,4 +31,14 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindCharacterRepository(impl: CharacterRepositoryImpl): CharacterRepository
+
+    /**
+     * [EnemyRepository]が要求された際に[EnemyRepositoryImpl]を注入するよう束縛する。
+     *
+     * @param impl Hiltが生成した[EnemyRepositoryImpl]のインスタンス。
+     * @return [EnemyRepository]として扱われる実装。
+     */
+    @Binds
+    @Singleton
+    abstract fun bindEnemyRepository(impl: EnemyRepositoryImpl): EnemyRepository
 }

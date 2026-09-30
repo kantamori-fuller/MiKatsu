@@ -20,15 +20,18 @@ data object MainMenuRoute : NavKey
  *
  * @param onNavigateToCharacterCreate 「キャラを作成」導線が選ばれたときに呼ばれるコールバック。
  * @param onNavigateToCharacterList 「キャラ一覧」導線が選ばれたときに呼ばれるコールバック。
+ * @param onNavigateToPartyFormation 「編成」導線が選ばれたときに呼ばれるコールバック。
  */
 fun EntryProviderScope<NavKey>.mainMenuEntry(
     onNavigateToCharacterCreate: () -> Unit,
     onNavigateToCharacterList: () -> Unit,
+    onNavigateToPartyFormation: () -> Unit,
 ) {
     entry<MainMenuRoute> {
         MainMenuScreen(
             onCreateCharacter = onNavigateToCharacterCreate,
             onShowCharacterList = onNavigateToCharacterList,
+            onShowPartyFormation = onNavigateToPartyFormation,
         )
     }
 }
