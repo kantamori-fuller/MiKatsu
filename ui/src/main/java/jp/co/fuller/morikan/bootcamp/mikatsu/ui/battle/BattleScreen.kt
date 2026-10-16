@@ -35,7 +35,8 @@ private val ENEMY_CARD_WIDTH = 100.dp
  * [BattleViewModel.uiState]を購読して描画するのみに徹する(MVVMにおけるViewの責務のみを担う)。
  * 画面上部に敵陣営(最大6体)のカードを並べ、画面下部には編成画面と同じ形の陣形の表
  * (縦2マス×横3マス)に味方陣営のカードを配置し、その下にコマンド選択部分(攻撃・撤退)を
- * 配置する。他の画面と異なりトップバーは表示しない。
+ * 配置する。味方のカードはタップで1体のみ選択でき、攻撃ボタンは味方を選択している間のみ押下できる。
+ * 他の画面と異なりトップバーは表示しない。
  *
  * @param viewModel この画面に対応する[BattleViewModel]。
  * @param onRetreat 「撤退」ボタンが押されたときに呼ばれるコールバック。
@@ -63,7 +64,12 @@ fun BattleScreen(
                 slotContent = { slot, slotModifier ->
                     val member = uiState.partySlots[slot]
                     if (member != null) {
-                        UnitStatCard(unit = member, modifier = slotModifier)
+                        UnitStatCard(
+                            unit = member,
+                            modifier = slotModifier,
+                            isSelected = member.id == uiState.selectedAllyId,
+                            onClick = { viewModel.onAllyClick(member.id) },
+                        )
                     } else {
                         FormationSlotFrame(modifier = slotModifier)
                     }
@@ -74,7 +80,11 @@ fun BattleScreen(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                Button(onClick = viewModel::onAttackClick, modifier = Modifier.weight(1f)) {
+                Button(
+                    onClick = viewModel::onAttackClick,
+                    enabled = uiState.isAttackEnabled,
+                    modifier = Modifier.weight(1f),
+                ) {
                     Text(stringResource(R.string.action_attack))
                 }
                 Button(onClick = onRetreat, modifier = Modifier.weight(1f)) {

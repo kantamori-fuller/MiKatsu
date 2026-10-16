@@ -36,8 +36,19 @@ data class BattleUnitUiModel(
  * @property enemies 敵陣営の一覧。最大6体を想定する。
  * @property partySlots 味方(プレイヤー)陣営の陣形の、スロット番号ごとの味方。要素数は
  *   [Formation.SLOT_COUNT]であり、味方が配置されていないマスは`null`となる。
+ * @property selectedAllyId 選択中の味方のFPID([BattleUnitUiModel.id])。未選択の場合は`null`。
+ *   選択できる味方は同時に1体のみである。
  */
 data class BattleUiState(
     val enemies: List<BattleUnitUiModel> = emptyList(),
     val partySlots: List<BattleUnitUiModel?> = List(Formation.SLOT_COUNT) { null },
-)
+    val selectedAllyId: Int? = null,
+) {
+    /**
+     * 「攻撃」ボタンを押下できるかどうか。
+     *
+     * 攻撃は味方を1体選択している状態でのみ行えるため、[selectedAllyId]が存在するときのみ`true`となる。
+     */
+    val isAttackEnabled: Boolean
+        get() = selectedAllyId != null
+}

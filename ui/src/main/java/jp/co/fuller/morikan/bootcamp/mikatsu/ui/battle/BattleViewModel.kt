@@ -54,6 +54,21 @@ class BattleViewModel @AssistedInject constructor(
     }
 
     /**
+     * 味方のカードがタップされたときに呼ばれる。
+     *
+     * 選択できる味方は同時に1体のみで、未選択のカードをタップするとその味方を選択状態にし
+     * (既に別の味方が選択されていた場合は選択を切り替える)、選択中のカードを再度タップすると選択を解除する。
+     * 攻撃対象の指定などで味方を一意に特定できるよう、味方はFPIDで識別する。
+     *
+     * @param fpid タップされた味方のFPID([BattleUnitUiModel.id])。
+     */
+    fun onAllyClick(fpid: Int) {
+        _uiState.update {
+            it.copy(selectedAllyId = if (it.selectedAllyId == fpid) null else fpid)
+        }
+    }
+
+    /**
      * 「攻撃」ボタンが押されたときに呼ばれる。
      *
      * 現段階では戦闘ロジックが未実装のため何も行わない。今後の対応でダメージ計算等の
