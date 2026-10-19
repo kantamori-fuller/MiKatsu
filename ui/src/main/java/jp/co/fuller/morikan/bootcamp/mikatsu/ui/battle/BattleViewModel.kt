@@ -59,11 +59,13 @@ class BattleViewModel @AssistedInject constructor(
      * 選択できる味方は同時に1体のみで、未選択のカードをタップするとその味方を選択状態にし
      * (既に別の味方が選択されていた場合は選択を切り替える)、選択中のカードを再度タップすると選択を解除する。
      * 攻撃対象の指定などで味方を一意に特定できるよう、味方はFPIDで識別する。
+     * 対象選択状態の間は味方の選択を変更できないため、何も行わない。
      *
      * @param fpid タップされた味方のFPID([BattleUnitUiModel.id])。
      */
     fun onAllyClick(fpid: Int) {
         _uiState.update {
+            if (it.isSelectingTarget) return@update it
             it.copy(selectedAllyId = if (it.selectedAllyId == fpid) null else fpid)
         }
     }
@@ -71,10 +73,40 @@ class BattleViewModel @AssistedInject constructor(
     /**
      * 「攻撃」ボタンが押されたときに呼ばれる。
      *
-     * 現段階では戦闘ロジックが未実装のため何も行わない。今後の対応でダメージ計算等の
-     * 処理をここに追加する想定である。
+     * 味方が選択されていれば対象選択状態へ移行する。味方が未選択の場合や、既に対象選択状態の場合は
+     * 何も行わない。ダメージ計算等の戦闘ロジックは未実装であり、今後の対応で追加する想定である。
      */
-    fun onAttackClick() = Unit
+    fun onAttackClick() {
+        _uiState.update {
+            if (!it.isAttackEnabled) it else it.copy(isSelectingTarget = true)
+        }
+    }
+
+    /**
+     * 対象選択状態で「キャンセル」ボタンが押されたときに呼ばれる。
+     *
+     * 対象選択状態を解除し、味方を選択した状態(行動選択)に戻す。味方の選択は維持される。
+     * 対象選択状態でなければ何も行わない。
+     */
+    fun onCancelClick() {
+        _uiState.update { it.copy(isSelectingTarget = false) }
+    }
+
+    /**
+     * 敵のカードがタップされたときに呼ばれる。
+     *
+     * 対象選択状態で敵が選択された場合、味方の選択と対象選択状態をともに解除して
+     * 戦闘開始時と同じ状態(キャラ選択待ち)に戻す。ダメージ計算等は未実装のため、
+     * どの敵が選ばれたかはまだ保持しない。対象選択状態でなければ何も行わない。
+     *
+     * @param fpid タップされた敵のFPID([BattleUnitUiModel.id])。
+     */
+    @Suppress("UNUSED_PARAMETER")
+    fun onEnemyClick(fpid: Int) {
+        _uiState.update {
+            if (!it.isSelectingTarget) it else it.copy(selectedAllyId = null, isSelectingTarget = false)
+        }
+    }
 
     /**
      * Hiltが[BattleViewModel]を生成するためのAssisted Factory。
