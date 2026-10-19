@@ -42,10 +42,10 @@ class GetBattleFieldUseCase(
             .mapIndexedNotNull { slot, id ->
                 id?.let { characterRepository.getCharacter(it) }?.let { character -> slot to character }
             }
-            .map { (slot, character) -> BattleAlly(fpid = nextFpid++, character = character, slot = slot) }
+            .map { (slot, character) -> BattleAlly(fpid = nextFpid++, character = character, currentHp = character.hp, slot = slot) }
 
         val enemies = enemyRepository.getEnemies().flatMap { enemy ->
-            List(ENCOUNTER_COUNT_PER_ENEMY) { BattleEnemy(fpid = nextFpid++, enemy = enemy) }
+            List(ENCOUNTER_COUNT_PER_ENEMY) { BattleEnemy(fpid = nextFpid++, enemy = enemy, currentHp = enemy.hp) }
         }
 
         return BattleField(allies = allies, enemies = enemies)

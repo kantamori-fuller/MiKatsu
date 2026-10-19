@@ -8,8 +8,8 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.Formation
  * 敵([jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.Enemy])と
  * 味方([jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.Character])はドメイン上
  * 別のモデルだが、バトル画面での見た目(名前・HP・MPの数値とゲージ)は共通のため、
- * 表示専用の型としてこの1つに集約する。戦闘の具体的なロジック実装前の現段階では
- * 被ダメージ等の状態を持たないため、[hp]/[mana]は常にそれぞれ[maxHp]/[maxMana]と同じ値になる。
+ * 表示専用の型としてこの1つに集約する。[hp]は戦闘中のダメージで減少する
+ * 現在値であり、[mana]は現段階ではまだ消費されないため常に[maxMana]と同じ値になる。
  *
  * @property id 表示元のFPID(フィールドポーンID)。味方・敵を問わず、フィールド全体を
  *   通じて一意な値となる([jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleFieldPawn.fpid]
