@@ -36,8 +36,36 @@ data class BattleUnitUiModel(
  * @property enemies 敵陣営の一覧。最大6体を想定する。
  * @property partySlots 味方(プレイヤー)陣営の陣形の、スロット番号ごとの味方。要素数は
  *   [Formation.SLOT_COUNT]であり、味方が配置されていないマスは`null`となる。
+ * @property selectedAllyId 選択中の味方のFPID([BattleUnitUiModel.id])。未選択の場合は`null`。
+ *   選択できる味方は同時に1体のみである。
+ * @property isSelectingTarget 攻撃対象を選択している状態(対象選択状態)かどうか。
+ *   「攻撃」ボタンの押下で`true`になり、キャンセルまたは敵の選択で`false`に戻る。
+ *   `true`の間は必ず[selectedAllyId]が存在する。
  */
 data class BattleUiState(
     val enemies: List<BattleUnitUiModel> = emptyList(),
     val partySlots: List<BattleUnitUiModel?> = List(Formation.SLOT_COUNT) { null },
-)
+    val selectedAllyId: Int? = null,
+    val isSelectingTarget: Boolean = false,
+) {
+    /**
+     * 「攻撃」ボタンを押下できるかどうか。
+     *
+     * 攻撃は味方を1体選択している状態でのみ行えるため、[selectedAllyId]が存在するときのみ`true`となる。
+     */
+    val isAttackEnabled: Boolean
+        get() = selectedAllyId != null
+
+    /**
+     * 現在の状態に応じて表示すべきバトルナレーターの種類。
+     *
+     * 対象選択状態なら[BattleNarration.SelectTarget]、味方が選択済みなら
+     * [BattleNarration.SelectAction]、どちらでもなければ[BattleNarration.SelectCharacter]となる。
+     */
+    val narration: BattleNarration
+        get() = when {
+            isSelectingTarget -> BattleNarration.SelectTarget
+            selectedAllyId != null -> BattleNarration.SelectAction
+            else -> BattleNarration.SelectCharacter
+        }
+}
