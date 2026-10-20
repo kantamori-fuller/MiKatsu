@@ -9,7 +9,9 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleAlly
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleEnemy
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.Formation
-import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.GetBattleFieldUseCase
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.AttackUseCase
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.ObserveBattleFieldUseCase
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.StartBattleUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleUiState
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleUnitUiModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,19 +22,23 @@ import kotlinx.coroutines.launch
 /**
  * バトル画面(BattleScreen)のViewModel。
  *
- * 編成画面で編成された陣形([formation])をもとに、[getBattleFieldUseCase]
- * 経由でFPID(フィールドポーンID)を割り当てた味方・敵陣営のデータを取得し、味方は陣形の
- * マスごとに並べ直したうえで[uiState]として公開することを目的とする。戦闘の具体的なロジック(ダメージ計算やターン進行など)は
- * 本ViewModelの責務ではなく、今後別途実装される想定である。
+ * 編成画面で編成された陣形([formation])で[startBattleUseCase]により戦闘を開始し、
+ * [observeBattleFieldUseCase]で購読した戦闘フィールド(現在HPを含む。正はRepositoryが保持する)
+ * をもとに、味方は陣形のマスごとに並べ直したうえで[uiState]として公開することを目的とする。
+ * 敵がタップされたときは[attackUseCase]で通常攻撃を実行する。ターン進行などは本ViewModelの
+ * 責務ではなく、今後別途実装される想定である。
  *
  * @property formation 編成画面で編成された、味方として参戦するキャラクターの陣形。
- * @property getBattleFieldUseCase 今回のバトルの味方・敵に、陣営を通じて一意なFPIDを
- *   割り当てたフィールドデータを取得するUseCase。
+ * @property startBattleUseCase 陣形から戦闘を開始するUseCase。
+ * @property observeBattleFieldUseCase 戦闘フィールドの最新状態を購読するUseCase。
+ * @property attackUseCase 通常攻撃を実行するUseCase。
  */
 @HiltViewModel(assistedFactory = BattleViewModel.Factory::class)
 class BattleViewModel @AssistedInject constructor(
     @Assisted private val formation: Formation,
-    private val getBattleFieldUseCase: GetBattleFieldUseCase,
+    private val startBattleUseCase: StartBattleUseCase,
+    private val observeBattleFieldUseCase: ObserveBattleFieldUseCase,
+    private val attackUseCase: AttackUseCase,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(BattleUiState())
@@ -42,13 +48,15 @@ class BattleViewModel @AssistedInject constructor(
 
     init {
         viewModelScope.launch {
-            val battleField = getBattleFieldUseCase(formation)
-            val alliesBySlot = battleField.allies.associateBy(BattleAlly::slot)
-            _uiState.update {
-                it.copy(
-                    enemies = battleField.enemies.map(BattleEnemy::toUiModel),
-                    partySlots = List(Formation.SLOT_COUNT) { slot -> alliesBySlot[slot]?.toUiModel() },
-                )
+            startBattleUseCase(formation)
+            observeBattleFieldUseCase().collect { battleField ->
+                val alliesBySlot = battleField.allies.associateBy(BattleAlly::slot)
+                _uiState.update {
+                    it.copy(
+                        enemies = battleField.enemies.map(BattleEnemy::toUiModel),
+                        partySlots = List(Formation.SLOT_COUNT) { slot -> alliesBySlot[slot]?.toUiModel() },
+                    )
+                }
             }
         }
     }
@@ -74,7 +82,7 @@ class BattleViewModel @AssistedInject constructor(
      * 「攻撃」ボタンが押されたときに呼ばれる。
      *
      * 味方が選択されていれば対象選択状態へ移行する。味方が未選択の場合や、既に対象選択状態の場合は
-     * 何も行わない。ダメージ計算等の戦闘ロジックは未実装であり、今後の対応で追加する想定である。
+     * 何も行わない。
      */
     fun onAttackClick() {
         _uiState.update {
@@ -95,16 +103,19 @@ class BattleViewModel @AssistedInject constructor(
     /**
      * 敵のカードがタップされたときに呼ばれる。
      *
-     * 対象選択状態で敵が選択された場合、味方の選択と対象選択状態をともに解除して
-     * 戦闘開始時と同じ状態(キャラ選択待ち)に戻す。ダメージ計算等は未実装のため、
-     * どの敵が選ばれたかはまだ保持しない。対象選択状態でなければ何も行わない。
+     * 対象選択状態で味方が選択されていれば、その味方からタップされた敵へ通常攻撃を行って
+     * ダメージを与え、味方の選択と対象選択状態をともに解除して戦闘開始時と同じ状態
+     * (キャラ選択待ち)に戻す。対象選択状態でなければ何も行わない。
      *
      * @param fpid タップされた敵のFPID([BattleUnitUiModel.id])。
      */
-    @Suppress("UNUSED_PARAMETER")
     fun onEnemyClick(fpid: Int) {
-        _uiState.update {
-            if (!it.isSelectingTarget) it else it.copy(selectedAllyId = null, isSelectingTarget = false)
+        val state = _uiState.value
+        val attackerFpid = state.selectedAllyId
+        if (!state.isSelectingTarget || attackerFpid == null) return
+        _uiState.update { it.copy(selectedAllyId = null, isSelectingTarget = false) }
+        viewModelScope.launch {
+            attackUseCase(attackerFpid = attackerFpid, targetFpid = fpid)
         }
     }
 
@@ -129,7 +140,7 @@ class BattleViewModel @AssistedInject constructor(
  *
  * 同じ敵種がフィールドに複数体登場してもUI上で区別できるよう、[id][BattleUnitUiModel.id]には
  * EID(敵種のID)ではなく、[BattleAlly]を含めたフィールド全体で一意な[BattleEnemy.fpid]を用いる。
- * また敵は被ダメージ等の状態を持たないため、現在値・最大値ともにステータス値をそのまま用いる。
+ * HPは戦闘中に変化する[BattleEnemy.currentHp]を現在値、[BattleEnemy.maxHp]を最大値として用いる。
  *
  * @receiver 変換元のフィールド上の敵個体。
  * @return 変換後の[BattleUnitUiModel]。
@@ -137,8 +148,8 @@ class BattleViewModel @AssistedInject constructor(
 private fun BattleEnemy.toUiModel() = BattleUnitUiModel(
     id = fpid,
     name = enemy.name,
-    hp = enemy.hp,
-    maxHp = enemy.hp,
+    hp = currentHp,
+    maxHp = maxHp,
     mana = enemy.mana,
     maxMana = enemy.mana,
 )
@@ -147,8 +158,8 @@ private fun BattleEnemy.toUiModel() = BattleUnitUiModel(
  * [BattleAlly]をバトル画面表示用の[BattleUnitUiModel]へ変換する。
  *
  * [id][BattleUnitUiModel.id]にはキャラクター自身のIDではなく、[BattleEnemy]を含めた
- * フィールド全体で一意な[BattleAlly.fpid]を用いる。また味方は被ダメージ等の状態を
- * 持たないため、現在値・最大値ともにステータス値をそのまま用いる。
+ * フィールド全体で一意な[BattleAlly.fpid]を用いる。HPは戦闘中に変化する
+ * [BattleAlly.currentHp]を現在値、[BattleAlly.maxHp]を最大値として用いる。
  *
  * @receiver 変換元のフィールド上の味方個体。
  * @return 変換後の[BattleUnitUiModel]。
@@ -156,8 +167,8 @@ private fun BattleEnemy.toUiModel() = BattleUnitUiModel(
 private fun BattleAlly.toUiModel() = BattleUnitUiModel(
     id = fpid,
     name = character.name,
-    hp = character.hp,
-    maxHp = character.hp,
+    hp = currentHp,
+    maxHp = maxHp,
     mana = character.mana,
     maxMana = character.mana,
 )

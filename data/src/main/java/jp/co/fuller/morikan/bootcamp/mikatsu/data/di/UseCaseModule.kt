@@ -4,13 +4,17 @@ import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.repository.BattleRepository
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.repository.CharacterRepository
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.repository.EnemyRepository
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.AttackUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.DeleteCharacterUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.GetBattleFieldUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.GetCharacterUseCase
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.ObserveBattleFieldUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.ObserveCharactersUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.SaveCharacterUseCase
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.StartBattleUseCase
 
 /**
  * `domain`モジュールのUseCase群をHiltへ提供するDIモジュール。
@@ -65,4 +69,31 @@ object UseCaseModule {
         characterRepository: CharacterRepository,
         enemyRepository: EnemyRepository,
     ): GetBattleFieldUseCase = GetBattleFieldUseCase(characterRepository, enemyRepository)
+
+    /**
+     * @param getBattleFieldUseCase 注入される[GetBattleFieldUseCase]。
+     * @param battleRepository 注入される[BattleRepository]。
+     * @return 戦闘を開始する[StartBattleUseCase]。
+     */
+    @Provides
+    fun provideStartBattleUseCase(
+        getBattleFieldUseCase: GetBattleFieldUseCase,
+        battleRepository: BattleRepository,
+    ): StartBattleUseCase = StartBattleUseCase(getBattleFieldUseCase, battleRepository)
+
+    /**
+     * @param battleRepository 注入される[BattleRepository]。
+     * @return 戦闘フィールドを購読する[ObserveBattleFieldUseCase]。
+     */
+    @Provides
+    fun provideObserveBattleFieldUseCase(battleRepository: BattleRepository): ObserveBattleFieldUseCase =
+        ObserveBattleFieldUseCase(battleRepository)
+
+    /**
+     * @param battleRepository 注入される[BattleRepository]。
+     * @return 通常攻撃を実行する[AttackUseCase]。
+     */
+    @Provides
+    fun provideAttackUseCase(battleRepository: BattleRepository): AttackUseCase =
+        AttackUseCase(battleRepository)
 }

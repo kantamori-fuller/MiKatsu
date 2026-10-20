@@ -22,3 +22,23 @@ data class BattleField(
     val allPawns: List<BattleFieldPawn>
         get() = allies + enemies
 }
+
+/**
+ * 指定したFPIDの個体にダメージを与えた、新しい[BattleField]を返す。
+ *
+ * 味方・敵のどちらが対象でも、FPIDが一致する個体の現在HPだけを減らす。
+ * 現在HPは0未満にならない。
+ *
+ * @receiver ダメージを与える前の戦闘フィールド。
+ * @param targetFpid ダメージを受ける個体のFPID。
+ * @param damage 与えるダメージ量。
+ * @return ダメージを適用した戦闘フィールド。該当するFPIDの個体がなければ内容は変わらない。
+ */
+fun BattleField.applyDamage(targetFpid: Int, damage: Int): BattleField = copy(
+    allies = allies.map {
+        if (it.fpid == targetFpid) it.copy(currentHp = (it.currentHp - damage).coerceAtLeast(0)) else it
+    },
+    enemies = enemies.map {
+        if (it.fpid == targetFpid) it.copy(currentHp = (it.currentHp - damage).coerceAtLeast(0)) else it
+    },
+)
