@@ -10,8 +10,14 @@ package jp.co.fuller.morikan.bootcamp.mikatsu.domain.model
  * @property fpid その戦闘限定で一意な、フィールド上の個体を識別するID。味方([BattleAlly])を
  *   含めたフィールド全体で重複しない。
  * @property enemy 個体の元になった敵のマスターデータ(種族・ステータス)。
+ * @property currentHp 現在のHP。戦闘開始時は最大HPと同じ。
  */
 data class BattleEnemy(
     override val fpid: Int,
     val enemy: Enemy,
-) : BattleFieldPawn
+    override val currentHp: Int,
+) : BattleFieldPawn {
+    override val maxHp: Int get() = enemy.hp
+    override val attack: Int get() = enemy.attack
+    override val defense: Int get() = enemy.defense
+}
