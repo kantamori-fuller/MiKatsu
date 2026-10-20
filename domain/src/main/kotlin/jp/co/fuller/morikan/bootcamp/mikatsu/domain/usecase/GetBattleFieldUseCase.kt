@@ -1,5 +1,6 @@
 package jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase
 
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.ActionTimeline
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleAlly
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleEnemy
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleField
@@ -42,10 +43,10 @@ class GetBattleFieldUseCase(
             .mapIndexedNotNull { slot, id ->
                 id?.let { characterRepository.getCharacter(it) }?.let { character -> slot to character }
             }
-            .map { (slot, character) -> BattleAlly(fpid = nextFpid++, character = character, currentHp = character.hp, slot = slot) }
+            .map { (slot, character) -> BattleAlly(fpid = nextFpid++, character = character, currentHp = character.hp, slot = slot, remainingDistance = ActionTimeline.BASE_DISTANCE, turnCount = 0) }
 
         val enemies = enemyRepository.getEnemies().flatMap { enemy ->
-            List(ENCOUNTER_COUNT_PER_ENEMY) { BattleEnemy(fpid = nextFpid++, enemy = enemy, currentHp = enemy.hp) }
+            List(ENCOUNTER_COUNT_PER_ENEMY) { BattleEnemy(fpid = nextFpid++, enemy = enemy, currentHp = enemy.hp, remainingDistance = ActionTimeline.BASE_DISTANCE, turnCount = 0) }
         }
 
         return BattleField(allies = allies, enemies = enemies)

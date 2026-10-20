@@ -10,11 +10,15 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.R
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleUnitUiModel
+
+/** 戦闘不能のカードに適用する不透明度(グレーアウト表現)。 */
+private const val DEFEATED_ALPHA = 0.4f
 
 /** 選択中のカードに表示する枠線の太さ。 */
 private val SELECTED_BORDER_WIDTH = 3.dp
@@ -28,6 +32,7 @@ private val SELECTED_BORDER_WIDTH = 3.dp
  * カードの幅は並べ方によって異なるため、呼び出し側が[modifier]で指定する。
  * [onClick]を指定した場合はタップ可能なカードとなり、[isSelected]が`true`のときは
  * 選択中であることを示す枠線を表示する。[onClick]が`null`の場合はタップできない表示専用のカードとなる。
+ * [BattleUnitUiModel.isDefeated]のときは半透明にしてグレーアウトし、[onClick]があってもタップできない。
  *
  * @param unit 表示する敵またはキャラクターの状態。
  * @param modifier このComposableに適用する[Modifier]。
@@ -46,12 +51,13 @@ internal fun UnitStatCard(
     } else {
         null
     }
-    if (onClick != null) {
-        Card(onClick = onClick, modifier = modifier, border = border) {
+    val cardModifier = if (unit.isDefeated) modifier.alpha(DEFEATED_ALPHA) else modifier
+    if (onClick != null && !unit.isDefeated) {
+        Card(onClick = onClick, modifier = cardModifier, border = border) {
             UnitStatContent(unit)
         }
     } else {
-        Card(modifier = modifier, border = border) {
+        Card(modifier = cardModifier, border = border) {
             UnitStatContent(unit)
         }
     }

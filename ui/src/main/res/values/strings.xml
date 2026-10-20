@@ -34,8 +34,12 @@
     <string name="action_attack">攻撃</string>
     <string name="action_retreat">撤退</string>
     <string name="action_selecting">選択中</string>
-    <string name="battle_narration_select_character">キャラを選択してください</string>
-    <string name="battle_narration_select_action">行動を選択してください</string>
+    <string name="battle_narration_select_action">%1$sの行動を選択してください</string>
+    <string name="battle_narration_enemy_turn">%1$sの行動</string>
+    <string name="battle_narration_attack_result">%1$sが%2$sに攻撃! %3$dダメージ</string>
+    <string name="battle_outcome_victory">勝利!</string>
+    <string name="battle_outcome_defeat">敗北…</string>
+    <string name="battle_outcome_tap_to_return">タップして編成画面へ戻る</string>
     <string name="battle_narration_select_target">対象を選択してください</string>
     <string name="battle_hp_format">HP %1$d/%2$d</string>
     <string name="battle_mp_format">MP %1$d/%2$d</string>

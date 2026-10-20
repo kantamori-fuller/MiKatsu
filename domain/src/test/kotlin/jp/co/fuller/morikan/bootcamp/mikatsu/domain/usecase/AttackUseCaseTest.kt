@@ -1,49 +1,36 @@
 package jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase
 
-import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleAlly
-import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleEnemy
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.testAlly
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.testEnemy
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.AttackResult
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleField
-import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.Character
-import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.Enemy
-import jp.co.fuller.morikan.bootcamp.mikatsu.domain.repository.BattleRepository
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
-/** [AttackUseCase]が指定したFPIDの個体にだけダメージを与えることを検証するテスト。 */
+/** [AttackUseCase]が手番の個体だけの攻撃を受け付け、指定したFPIDの個体にだけダメージを与えることを検証するテスト。 */
 class AttackUseCaseTest {
 
-    private val character = Character(
-        id = 1, name = "味方", hp = 100, mana = 10, attack = 100, defense = 100,
-        manaOutput = 0, manaResistance = 0, agility = 0, luck = 0,
-    )
-    private val enemy = Enemy(
-        id = 1, name = "敵", hp = 50, mana = 0, attack = 10, defense = 100,
-        manaOutput = 0, manaResistance = 0, agility = 0, luck = 0,
-    )
-
-    /** 味方FPID=1、同じEIDの敵FPID=2,3を持つ戦闘フィールドを使うFake Repository。 */
+    /** 味方FPID=1(手番)、同種の敵FPID=2,3を持つ戦闘フィールドを使うFake Repository。 */
     private val repository = FakeBattleRepository(
         BattleField(
-            allies = listOf(BattleAlly(fpid = 1, character = character, currentHp = 100, slot = 0)),
-            enemies = listOf(
-                BattleEnemy(fpid = 2, enemy = enemy, currentHp = 50),
-                BattleEnemy(fpid = 3, enemy = enemy, currentHp = 50),
-            ),
+            allies = listOf(testAlly(fpid = 1)),
+            enemies = listOf(testEnemy(fpid = 2), testEnemy(fpid = 3)),
+            turnQueue = listOf(1),
         ),
     )
     private val useCase = AttackUseCase(repository)
 
-    /** 対象のHPだけが減り、味方のHPは変わらないこと。 */
+    /** 対象のHPだけが減り、味方のHPは変わらず、結果が返ること。 */
     @Test
     fun invoke_reducesOnlyTargetHp() = runBlocking {
-        useCase(attackerFpid = 1, targetFpid = 2)
+        val result = useCase(attackerFpid = 1, targetFpid = 2)
 
         val field = repository.current
+        assertEquals(AttackResult(attackerFpid = 1, targetFpid = 2, damage = 24), result)
         assertEquals(26, field.enemies[0].currentHp)
+        assertEquals(50, field.enemies[1].currentHp)
         assertEquals(100, field.allies[0].currentHp)
     }
 
@@ -57,44 +44,39 @@ class AttackUseCaseTest {
         assertEquals(26, field.enemies[1].currentHp)
     }
 
-    /** HPは0未満にならないこと。 */
+    /** 存在しないFPIDを指定するとnullを返し、何も変わらないこと。 */
     @Test
-    fun invoke_repeatedAttacks_hpNeverBelowZero() = runBlocking {
-        repeat(5) { useCase(attackerFpid = 1, targetFpid = 2) }
-
-        assertEquals(0, repository.current.enemies[0].currentHp)
-    }
-
-    /** 存在しないFPIDを指定しても何も変わらないこと。 */
-    @Test
-    fun invoke_unknownFpid_changesNothing() = runBlocking {
+    fun invoke_unknownFpid_returnsNullAndChangesNothing() = runBlocking {
         val before = repository.current
 
-        useCase(attackerFpid = 1, targetFpid = 99)
-        useCase(attackerFpid = 99, targetFpid = 2)
+        assertNull(useCase(attackerFpid = 1, targetFpid = 99))
+        assertNull(useCase(attackerFpid = 99, targetFpid = 2))
 
         assertEquals(before, repository.current)
     }
 
-    /**
-     * 戦闘フィールドをメモリ上に保持するテスト用の[BattleRepository]。
-     *
-     * @param initial 初期状態の戦闘フィールド。
-     */
-    private class FakeBattleRepository(initial: BattleField) : BattleRepository {
-        private val state = MutableStateFlow<BattleField?>(initial)
+    /** 手番ではない個体の攻撃はnullになり、何も変わらないこと。 */
+    @Test
+    fun invoke_notCurrentActor_returnsNullAndChangesNothing() = runBlocking {
+        val before = repository.current
 
-        /** 現在の戦闘フィールド。 */
-        val current: BattleField get() = checkNotNull(state.value)
+        assertNull(useCase(attackerFpid = 2, targetFpid = 1))
 
-        override fun observeBattleField(): Flow<BattleField?> = state
+        assertEquals(before, repository.current)
+    }
 
-        override suspend fun setBattleField(battleField: BattleField) {
-            state.value = battleField
-        }
+    /** 戦闘不能の個体への攻撃はnullになり、何も変わらないこと。 */
+    @Test
+    fun invoke_defeatedTarget_returnsNullAndChangesNothing() = runBlocking {
+        val field = BattleField(
+            allies = listOf(testAlly(fpid = 1)),
+            enemies = listOf(testEnemy(fpid = 2).copy(currentHp = 0), testEnemy(fpid = 3)),
+            turnQueue = listOf(1),
+        )
+        val repo = FakeBattleRepository(field)
 
-        override suspend fun updateBattleField(transform: (BattleField) -> BattleField) {
-            state.update { it?.let(transform) }
-        }
+        assertNull(AttackUseCase(repo)(attackerFpid = 1, targetFpid = 2))
+
+        assertEquals(field, repo.current)
     }
 }

@@ -11,13 +11,19 @@ package jp.co.fuller.morikan.bootcamp.mikatsu.domain.model
  *   含めたフィールド全体で重複しない。
  * @property enemy 個体の元になった敵のマスターデータ(種族・ステータス)。
  * @property currentHp 現在のHP。戦闘開始時は最大HPと同じ。
+ * @property remainingDistance 次の手番までに進む必要がある残り距離([BattleFieldPawn.remainingDistance])。
+ * @property turnCount この個体が終えた自分の手番の回数([BattleFieldPawn.turnCount])。
  */
 data class BattleEnemy(
     override val fpid: Int,
     val enemy: Enemy,
     override val currentHp: Int,
+    override val remainingDistance: Double,
+    override val turnCount: Int,
 ) : BattleFieldPawn {
     override val maxHp: Int get() = enemy.hp
     override val attack: Int get() = enemy.attack
     override val defense: Int get() = enemy.defense
+    override val agility: Int get() = enemy.agility
+    override val luck: Int get() = enemy.luck
 }
