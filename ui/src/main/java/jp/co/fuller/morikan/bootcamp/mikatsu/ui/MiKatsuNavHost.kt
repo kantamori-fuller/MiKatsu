@@ -62,6 +62,7 @@ fun MiKatsuNavHost(modifier: Modifier = Modifier) {
             )
             battleEntry(
                 onRetreat = { backStack.removeLastOrNull() },
+                onBattleFinished = { backStack.removeLastOrNull() },
             )
         },
     )
