@@ -10,6 +10,9 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.Formation
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.repository.BattleRepository
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.repository.CharacterRepository
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.repository.EnemyRepository
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.repository.MapProgressRepository
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.AdvanceToNextBattleUseCase
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.ObserveMapProgressUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.AttackUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.EndTurnUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.ExecuteEnemyTurnUseCase
@@ -75,17 +78,22 @@ class BattleViewModelTest {
             manaOutput = 0, manaResistance = 0, agility = 4, luck = 0,
         )
         val random = Random(0)
+        val mapProgressRepository = FakeMapProgressRepository()
+        val getBattleFieldUseCase = GetBattleFieldUseCase(FakeCharacterRepository(character), FakeEnemyRepository(enemy))
         val viewModel = BattleViewModel(
             formation = Formation(listOf(1, null, null, null, null, null)),
-            startBattleUseCase = StartBattleUseCase(
-                GetBattleFieldUseCase(FakeCharacterRepository(character), FakeEnemyRepository(enemy)),
-                battleRepository,
-                random,
-            ),
+            startBattleUseCase = StartBattleUseCase(getBattleFieldUseCase, battleRepository, mapProgressRepository, random),
             observeBattleFieldUseCase = ObserveBattleFieldUseCase(battleRepository),
             attackUseCase = AttackUseCase(battleRepository),
             executeEnemyTurnUseCase = ExecuteEnemyTurnUseCase(battleRepository, RandomEnemyTargetSelector(random)),
             endTurnUseCase = EndTurnUseCase(battleRepository, random),
+            observeMapProgressUseCase = ObserveMapProgressUseCase(mapProgressRepository),
+            advanceToNextBattleUseCase = AdvanceToNextBattleUseCase(
+                getBattleFieldUseCase,
+                battleRepository,
+                mapProgressRepository,
+                random,
+            ),
         )
         return viewModel to battleRepository
     }
@@ -143,6 +151,30 @@ class BattleViewModelTest {
         assertTrue(before.turnQueue.isEmpty())
     }
 
+    /** 勝利後に「次に進む」を押すと、勝敗が消えて敵が満タンで出し直され、進行度が2になること。 */
+    @Test
+    fun nextBattleClick_afterVictory_startsFreshBattle() = runTest(dispatcher) {
+        val (viewModel, repository) = createViewModel(enemyHp = 1)
+        advanceUntilIdle()
+        var guard = 0
+        while (viewModel.uiState.value.outcome == null && guard++ < 10) {
+            viewModel.onAttackClick()
+            viewModel.onEnemyClick(viewModel.uiState.value.enemies.first { !it.isDefeated }.id)
+            advanceUntilIdle()
+        }
+        assertEquals(BattleOutcome.Victory, viewModel.uiState.value.outcome)
+        assertEquals(1, viewModel.uiState.value.progress)
+
+        viewModel.onNextBattleClick()
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals(null, state.outcome)
+        assertEquals(2, state.progress)
+        assertTrue(repository.current.enemies.all { it.currentHp == 1 })
+        assertTrue(state.enemies.none { it.isDefeated })
+    }
+
     /** テスト用の、1体のキャラクターだけを返す[CharacterRepository]。 */
     private class FakeCharacterRepository(private val character: Character) : CharacterRepository {
         override fun observeCharacters(): Flow<List<Character>> = MutableStateFlow(listOf(character))
@@ -171,6 +203,21 @@ class BattleViewModelTest {
 
         override suspend fun updateBattleField(transform: (BattleField) -> BattleField) {
             state.update { it?.let(transform) }
+        }
+    }
+
+    /** テスト用の、進行度をメモリ上に保持する[MapProgressRepository]。 */
+    private class FakeMapProgressRepository : MapProgressRepository {
+        private val state = MutableStateFlow(1)
+
+        override fun observeProgress(): Flow<Int> = state
+
+        override suspend fun reset() {
+            state.value = 1
+        }
+
+        override suspend fun advance() {
+            state.update { it + 1 }
         }
     }
 }

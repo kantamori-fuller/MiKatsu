@@ -9,6 +9,9 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.RandomEnemyTargetSele
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.repository.BattleRepository
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.repository.CharacterRepository
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.repository.EnemyRepository
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.repository.MapProgressRepository
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.AdvanceToNextBattleUseCase
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.ObserveMapProgressUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.AttackUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.DeleteCharacterUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.EndTurnUseCase
@@ -78,15 +81,41 @@ object UseCaseModule {
     /**
      * @param getBattleFieldUseCase 注入される[GetBattleFieldUseCase]。
      * @param battleRepository 注入される[BattleRepository]。
+     * @param mapProgressRepository 注入される[MapProgressRepository]。
      * @param random 注入される[Random]。
-     * @return 戦闘を開始する[StartBattleUseCase]。
+     * @return 戦闘を開始し、進行度を1に戻す[StartBattleUseCase]。
      */
     @Provides
     fun provideStartBattleUseCase(
         getBattleFieldUseCase: GetBattleFieldUseCase,
         battleRepository: BattleRepository,
+        mapProgressRepository: MapProgressRepository,
         random: Random,
-    ): StartBattleUseCase = StartBattleUseCase(getBattleFieldUseCase, battleRepository, random)
+    ): StartBattleUseCase = StartBattleUseCase(getBattleFieldUseCase, battleRepository, mapProgressRepository, random)
+
+    /**
+     * @param getBattleFieldUseCase 注入される[GetBattleFieldUseCase]。
+     * @param battleRepository 注入される[BattleRepository]。
+     * @param mapProgressRepository 注入される[MapProgressRepository]。
+     * @param random 注入される[Random]。
+     * @return 勝利後に次の戦闘へ進める[AdvanceToNextBattleUseCase]。
+     */
+    @Provides
+    fun provideAdvanceToNextBattleUseCase(
+        getBattleFieldUseCase: GetBattleFieldUseCase,
+        battleRepository: BattleRepository,
+        mapProgressRepository: MapProgressRepository,
+        random: Random,
+    ): AdvanceToNextBattleUseCase =
+        AdvanceToNextBattleUseCase(getBattleFieldUseCase, battleRepository, mapProgressRepository, random)
+
+    /**
+     * @param mapProgressRepository 注入される[MapProgressRepository]。
+     * @return 進行度を購読する[ObserveMapProgressUseCase]。
+     */
+    @Provides
+    fun provideObserveMapProgressUseCase(mapProgressRepository: MapProgressRepository): ObserveMapProgressUseCase =
+        ObserveMapProgressUseCase(mapProgressRepository)
 
     /**
      * @param battleRepository 注入される[BattleRepository]。

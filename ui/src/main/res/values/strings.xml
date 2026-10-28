@@ -39,7 +39,9 @@
     <string name="battle_narration_attack_result">%1$sが%2$sに攻撃! %3$dダメージ</string>
     <string name="battle_outcome_victory">勝利!</string>
     <string name="battle_outcome_defeat">敗北…</string>
-    <string name="battle_outcome_tap_to_return">タップして編成画面へ戻る</string>
+    <string name="battle_outcome_tap_to_return_main_menu">タップしてメインメニューへ戻る</string>
+    <string name="action_next">次に進む</string>
+    <string name="map_progress_format">進行度: %1$d</string>
     <string name="battle_narration_select_target">対象を選択してください</string>
     <string name="battle_hp_format">HP %1$d/%2$d</string>
     <string name="battle_mp_format">MP %1$d/%2$d</string>

@@ -9,11 +9,14 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleAlly
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleEnemy
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleField
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleOutcome
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.Formation
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.AdvanceToNextBattleUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.AttackUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.EndTurnUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.ExecuteEnemyTurnUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.ObserveBattleFieldUseCase
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.ObserveMapProgressUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.StartBattleUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleNarration
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleUiState
@@ -42,6 +45,8 @@ private const val RESULT_DISPLAY_MS = 1200L
  * 手番が来た味方は自動で行動者となり、「攻撃」→敵のタップで[attackUseCase]による通常攻撃を行う。
  * 手番が敵のときは、間とナレーションを挟みながら[executeEnemyTurnUseCase]で自動的に攻撃させる。
  * 行動のたびに[endTurnUseCase]で手番を終える。
+ * 勝利後は「次に進む」で[advanceToNextBattleUseCase]により同じ編成のまま次の戦闘へ進み、
+ * 進行度は[observeMapProgressUseCase]で購読して表示する(正はRepositoryが保持する)。
  *
  * @property formation 編成画面で編成された、味方として参戦するキャラクターの陣形。
  * @property startBattleUseCase 陣形から戦闘を開始するUseCase。
@@ -49,6 +54,8 @@ private const val RESULT_DISPLAY_MS = 1200L
  * @property attackUseCase 味方の通常攻撃を実行するUseCase。
  * @property executeEnemyTurnUseCase 敵の手番の攻撃を実行するUseCase。
  * @property endTurnUseCase 現在の行動者の手番を終えるUseCase。
+ * @property observeMapProgressUseCase マップの進行度を購読するUseCase。
+ * @property advanceToNextBattleUseCase 勝利後に次の戦闘へ進めるUseCase。
  */
 @HiltViewModel(assistedFactory = BattleViewModel.Factory::class)
 class BattleViewModel @AssistedInject constructor(
@@ -58,6 +65,8 @@ class BattleViewModel @AssistedInject constructor(
     private val attackUseCase: AttackUseCase,
     private val executeEnemyTurnUseCase: ExecuteEnemyTurnUseCase,
     private val endTurnUseCase: EndTurnUseCase,
+    private val observeMapProgressUseCase: ObserveMapProgressUseCase,
+    private val advanceToNextBattleUseCase: AdvanceToNextBattleUseCase,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(BattleUiState())
@@ -71,6 +80,9 @@ class BattleViewModel @AssistedInject constructor(
     /** 味方の攻撃の演出ジョブ。二重に開始しないための目印として保持する。 */
     private var playerActionJob: Job? = null
 
+    /** 次の戦闘へ進める処理のジョブ。連打で二重に進まないための目印として保持する。 */
+    private var nextBattleJob: Job? = null
+
     /** 演出中(敵の手番または味方の攻撃のジョブが動いている間)かどうか。 */
     private val isBusy: Boolean
         get() = enemyTurnJob?.isActive == true || playerActionJob?.isActive == true
@@ -78,6 +90,12 @@ class BattleViewModel @AssistedInject constructor(
     init {
         viewModelScope.launch {
             startBattleUseCase(formation)
+            // 進行度の購読は戦闘開始(進行度のリセット)の完了後に始める。前回の進行度が一瞬表示されるのを防ぐため。
+            launch {
+                observeMapProgressUseCase().collect { progress ->
+                    _uiState.update { it.copy(progress = progress) }
+                }
+            }
             observeBattleFieldUseCase().collect { battleField ->
                 _uiState.update { battleField.reflectedIn(it) }
                 startEnemyTurnIfNeeded(battleField)
@@ -131,6 +149,20 @@ class BattleViewModel @AssistedInject constructor(
             _uiState.update { it.copy(isProcessing = false, processingNarration = null) }
             playerActionJob = null
             startEnemyTurnIfNeeded(observeBattleFieldUseCase().first())
+        }
+    }
+
+    /**
+     * 勝利オーバーレイの「次に進む」ボタンが押されたときに呼ばれる。
+     *
+     * 勝利していて、演出中でなく、すでに次の戦闘へ進める処理が動いていないときだけ、
+     * [advanceToNextBattleUseCase]で次の戦闘を始める。新しいフィールドは既存の購読経由で
+     * UiStateへ反映され、敵の先手もそこから始まる。条件を満たさなければ何も行わない。
+     */
+    fun onNextBattleClick() {
+        if (_uiState.value.outcome != BattleOutcome.Victory || isBusy || nextBattleJob?.isActive == true) return
+        nextBattleJob = viewModelScope.launch {
+            advanceToNextBattleUseCase()
         }
     }
 

@@ -48,6 +48,7 @@ data class BattleUnitUiModel(
  * @property isSelectingTarget 攻撃対象を選択している状態(対象選択状態)かどうか。
  *   「攻撃」ボタンの押下で`true`になり、キャンセルまたは敵の選択で`false`に戻る。
  * @property outcome 戦闘の勝敗。決着がついていなければ`null`。
+ * @property progress マップの進行度(今いる戦闘が何戦目か)。最初は1。
  * @property processingNarration 演出中だけ表示する一時的なナレーション(敵の行動・攻撃結果)。
  *   それ以外のナレーションは状態から算出する。
  */
@@ -60,6 +61,7 @@ data class BattleUiState(
     val isSelectingTarget: Boolean = false,
     val outcome: BattleOutcome? = null,
     val processingNarration: BattleNarration? = null,
+    val progress: Int = 1,
 ) {
     /**
      * 「攻撃」ボタンを押下できるかどうか。
