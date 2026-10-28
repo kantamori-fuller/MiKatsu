@@ -21,6 +21,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -51,21 +52,22 @@ private val ENEMY_CARD_WIDTH = 100.dp
  * 攻撃ボタンはプレイヤーの手番で演出中でないときのみ押下できる。陣形の上にはバトルナレーターを表示する。
  * 攻撃ボタン押下後は対象選択状態となり、ボタン表示が「選択中」「キャンセル」に変わって
  * 敵のカードを選択できるようになる。戦闘不能のカードはグレーアウトされる。勝敗が決まると
- * 画面全体に結果を重ねて表示し、タップで[onBattleFinished]を呼ぶ。
+ * 画面全体に結果を重ねて表示する。勝利時は「次に進む」ボタンで[BattleViewModel.onNextBattleClick]を呼び、
+ * 敗北時はオーバーレイのタップで[onDefeat]を呼ぶ。敵カードの下の空きには進行度を表示する。
  * 他の画面と異なりトップバーは表示しない。
  *
  * @param viewModel この画面に対応する[BattleViewModel]。
  * @param onRetreat 「撤退」ボタンが押されたときに呼ばれるコールバック。
  *   編成画面への遷移をNavHost側に委ねる。
- * @param onBattleFinished 勝敗表示がタップされたときに呼ばれるコールバック。
- *   編成画面への遷移をNavHost側に委ねる。
+ * @param onDefeat 敗北表示がタップされたときに呼ばれるコールバック。
+ *   メインメニューへの遷移をNavHost側に委ねる。
  * @param modifier このComposableに適用する[Modifier]。
  */
 @Composable
 fun BattleScreen(
     viewModel: BattleViewModel,
     onRetreat: () -> Unit,
-    onBattleFinished: () -> Unit,
+    onDefeat: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -78,11 +80,20 @@ fun BattleScreen(
                     .fillMaxSize()
                     .padding(16.dp),
             ) {
-                EnemyGrid(
-                    enemies = uiState.enemies,
-                    onEnemyClick = if (uiState.isSelectingTarget) viewModel::onEnemyClick else null,
-                    modifier = Modifier.weight(1f),
-                )
+                Column(modifier = Modifier.weight(1f)) {
+                    EnemyGrid(
+                        enemies = uiState.enemies,
+                        onEnemyClick = if (uiState.isSelectingTarget) viewModel::onEnemyClick else null,
+                    )
+                    Spacer(Modifier.weight(1f))
+                    Text(
+                        text = stringResource(R.string.map_progress_format, uiState.progress),
+                        style = MaterialTheme.typography.titleLarge,
+                        modifier = Modifier.fillMaxWidth(),
+                        textAlign = TextAlign.Center,
+                    )
+                    Spacer(Modifier.weight(1f))
+                }
                 Spacer(Modifier.height(16.dp))
                 Text(
                     text = uiState.narration?.toText().orEmpty(),
@@ -136,7 +147,12 @@ fun BattleScreen(
             }
         }
         uiState.outcome?.let { outcome ->
-            BattleOutcomeOverlay(outcome = outcome, onClick = onBattleFinished)
+            BattleOutcomeOverlay(
+                outcome = outcome,
+                isNextEnabled = !uiState.isProcessing,
+                onNextClick = viewModel::onNextBattleClick,
+                onDefeatClick = onDefeat,
+            )
         }
     }
 }
@@ -144,34 +160,47 @@ fun BattleScreen(
 /**
  * 勝敗を画面全体に重ねて表示するオーバーレイ。
  *
- * 画面中央に勝敗と編成画面へ戻る案内を表示し、タップされると[onClick]を呼ぶ。
+ * 勝利時は「勝利!」の下に「次に進む」ボタンを表示し、オーバーレイ自体のタップでは何も起きない。
+ * 敗北時は「敗北…」とメインメニューへ戻る案内を表示し、オーバーレイのタップで[onDefeatClick]を呼ぶ。
  *
  * @param outcome 表示する勝敗。
- * @param onClick オーバーレイがタップされたときに呼ばれるコールバック。
+ * @param isNextEnabled 「次に進む」ボタンを押下できるかどうか。
+ * @param onNextClick 「次に進む」ボタンが押されたときに呼ばれるコールバック。
+ * @param onDefeatClick 敗北時にオーバーレイがタップされたときに呼ばれるコールバック。
  */
 @Composable
-private fun BattleOutcomeOverlay(outcome: BattleOutcome, onClick: () -> Unit) {
+private fun BattleOutcomeOverlay(
+    outcome: BattleOutcome,
+    isNextEnabled: Boolean,
+    onNextClick: () -> Unit,
+    onDefeatClick: () -> Unit,
+) {
+    val isVictory = outcome == BattleOutcome.Victory
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black.copy(alpha = OVERLAY_ALPHA))
-            .clickable(onClick = onClick),
+            .then(if (isVictory) Modifier.pointerInput(Unit) {} else Modifier.clickable(onClick = onDefeatClick)),
         contentAlignment = Alignment.Center,
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
-                text = stringResource(
-                    if (outcome == BattleOutcome.Victory) R.string.battle_outcome_victory else R.string.battle_outcome_defeat,
-                ),
+                text = stringResource(if (isVictory) R.string.battle_outcome_victory else R.string.battle_outcome_defeat),
                 style = MaterialTheme.typography.displayMedium,
                 color = Color.White,
             )
             Spacer(Modifier.height(16.dp))
-            Text(
-                text = stringResource(R.string.battle_outcome_tap_to_return),
-                style = MaterialTheme.typography.titleMedium,
-                color = Color.White,
-            )
+            if (isVictory) {
+                Button(onClick = onNextClick, enabled = isNextEnabled) {
+                    Text(stringResource(R.string.action_next))
+                }
+            } else {
+                Text(
+                    text = stringResource(R.string.battle_outcome_tap_to_return_main_menu),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = Color.White,
+                )
+            }
         }
     }
 }

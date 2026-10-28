@@ -62,7 +62,9 @@ fun MiKatsuNavHost(modifier: Modifier = Modifier) {
             )
             battleEntry(
                 onRetreat = { backStack.removeLastOrNull() },
-                onBattleFinished = { backStack.removeLastOrNull() },
+                onReturnToMainMenu = {
+                    while (backStack.size > 1 && backStack.lastOrNull() != MainMenuRoute) backStack.removeLastOrNull()
+                },
             )
         },
     )

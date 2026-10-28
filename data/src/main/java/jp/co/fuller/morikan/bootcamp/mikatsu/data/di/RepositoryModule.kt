@@ -7,9 +7,11 @@ import dagger.hilt.components.SingletonComponent
 import jp.co.fuller.morikan.bootcamp.mikatsu.data.repository.BattleRepositoryImpl
 import jp.co.fuller.morikan.bootcamp.mikatsu.data.repository.CharacterRepositoryImpl
 import jp.co.fuller.morikan.bootcamp.mikatsu.data.repository.EnemyRepositoryImpl
+import jp.co.fuller.morikan.bootcamp.mikatsu.data.repository.MapProgressRepositoryImpl
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.repository.BattleRepository
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.repository.CharacterRepository
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.repository.EnemyRepository
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.repository.MapProgressRepository
 import javax.inject.Singleton
 
 /**
@@ -54,4 +56,15 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindBattleRepository(impl: BattleRepositoryImpl): BattleRepository
+
+    /**
+     * [MapProgressRepository]が要求された際に[MapProgressRepositoryImpl]を注入するよう束縛する。
+     * 進行度をアプリ全体で共有するため単一のインスタンスとする。
+     *
+     * @param impl Hiltが生成した[MapProgressRepositoryImpl]のインスタンス。
+     * @return [MapProgressRepository]として扱われる実装。
+     */
+    @Binds
+    @Singleton
+    abstract fun bindMapProgressRepository(impl: MapProgressRepositoryImpl): MapProgressRepository
 }

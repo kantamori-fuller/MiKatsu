@@ -4,6 +4,7 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.ActionTimeline
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleAlly
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleEnemy
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleField
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.Character
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.Formation
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.repository.CharacterRepository
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.repository.EnemyRepository
@@ -37,19 +38,68 @@ class GetBattleFieldUseCase(
      * @return FPIDを割り当てた[BattleField]。
      */
     suspend operator fun invoke(formation: Formation): BattleField {
-        var nextFpid = 1
-
         val allies = formation.characterIdsBySlot
             .mapIndexedNotNull { slot, id ->
                 id?.let { characterRepository.getCharacter(it) }?.let { character -> slot to character }
             }
-            .map { (slot, character) -> BattleAlly(fpid = nextFpid++, character = character, currentHp = character.hp, slot = slot, remainingDistance = ActionTimeline.BASE_DISTANCE, turnCount = 0) }
+            .mapIndexed { index, (slot, character) ->
+                newAlly(fpid = index + 1, character = character, slot = slot, currentHp = character.hp)
+            }
+        return BattleField(allies = allies, enemies = spawnEnemies(firstFpid = allies.size + 1))
+    }
 
-        val enemies = enemyRepository.getEnemies().flatMap { enemy ->
-            List(ENCOUNTER_COUNT_PER_ENEMY) { BattleEnemy(fpid = nextFpid++, enemy = enemy, currentHp = enemy.hp, remainingDistance = ActionTimeline.BASE_DISTANCE, turnCount = 0) }
+    /**
+     * 勝利後の次の戦闘のために、前の戦闘の味方を引き継いだ新しい[BattleField]を組み立てる。
+     *
+     * 味方は[BattleField.allies]をスロット番号順に並べてFPIDを1から振り直し、キャラクター・スロット・
+     * 現在HPを引き継ぐ(戦闘不能の味方も現在HP0のまま参戦する)。残り距離と手番の回数は初期状態に戻す。
+     * 敵は[invoke]と同じ構成で新しく生成し、味方に続く番号でFPIDを採番する。
+     *
+     * @param previous 直前の戦闘のフィールド。
+     * @return 味方の状態を引き継いだ、次の戦闘のフィールド。最初の手番はまだ決まっていない。
+     */
+    suspend fun createNextBattleField(previous: BattleField): BattleField {
+        val allies = previous.allies
+            .sortedBy { it.slot }
+            .mapIndexed { index, ally ->
+                newAlly(fpid = index + 1, character = ally.character, slot = ally.slot, currentHp = ally.currentHp)
+            }
+        return BattleField(allies = allies, enemies = spawnEnemies(firstFpid = allies.size + 1))
+    }
+
+    /**
+     * 初期状態(残り距離が基準値、手番の回数0)の味方個体を生成する。
+     *
+     * @param fpid 割り当てるFPID。
+     * @param character 味方のキャラクター。
+     * @param slot 陣形上のスロット番号。
+     * @param currentHp 現在HP。
+     * @return 生成した味方個体。
+     */
+    private fun newAlly(fpid: Int, character: Character, slot: Int, currentHp: Int) = BattleAlly(
+        fpid = fpid,
+        character = character,
+        currentHp = currentHp,
+        slot = slot,
+        remainingDistance = ActionTimeline.BASE_DISTANCE,
+        turnCount = 0,
+    )
+
+    /**
+     * 敵のマスターデータから、満タンHPの敵個体を[ENCOUNTER_COUNT_PER_ENEMY]体ずつ生成する。
+     *
+     * 初戦と次戦の敵の生成・FPID採番を同じ処理に集約し、重複させないことを目的とする。
+     *
+     * @param firstFpid 最初の敵に割り当てるFPID。以降は連番で採番する。
+     * @return FPIDを割り当てた敵個体の一覧。
+     */
+    private suspend fun spawnEnemies(firstFpid: Int): List<BattleEnemy> {
+        var nextFpid = firstFpid
+        return enemyRepository.getEnemies().flatMap { enemy ->
+            List(ENCOUNTER_COUNT_PER_ENEMY) {
+                BattleEnemy(fpid = nextFpid++, enemy = enemy, currentHp = enemy.hp, remainingDistance = ActionTimeline.BASE_DISTANCE, turnCount = 0)
+            }
         }
-
-        return BattleField(allies = allies, enemies = enemies)
     }
 
     companion object {

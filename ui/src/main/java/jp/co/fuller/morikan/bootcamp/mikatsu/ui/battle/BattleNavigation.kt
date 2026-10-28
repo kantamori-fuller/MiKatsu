@@ -33,12 +33,12 @@ data class BattleRoute(val formationSlots: List<Int?>) : NavKey {
  *
  * @param onRetreat 「撤退」ボタンが押されたときに呼ばれるコールバック。
  *   編成画面への遷移をNavHost側に委ねる。
- * @param onBattleFinished 勝敗表示をタップして戦闘を終えるときに呼ばれるコールバック。
- *   編成画面への遷移をNavHost側に委ねる。
+ * @param onReturnToMainMenu 敗北表示をタップしたときに呼ばれるコールバック。
+ *   メインメニューへの遷移をNavHost側に委ねる。
  */
 fun EntryProviderScope<NavKey>.battleEntry(
     onRetreat: () -> Unit,
-    onBattleFinished: () -> Unit,
+    onReturnToMainMenu: () -> Unit,
 ) {
     entry<BattleRoute> { route ->
         val viewModel = hiltViewModel<BattleViewModel, BattleViewModel.Factory> { factory ->
@@ -47,7 +47,7 @@ fun EntryProviderScope<NavKey>.battleEntry(
         BattleScreen(
             viewModel = viewModel,
             onRetreat = onRetreat,
-            onBattleFinished = onBattleFinished,
+            onDefeat = onReturnToMainMenu,
         )
     }
 }
