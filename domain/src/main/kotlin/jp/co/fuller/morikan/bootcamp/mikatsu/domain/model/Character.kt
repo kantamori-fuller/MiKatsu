@@ -17,6 +17,10 @@ package jp.co.fuller.morikan.bootcamp.mikatsu.domain.model
  * @property manaResistance D. マナ耐性のステータス値。
  * @property agility S. 敏捷のステータス値。
  * @property luck L. 幸運のステータス値。
+ * @property activeSkillIds 設定しているアクティブスキル(Aスキル)のID。アクティブスキルの採番で解決する。
+ *   設定順に並び、重複しない。マスターデータのIDであり、バトル中のFPIDとは別物。存在しないIDは解決時に無視される。
+ * @property passiveSkillIds 設定しているパッシブスキル(Pスキル)のID。パッシブスキルの採番で解決する。
+ *   アクティブとは独立した採番なので、同じ数値でもアクティブスキルとは別のスキルを指す。設定順に並び、重複しない。
  */
 data class Character(
     val id: Int,
@@ -29,4 +33,6 @@ data class Character(
     val manaResistance: Int,
     val agility: Int,
     val luck: Int,
+    val activeSkillIds: List<Int> = emptyList(),
+    val passiveSkillIds: List<Int> = emptyList(),
 )

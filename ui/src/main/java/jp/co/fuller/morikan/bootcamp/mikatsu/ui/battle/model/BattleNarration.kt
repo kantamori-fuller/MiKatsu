@@ -18,6 +18,12 @@ sealed interface BattleNarration {
     /** 攻撃対象を選ぶ状態(対象選択状態)。敵の選択を促す。 */
     data object SelectTarget : BattleNarration
 
+    /** 使うスキルを選ぶ状態(スキル一覧の表示中)。スキルの選択を促す。 */
+    data object SelectSkill : BattleNarration
+
+    /** スキルの対象となる味方を選ぶ状態。味方の選択を促す。 */
+    data object SelectAllyTarget : BattleNarration
+
     /**
      * 敵が行動を始めたことを伝える。
      *
@@ -36,5 +42,20 @@ sealed interface BattleNarration {
         val attackerName: String,
         val targetName: String,
         val damage: Int,
+    ) : BattleNarration
+
+    /**
+     * 回復スキルの結果(誰が誰にどのスキルを使い、HPがどれだけ回復したか)を伝える。
+     *
+     * @property actorName スキルを使った味方の表示名。
+     * @property targetName 対象になった味方の表示名。
+     * @property skillName 使ったスキルの名前。
+     * @property healedAmount 実際に回復したHP量。
+     */
+    data class SkillResult(
+        val actorName: String,
+        val targetName: String,
+        val skillName: String,
+        val healedAmount: Int,
     ) : BattleNarration
 }

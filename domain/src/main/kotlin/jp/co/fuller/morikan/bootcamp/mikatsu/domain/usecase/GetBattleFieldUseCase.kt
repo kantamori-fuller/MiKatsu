@@ -8,6 +8,7 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.Character
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.Formation
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.repository.CharacterRepository
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.repository.EnemyRepository
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.repository.SkillRepository
 
 /**
  * 今回のバトルにおける味方陣営・敵陣営を、FPID(フィールドポーンID)を割り当てた
@@ -23,10 +24,12 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.repository.EnemyRepository
  *
  * @property characterRepository 味方キャラクターのデータへのアクセスを提供するRepository。
  * @property enemyRepository 敵のマスターデータへのアクセスを提供するRepository。
+ * @property skillRepository スキルのマスターデータへのアクセスを提供するRepository。味方が設定したスキルIDの解決に使う。
  */
 class GetBattleFieldUseCase(
     private val characterRepository: CharacterRepository,
     private val enemyRepository: EnemyRepository,
+    private val skillRepository: SkillRepository,
 ) {
 
     /**
@@ -43,7 +46,13 @@ class GetBattleFieldUseCase(
                 id?.let { characterRepository.getCharacter(it) }?.let { character -> slot to character }
             }
             .mapIndexed { index, (slot, character) ->
-                newAlly(fpid = index + 1, character = character, slot = slot, currentHp = character.hp)
+                newAlly(
+                    fpid = index + 1,
+                    character = character,
+                    slot = slot,
+                    currentHp = character.hp,
+                    currentMp = character.mana,
+                )
             }
         return BattleField(allies = allies, enemies = spawnEnemies(firstFpid = allies.size + 1))
     }
@@ -52,7 +61,7 @@ class GetBattleFieldUseCase(
      * 勝利後の次の戦闘のために、前の戦闘の味方を引き継いだ新しい[BattleField]を組み立てる。
      *
      * 味方は[BattleField.allies]をスロット番号順に並べてFPIDを1から振り直し、キャラクター・スロット・
-     * 現在HPを引き継ぐ(戦闘不能の味方も現在HP0のまま参戦する)。残り距離と手番の回数は初期状態に戻す。
+     * 現在HP・現在MPを引き継ぐ(戦闘不能の味方も現在HP0のまま参戦する)。残り距離と手番の回数は初期状態に戻す。
      * 敵は[invoke]と同じ構成で新しく生成し、味方に続く番号でFPIDを採番する。
      *
      * @param previous 直前の戦闘のフィールド。
@@ -62,7 +71,13 @@ class GetBattleFieldUseCase(
         val allies = previous.allies
             .sortedBy { it.slot }
             .mapIndexed { index, ally ->
-                newAlly(fpid = index + 1, character = ally.character, slot = ally.slot, currentHp = ally.currentHp)
+                newAlly(
+                    fpid = index + 1,
+                    character = ally.character,
+                    slot = ally.slot,
+                    currentHp = ally.currentHp,
+                    currentMp = ally.currentMp,
+                )
             }
         return BattleField(allies = allies, enemies = spawnEnemies(firstFpid = allies.size + 1))
     }
@@ -74,15 +89,19 @@ class GetBattleFieldUseCase(
      * @param character 味方のキャラクター。
      * @param slot 陣形上のスロット番号。
      * @param currentHp 現在HP。
-     * @return 生成した味方個体。
+     * @param currentMp 現在MP。
+     * @return 生成した味方個体。キャラクターが設定したスキルIDは、マスターデータから解決して持たせる。
      */
-    private fun newAlly(fpid: Int, character: Character, slot: Int, currentHp: Int) = BattleAlly(
+    private suspend fun newAlly(fpid: Int, character: Character, slot: Int, currentHp: Int, currentMp: Int) = BattleAlly(
         fpid = fpid,
         character = character,
         currentHp = currentHp,
+        currentMp = currentMp,
         slot = slot,
         remainingDistance = ActionTimeline.BASE_DISTANCE,
         turnCount = 0,
+        activeSkills = character.activeSkillIds.distinct().mapNotNull { skillRepository.getActiveSkill(it) },
+        passiveSkills = character.passiveSkillIds.distinct().mapNotNull { skillRepository.getPassiveSkill(it) },
     )
 
     /**

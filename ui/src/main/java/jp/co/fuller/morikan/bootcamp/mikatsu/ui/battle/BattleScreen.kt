@@ -10,10 +10,14 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -32,12 +36,17 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.ui.components.FormationGrid
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.components.FormationSlotFrame
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.components.UnitStatCard
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleNarration
+import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleSelection
+import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleSkillUiModel
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleUnitUiModel
 
 private const val ENEMY_GRID_COLUMNS = 3
 
 /** 勝敗表示のオーバーレイ背景の不透明度。 */
 private const val OVERLAY_ALPHA = 0.6f
+
+/** スキル一覧の最大の高さ。スキルが多い場合はこの高さの中でスクロールする。 */
+private val SKILL_LIST_MAX_HEIGHT = 160.dp
 
 /** 敵陣営のカード1枚あたりの幅。 */
 private val ENEMY_CARD_WIDTH = 100.dp
@@ -47,11 +56,12 @@ private val ENEMY_CARD_WIDTH = 100.dp
  *
  * [BattleViewModel.uiState]を購読して描画するのみに徹する(MVVMにおけるViewの責務のみを担う)。
  * 画面上部に敵陣営(最大6体)のカードを並べ、画面下部には編成画面と同じ形の陣形の表
- * (縦2マス×横3マス)に味方陣営のカードを配置し、その下にコマンド選択部分(攻撃・撤退)を
+ * (縦2マス×横3マス)に味方陣営のカードを配置し、その下にコマンド選択部分(攻撃・スキル・撤退)を
  * 配置する。手番が来た味方は自動で行動者となり、選択中と同じ見た目で強調表示される。
  * 攻撃ボタンはプレイヤーの手番で演出中でないときのみ押下できる。陣形の上にはバトルナレーターを表示する。
  * 攻撃ボタン押下後は対象選択状態となり、ボタン表示が「選択中」「キャンセル」に変わって
- * 敵のカードを選択できるようになる。戦闘不能のカードはグレーアウトされる。勝敗が決まると
+ * 敵のカードを選択できるようになる。スキルボタン押下後はスキル一覧(名前とMP消費量)が表示され、
+ * スキルを選ぶと味方のカードを選択できるようになる。戦闘不能のカードはグレーアウトされる。勝敗が決まると
  * 画面全体に結果を重ねて表示する。勝利時は「次に進む」ボタンで[BattleViewModel.onNextBattleClick]を呼び、
  * 敗北時はオーバーレイのタップで[onDefeat]を呼ぶ。敵カードの下の空きには進行度を表示する。
  * 他の画面と異なりトップバーは表示しない。
@@ -110,12 +120,21 @@ fun BattleScreen(
                                 unit = member,
                                 modifier = slotModifier,
                                 isSelected = member.isActive,
+                                onClick = if (uiState.selection is BattleSelection.SkillTarget) {
+                                    { viewModel.onAllyClick(member.id) }
+                                } else {
+                                    null
+                                },
                             )
                         } else {
                             FormationSlotFrame(modifier = slotModifier)
                         }
                     },
                 )
+                if (uiState.selection == BattleSelection.SkillList) {
+                    Spacer(Modifier.height(8.dp))
+                    SkillList(skills = uiState.skills, onSkillClick = viewModel::onSkillSelected)
+                }
                 Spacer(Modifier.height(24.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -133,14 +152,24 @@ fun BattleScreen(
                         )
                     }
                     Button(
-                        onClick = if (uiState.isSelectingTarget) viewModel::onCancelClick else onRetreat,
-                        enabled = uiState.isSelectingTarget || (!uiState.isProcessing && uiState.outcome == null),
+                        onClick = viewModel::onSkillClick,
+                        enabled = uiState.isSkillEnabled,
                         modifier = Modifier.weight(1f),
                     ) {
                         Text(
                             stringResource(
-                                if (uiState.isSelectingTarget) R.string.action_cancel else R.string.action_retreat,
+                                if (uiState.isSelectingSkill) R.string.action_selecting else R.string.action_skill,
                             ),
+                        )
+                    }
+                    val isSelecting = uiState.selection != BattleSelection.None
+                    Button(
+                        onClick = if (isSelecting) viewModel::onCancelClick else onRetreat,
+                        enabled = isSelecting || (!uiState.isProcessing && uiState.outcome == null),
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Text(
+                            stringResource(if (isSelecting) R.string.action_cancel else R.string.action_retreat),
                         )
                     }
                 }
@@ -153,6 +182,41 @@ fun BattleScreen(
                 onNextClick = viewModel::onNextBattleClick,
                 onDefeatClick = onDefeat,
             )
+        }
+    }
+}
+
+/**
+ * 手番の味方が使えるアクティブスキルを、名前とMP消費量つきで縦に並べて表示する。
+ *
+ * 現在のMPでコストを支払えないスキルは選択できない(無効表示になる)。数が多い場合は
+ * [SKILL_LIST_MAX_HEIGHT]の中でスクロールする。
+ *
+ * @param skills 表示するスキルの一覧。
+ * @param onSkillClick スキルが選ばれたときに呼ばれるコールバック(引数はスキルID)。
+ * @param modifier このComposableに適用する[Modifier]。
+ */
+@Composable
+private fun SkillList(
+    skills: List<BattleSkillUiModel>,
+    onSkillClick: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .heightIn(max = SKILL_LIST_MAX_HEIGHT)
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        skills.forEach { skill ->
+            OutlinedButton(
+                onClick = { onSkillClick(skill.id) },
+                enabled = skill.isUsable,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(stringResource(R.string.battle_skill_item_format, skill.name, skill.cost))
+            }
         }
     }
 }
@@ -256,6 +320,10 @@ private fun BattleNarration.toText(): String = when (this) {
     is BattleNarration.SelectAction -> stringResource(R.string.battle_narration_select_action, actorName)
     BattleNarration.SelectTarget -> stringResource(R.string.battle_narration_select_target)
     is BattleNarration.EnemyTurn -> stringResource(R.string.battle_narration_enemy_turn, actorName)
+    BattleNarration.SelectSkill -> stringResource(R.string.battle_narration_select_skill)
+    BattleNarration.SelectAllyTarget -> stringResource(R.string.battle_narration_select_ally_target)
     is BattleNarration.AttackResult ->
         stringResource(R.string.battle_narration_attack_result, attackerName, targetName, damage)
+    is BattleNarration.SkillResult ->
+        stringResource(R.string.battle_narration_skill_result, actorName, targetName, skillName, healedAmount)
 }

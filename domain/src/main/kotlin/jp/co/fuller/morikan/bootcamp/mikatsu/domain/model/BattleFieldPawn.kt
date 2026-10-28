@@ -1,5 +1,7 @@
 package jp.co.fuller.morikan.bootcamp.mikatsu.domain.model
 
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.PassiveSkill
+
 /**
  * バトルフィールド上に存在する、FPID(フィールドポーンID)を持つ対象に共通のインターフェース。
  *
@@ -45,6 +47,12 @@ sealed interface BattleFieldPawn {
      * それぞれ手番の回数を持つ。将来、バフ/デバフの持続をこの回数で数えるために用いる。
      */
     val turnCount: Int
+
+    /**
+     * この個体が持つパッシブスキル。ダメージ軽減などの常時効果を、味方・敵を問わず
+     * 同じ仕組みで適用するために共通で持つ。持たない個体は空。
+     */
+    val passiveSkills: List<PassiveSkill>
 
     /** 戦闘不能(現在HPが0以下)かどうか。戦闘不能の個体は行動順から外れ、攻撃対象にも選べない。 */
     val isDefeated: Boolean get() = currentHp <= 0

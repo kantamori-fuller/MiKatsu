@@ -110,6 +110,19 @@ ui/<screenName>/
 - **turnCount**: 個体が終えた自分の手番の回数。将来、バフ/デバフの持続をこの回数で数える。
 - 戦闘不能(HP 0)の個体は行動順から外れ、攻撃対象にも選べない。敵が全滅で勝利、味方が全滅で敗北(`BattleField.outcome`)。
 
+## スキルシステム
+
+キャラクターには、戦闘中に自分で使うアクティブスキル(Aスキル)と、設定しているだけで常に効果を発揮するパッシブスキル(Pスキル)を設定できる。モデルは`domain/model/skill/`、効果の適用は`domain/battle/`に置く。
+
+- **スキルID**: `Skill.id`。マスターデータのID(敵のEIDと同じ位置づけ)で、AスキルとPスキルはそれぞれ独立して採番する(ディア=Aスキル1、鋼の体=Pスキル1)。同じ数値でもAスキル1とPスキル1は別のスキルであり、IDは必ず種別(A/P)とセットで扱う。種別を決めずにIDだけでスキルを探さないこと。戦闘中の個体を識別するFPIDとも別物で、Aスキルは`Character.activeSkillIds`、Pスキルは`passiveSkillIds`に分けて保存する(`characters.json`にキーがない旧データは空リスト、存在しないIDは解決時に無視)。マスターデータは`SkillRepositoryImpl`が保持する。
+- **タイプ**: 接触タイプ(`SkillContactType`: 接触/非接触)、スキルタイプ(`SkillCategory`: 攻撃/回復/変化。複数持てる・空もあり)、コストタイプ(`SkillCostType`: MP)をスキルごとの属性として持つ。
+- **スロット数**: Aスキル・Pスキルともに最大8個(暫定。`SkillLimits`)。同じスキルの重複設定は不可。キャラ編集画面(`CharacterCreateViewModel`)で追加・削除する。
+- **戦闘での解決**: `GetBattleFieldUseCase`がスキルIDを解決して`BattleAlly.activeSkills` / `passiveSkills`に持たせる(FPIDの採番には影響しない)。`BattleFieldPawn.passiveSkills`は敵では空。
+- **Aスキルの使用**: `BattleField.performSkill`(`UseSkillUseCase`経由)が唯一の適用箇所。使用者が現在の行動者の味方・戦闘不能でない・スキルを設定済み・MPがコスト以上・対象が条件に合致(`SkillTarget`)のときだけ成立し、MP消費と効果適用を行う。手番の終了は通常攻撃と同じく呼び出し側が`EndTurnUseCase`で行う。対象は必ずFPIDで指定する。
+- **ディア**: 非接触/回復+変化/MP10。自分を含む味方1体のHPを固定で50回復(最大HPで頭打ち、戦闘不能の味方は対象外で蘇生しない)。
+- **Pスキルの適用**: ダメージ軽減は`domain/battle/PassiveSkillEffects.kt`の`reduceDamage`が唯一の適用箇所で、`performAttack`が`DamageFormula`の最終結果(+2の後)に対象のPスキルの軽減合計を適用する。軽減が1以上あるときは`max(ダメージ - 軽減合計, 1)`。鋼の体は受けるダメージを20減らす(タイプは空)。
+- **MP**: 最大MPは`Character.mana`。戦闘開始時は満タンで、`BattleAlly.currentMp`がスキル使用で減る。次の戦闘へは現在HPと同様に持ち越す(`createNextBattleField`)。敵のMPは現状使わない。
+
 ## ドキュメンテーション(KDoc)
 
 - クラス・インターフェース・関数(private関数を含む)には、その機能と目的を説明するKDocを丁寧に記述する。

@@ -7,9 +7,13 @@ import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
 import dagger.hilt.android.lifecycle.HiltViewModel
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.CharacterDraft
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillLimits
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.GetCharacterUseCase
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.GetSkillsUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.SaveCharacterUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.charactercreate.model.CharacterCreateUiState
+import jp.co.fuller.morikan.bootcamp.mikatsu.ui.charactercreate.model.SkillPickerKind
+import jp.co.fuller.morikan.bootcamp.mikatsu.ui.charactercreate.model.SkillUiModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
@@ -25,18 +29,20 @@ import kotlinx.coroutines.launch
  * `@AssistedFactory`で組み合わせて生成する。
  *
  * 既存データがあればフォームへ復元し、各ステータス入力の検証(半角数字のみ許可)と、
- * 保存処理の実行を担当することを目的とする。Screen側は本ViewModelの[uiState]を購読して
+ * 保存処理の実行、およびAスキル・Pスキルの追加・削除(それぞれ上限は[SkillLimits]、重複なし)を担当することを目的とする。Screen側は本ViewModelの[uiState]を購読して
  * 描画するのみで、ロジックは持たない。
  *
  * @property characterId 編集対象のキャラクターID。新規作成の場合は`null`。
  * @property getCharacterUseCase 編集対象キャラクターの既存データを取得するUseCase。
  * @property saveCharacterUseCase 入力内容を保存するUseCase。
+ * @property getSkillsUseCase 設定可能なスキルの一覧を取得するUseCase。
  */
 @HiltViewModel(assistedFactory = CharacterCreateViewModel.Factory::class)
 class CharacterCreateViewModel @AssistedInject constructor(
     @Assisted private val characterId: Int?,
     private val getCharacterUseCase: GetCharacterUseCase,
     private val saveCharacterUseCase: SaveCharacterUseCase,
+    private val getSkillsUseCase: GetSkillsUseCase,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(CharacterCreateUiState(isEditing = characterId != null))
@@ -45,6 +51,16 @@ class CharacterCreateViewModel @AssistedInject constructor(
     val uiState = _uiState.asStateFlow()
 
     init {
+        viewModelScope.launch {
+            val catalog = getSkillsUseCase()
+            _uiState.update {
+                it.copy(
+                    activeSkillCatalog = catalog.activeSkills.map { skill -> SkillUiModel(skill.id, skill.name) },
+                    passiveSkillCatalog = catalog.passiveSkills.map { skill -> SkillUiModel(skill.id, skill.name) },
+                    isSkillCatalogLoaded = true,
+                )
+            }
+        }
         val id = characterId
         if (id != null) {
             viewModelScope.launch {
@@ -60,6 +76,8 @@ class CharacterCreateViewModel @AssistedInject constructor(
                             manaResistance = character.manaResistance.toString(),
                             agility = character.agility.toString(),
                             luck = character.luck.toString(),
+                            activeSkillIds = character.activeSkillIds,
+                            passiveSkillIds = character.passiveSkillIds,
                         )
                     }
                 }
@@ -133,6 +151,73 @@ class CharacterCreateViewModel @AssistedInject constructor(
     fun onLuckChange(value: String) = updateStat(value) { copy(luck = it) }
 
     /**
+     * アクティブスキルの「追加」が押されたときに呼ばれる。
+     *
+     * 上限([SkillLimits.MAX_ACTIVE_SKILLS])に達していなければ、追加するスキルを選ぶダイアログを開く。
+     */
+    fun onAddActiveSkillClick() {
+        _uiState.update { if (it.canAddActiveSkill) it.copy(skillPicker = SkillPickerKind.ACTIVE) else it }
+    }
+
+    /**
+     * パッシブスキルの「追加」が押されたときに呼ばれる。
+     *
+     * 上限([SkillLimits.MAX_PASSIVE_SKILLS])に達していなければ、追加するスキルを選ぶダイアログを開く。
+     */
+    fun onAddPassiveSkillClick() {
+        _uiState.update { if (it.canAddPassiveSkill) it.copy(skillPicker = SkillPickerKind.PASSIVE) else it }
+    }
+
+    /** スキル追加ダイアログが閉じられた(キャンセルされた)ときに呼ばれる。 */
+    fun onSkillPickerDismiss() {
+        _uiState.update { it.copy(skillPicker = null) }
+    }
+
+    /**
+     * スキル追加ダイアログでスキルが選ばれたときに呼ばれる。
+     *
+     * ダイアログの種別に応じたスキルの設定リストの末尾へ追加してダイアログを閉じる。
+     * すでに設定済み・上限に達している・選択肢にないスキルの場合は追加しない。
+     *
+     * @param skillId 選ばれたスキルのID。
+     */
+    fun onSkillPicked(skillId: Int) {
+        _uiState.update { state ->
+            if (state.skillPicker == null || state.skillPickerCandidates.none { it.id == skillId }) {
+                return@update state.copy(skillPicker = null)
+            }
+            when (state.skillPicker) {
+                SkillPickerKind.ACTIVE -> state.copy(
+                    activeSkillIds = if (state.canAddActiveSkill) state.activeSkillIds + skillId else state.activeSkillIds,
+                    skillPicker = null,
+                )
+                SkillPickerKind.PASSIVE -> state.copy(
+                    passiveSkillIds = if (state.canAddPassiveSkill) state.passiveSkillIds + skillId else state.passiveSkillIds,
+                    skillPicker = null,
+                )
+            }
+        }
+    }
+
+    /**
+     * 設定済みアクティブスキルの「削除」が押されたときに呼ばれる。
+     *
+     * @param skillId 外すスキルのID。
+     */
+    fun onRemoveActiveSkill(skillId: Int) {
+        _uiState.update { it.copy(activeSkillIds = it.activeSkillIds - skillId) }
+    }
+
+    /**
+     * 設定済みパッシブスキルの「削除」が押されたときに呼ばれる。
+     *
+     * @param skillId 外すスキルのID。
+     */
+    fun onRemovePassiveSkill(skillId: Int) {
+        _uiState.update { it.copy(passiveSkillIds = it.passiveSkillIds - skillId) }
+    }
+
+    /**
      * ステータス入力フィールド共通の更新処理。
      *
      * 入力値が半角数字のみで構成されている場合のみ状態を更新することで、
@@ -156,6 +241,8 @@ class CharacterCreateViewModel @AssistedInject constructor(
      * 現在の入力内容から[CharacterDraft]を組み立てて保存し、完了後に
      * [CharacterCreateUiState.isSaved]を`true`にすることでScreen側へ画面遷移を促す。
      * 空文字のステータスは0として扱う。名前が未入力の場合は何もしない。
+     * スキルIDは、マスターデータの読み込み済みなら存在するもの(設定順)だけを保存し、存在しないIDは落とす。
+     * 未読み込みの場合は、設定済みのIDを失わないようそのまま保存する。
      */
     fun onSaveClick() {
         val state = _uiState.value
@@ -173,6 +260,8 @@ class CharacterCreateViewModel @AssistedInject constructor(
                     manaResistance = state.manaResistance.toIntOrNull() ?: 0,
                     agility = state.agility.toIntOrNull() ?: 0,
                     luck = state.luck.toIntOrNull() ?: 0,
+                    activeSkillIds = if (state.isSkillCatalogLoaded) state.activeSkills.map { it.id } else state.activeSkillIds,
+                    passiveSkillIds = if (state.isSkillCatalogLoaded) state.passiveSkills.map { it.id } else state.passiveSkillIds,
                 )
             )
             _uiState.update { it.copy(isSaved = true) }

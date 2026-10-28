@@ -10,6 +10,7 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.repository.BattleRepository
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.repository.CharacterRepository
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.repository.EnemyRepository
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.repository.MapProgressRepository
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.repository.SkillRepository
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.AdvanceToNextBattleUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.ObserveMapProgressUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.AttackUseCase
@@ -18,10 +19,12 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.EndTurnUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.ExecuteEnemyTurnUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.GetBattleFieldUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.GetCharacterUseCase
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.GetSkillsUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.ObserveBattleFieldUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.ObserveCharactersUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.SaveCharacterUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.StartBattleUseCase
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.UseSkillUseCase
 import kotlin.random.Random
 
 /**
@@ -70,13 +73,15 @@ object UseCaseModule {
     /**
      * @param characterRepository 注入される[CharacterRepository]。
      * @param enemyRepository 注入される[EnemyRepository]。
+     * @param skillRepository 注入される[SkillRepository]。
      * @return 今回のバトルの味方・敵にFPIDを割り当てて取得する[GetBattleFieldUseCase]。
      */
     @Provides
     fun provideGetBattleFieldUseCase(
         characterRepository: CharacterRepository,
         enemyRepository: EnemyRepository,
-    ): GetBattleFieldUseCase = GetBattleFieldUseCase(characterRepository, enemyRepository)
+        skillRepository: SkillRepository,
+    ): GetBattleFieldUseCase = GetBattleFieldUseCase(characterRepository, enemyRepository, skillRepository)
 
     /**
      * @param getBattleFieldUseCase 注入される[GetBattleFieldUseCase]。
@@ -132,6 +137,22 @@ object UseCaseModule {
     @Provides
     fun provideAttackUseCase(battleRepository: BattleRepository): AttackUseCase =
         AttackUseCase(battleRepository)
+
+    /**
+     * @param battleRepository 注入される[BattleRepository]。
+     * @return アクティブスキルを使う[UseSkillUseCase]。
+     */
+    @Provides
+    fun provideUseSkillUseCase(battleRepository: BattleRepository): UseSkillUseCase =
+        UseSkillUseCase(battleRepository)
+
+    /**
+     * @param skillRepository 注入される[SkillRepository]。
+     * @return 設定可能なスキルの一覧を取得する[GetSkillsUseCase]。
+     */
+    @Provides
+    fun provideGetSkillsUseCase(skillRepository: SkillRepository): GetSkillsUseCase =
+        GetSkillsUseCase(skillRepository)
 
     /**
      * @param battleRepository 注入される[BattleRepository]。

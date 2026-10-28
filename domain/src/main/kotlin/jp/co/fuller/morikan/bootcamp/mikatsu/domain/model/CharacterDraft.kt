@@ -16,6 +16,8 @@ package jp.co.fuller.morikan.bootcamp.mikatsu.domain.model
  * @property manaResistance 入力されたD. マナ耐性の値。
  * @property agility 入力されたS. 敏捷の値。
  * @property luck 入力されたL. 幸運の値。
+ * @property activeSkillIds 設定したアクティブスキル(Aスキル)のID(アクティブ採番)。
+ * @property passiveSkillIds 設定したパッシブスキル(Pスキル)のID(パッシブ採番。アクティブとは独立)。
  */
 data class CharacterDraft(
     val id: Int?,
@@ -28,4 +30,6 @@ data class CharacterDraft(
     val manaResistance: Int,
     val agility: Int,
     val luck: Int,
+    val activeSkillIds: List<Int> = emptyList(),
+    val passiveSkillIds: List<Int> = emptyList(),
 )

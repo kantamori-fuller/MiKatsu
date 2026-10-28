@@ -1,5 +1,7 @@
 package jp.co.fuller.morikan.bootcamp.mikatsu.domain.model
 
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.PassiveSkill
+
 /**
  * バトルフィールドに配置された、敵の1個体を表すドメインモデル。
  *
@@ -26,4 +28,5 @@ data class BattleEnemy(
     override val defense: Int get() = enemy.defense
     override val agility: Int get() = enemy.agility
     override val luck: Int get() = enemy.luck
+    override val passiveSkills: List<PassiveSkill> get() = emptyList()
 }

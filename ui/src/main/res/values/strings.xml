@@ -43,6 +43,19 @@
     <string name="action_next">次に進む</string>
     <string name="map_progress_format">進行度: %1$d</string>
     <string name="battle_narration_select_target">対象を選択してください</string>
+    <string name="action_skill">スキル</string>
+    <string name="battle_narration_select_skill">使うスキルを選択してください</string>
+    <string name="battle_narration_select_ally_target">対象の味方を選択してください</string>
+    <string name="battle_narration_skill_result">%1$sは%2$sに%3$sを使った！%2$sのHPが%4$d回復した！</string>
+    <string name="battle_skill_item_format">%1$s　MP%2$d</string>
+    <string name="label_active_skills">Aスキル</string>
+    <string name="label_passive_skills">Pスキル</string>
+    <string name="skill_none_set">未設定</string>
+    <string name="skill_section_title_format">%1$s (%2$d/%3$d)</string>
+    <string name="action_add_skill">スキルを追加</string>
+    <string name="skill_picker_title_active">Aスキルを追加</string>
+    <string name="skill_picker_title_passive">Pスキルを追加</string>
+    <string name="skill_picker_empty">追加できるスキルがありません</string>
     <string name="battle_hp_format">HP %1$d/%2$d</string>
     <string name="battle_mp_format">MP %1$d/%2$d</string>
 </resources>
