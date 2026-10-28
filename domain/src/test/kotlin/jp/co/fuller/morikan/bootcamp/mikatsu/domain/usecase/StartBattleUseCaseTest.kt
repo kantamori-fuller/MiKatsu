@@ -43,6 +43,7 @@ class StartBattleUseCaseTest {
                 object : EnemyRepository {
                     override suspend fun getEnemies(): List<Enemy> = listOf(enemy)
                 },
+                FakeSkillRepository(),
             ),
             repo,
             progress,

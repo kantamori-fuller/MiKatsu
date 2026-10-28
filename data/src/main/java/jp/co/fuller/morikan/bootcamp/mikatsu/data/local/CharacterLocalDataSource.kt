@@ -69,6 +69,8 @@ class CharacterLocalDataSource @Inject constructor(@ApplicationContext context: 
             manaResistance = draft.manaResistance,
             agility = draft.agility,
             luck = draft.luck,
+            activeSkillIds = draft.activeSkillIds.distinct(),
+            passiveSkillIds = draft.passiveSkillIds.distinct(),
         )
         val index = characters.indexOfFirst { it.id == resolvedId }
         if (index >= 0) characters[index] = character else characters.add(character)
@@ -132,7 +134,23 @@ class CharacterLocalDataSource @Inject constructor(@ApplicationContext context: 
         manaResistance = getInt("manaResistance"),
         agility = getInt("agility"),
         luck = getInt("luck"),
+        activeSkillIds = getIntList("activeSkillIds"),
+        passiveSkillIds = getIntList("passiveSkillIds"),
     )
+
+    /**
+     * JSONオブジェクトからIDの配列を読み込む。
+     *
+     * スキル機能の追加前に保存されたデータにはキー自体が存在しないため、その場合は空リストとして読む。
+     *
+     * @receiver 読み込み元のJSONオブジェクト。
+     * @param key 配列のキー。
+     * @return 読み込んだIDの一覧。キーが存在しなければ空リスト。
+     */
+    private fun JSONObject.getIntList(key: String): List<Int> {
+        val array = optJSONArray(key) ?: return emptyList()
+        return (0 until array.length()).map { array.getInt(it) }
+    }
 
     /**
      * [Character]をファイル保存用のJSONオブジェクトへ変換する。
@@ -151,6 +169,8 @@ class CharacterLocalDataSource @Inject constructor(@ApplicationContext context: 
         put("manaResistance", manaResistance)
         put("agility", agility)
         put("luck", luck)
+        put("activeSkillIds", JSONArray(activeSkillIds))
+        put("passiveSkillIds", JSONArray(passiveSkillIds))
     }
 
     companion object {

@@ -10,7 +10,9 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleAlly
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleEnemy
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleField
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleOutcome
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.AttackResult
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.Formation
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.SkillResult
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.AdvanceToNextBattleUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.AttackUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.EndTurnUseCase
@@ -18,7 +20,10 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.ExecuteEnemyTurnUseC
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.ObserveBattleFieldUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.ObserveMapProgressUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.StartBattleUseCase
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.UseSkillUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleNarration
+import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleSelection
+import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleSkillUiModel
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleUiState
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleUnitUiModel
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.resolveDisplayNames
@@ -42,7 +47,8 @@ private const val RESULT_DISPLAY_MS = 1200L
  * 編成画面で編成された陣形([formation])で[startBattleUseCase]により戦闘を開始し、
  * [observeBattleFieldUseCase]で購読した戦闘フィールド(現在HP・手番を含む。正はRepositoryが保持する)
  * をもとに、味方は陣形のマスごとに並べ直したうえで[uiState]として公開することを目的とする。
- * 手番が来た味方は自動で行動者となり、「攻撃」→敵のタップで[attackUseCase]による通常攻撃を行う。
+ * 手番が来た味方は自動で行動者となり、「攻撃」→敵のタップで[attackUseCase]による通常攻撃を、
+ * 「スキル」→スキルの選択→味方のタップで[useSkillUseCase]によるスキルの使用を行う。
  * 手番が敵のときは、間とナレーションを挟みながら[executeEnemyTurnUseCase]で自動的に攻撃させる。
  * 行動のたびに[endTurnUseCase]で手番を終える。
  * 勝利後は「次に進む」で[advanceToNextBattleUseCase]により同じ編成のまま次の戦闘へ進み、
@@ -52,6 +58,7 @@ private const val RESULT_DISPLAY_MS = 1200L
  * @property startBattleUseCase 陣形から戦闘を開始するUseCase。
  * @property observeBattleFieldUseCase 戦闘フィールドの最新状態を購読するUseCase。
  * @property attackUseCase 味方の通常攻撃を実行するUseCase。
+ * @property useSkillUseCase 味方のアクティブスキルを使うUseCase。
  * @property executeEnemyTurnUseCase 敵の手番の攻撃を実行するUseCase。
  * @property endTurnUseCase 現在の行動者の手番を終えるUseCase。
  * @property observeMapProgressUseCase マップの進行度を購読するUseCase。
@@ -63,6 +70,7 @@ class BattleViewModel @AssistedInject constructor(
     private val startBattleUseCase: StartBattleUseCase,
     private val observeBattleFieldUseCase: ObserveBattleFieldUseCase,
     private val attackUseCase: AttackUseCase,
+    private val useSkillUseCase: UseSkillUseCase,
     private val executeEnemyTurnUseCase: ExecuteEnemyTurnUseCase,
     private val endTurnUseCase: EndTurnUseCase,
     private val observeMapProgressUseCase: ObserveMapProgressUseCase,
@@ -77,13 +85,13 @@ class BattleViewModel @AssistedInject constructor(
     /** 敵の手番の演出ジョブ。二重に開始しないための目印として保持する。 */
     private var enemyTurnJob: Job? = null
 
-    /** 味方の攻撃の演出ジョブ。二重に開始しないための目印として保持する。 */
+    /** 味方の攻撃・スキルの演出ジョブ。二重に開始しないための目印として保持する。 */
     private var playerActionJob: Job? = null
 
     /** 次の戦闘へ進める処理のジョブ。連打で二重に進まないための目印として保持する。 */
     private var nextBattleJob: Job? = null
 
-    /** 演出中(敵の手番または味方の攻撃のジョブが動いている間)かどうか。 */
+    /** 演出中(敵の手番または味方の攻撃・スキルのジョブが動いている間)かどうか。 */
     private val isBusy: Boolean
         get() = enemyTurnJob?.isActive == true || playerActionJob?.isActive == true
 
@@ -106,22 +114,54 @@ class BattleViewModel @AssistedInject constructor(
     /**
      * 「攻撃」ボタンが押されたときに呼ばれる。
      *
-     * 攻撃できる状態(プレイヤーの手番・演出中でない・勝敗未決)であれば対象選択状態へ移行する。
-     * それ以外の場合は何も行わない。
+     * 攻撃できる状態(プレイヤーの手番・演出中でない・勝敗未決・スキルの選択中でない)であれば
+     * 対象選択状態へ移行する。それ以外の場合は何も行わない。
      */
     fun onAttackClick() {
         _uiState.update {
-            if (!it.isAttackEnabled) it else it.copy(isSelectingTarget = true)
+            if (!it.isAttackEnabled) it else it.copy(selection = BattleSelection.AttackTarget)
         }
     }
 
     /**
-     * 対象選択状態で「キャンセル」ボタンが押されたときに呼ばれる。
+     * 「スキル」ボタンが押されたときに呼ばれる。
      *
-     * 対象選択状態を解除し、行動選択に戻す。対象選択状態でなければ何も行わない。
+     * スキルを選べる状態(プレイヤーの手番・演出中でない・勝敗未決・使えるスキルがある・攻撃対象の
+     * 選択中でない)であればスキル一覧の選択状態へ移行する。それ以外の場合は何も行わない。
+     */
+    fun onSkillClick() {
+        _uiState.update {
+            if (!it.isSkillEnabled) it else it.copy(selection = BattleSelection.SkillList)
+        }
+    }
+
+    /**
+     * スキル一覧でスキルが選ばれたときに呼ばれる。
+     *
+     * スキル一覧の選択中で、選ばれたスキルが手番の味方のもので、現在のMPで使えるときだけ、
+     * 対象の味方を選ぶ状態へ移行する。それ以外の場合は何も行わない。
+     *
+     * @param skillId 選ばれたスキルのID([BattleSkillUiModel.id])。
+     */
+    fun onSkillSelected(skillId: Int) {
+        _uiState.update { state ->
+            val skill = state.skills.firstOrNull { it.id == skillId }
+            if (state.selection != BattleSelection.SkillList || !state.isSkillEnabled || skill?.isUsable != true) {
+                state
+            } else {
+                state.copy(selection = BattleSelection.SkillTarget(skillId))
+            }
+        }
+    }
+
+    /**
+     * 「キャンセル」ボタンが押されたときに呼ばれる。
+     *
+     * 攻撃の対象選択・スキル一覧・スキルの対象選択のいずれの状態からも、選択状態を解除して
+     * 行動選択に戻す。選択状態でなければ何も行わない。
      */
     fun onCancelClick() {
-        _uiState.update { it.copy(isSelectingTarget = false) }
+        _uiState.update { it.copy(selection = BattleSelection.None) }
     }
 
     /**
@@ -138,13 +178,50 @@ class BattleViewModel @AssistedInject constructor(
         val attackerFpid = state.currentActorId ?: return
         val target = state.enemies.firstOrNull { it.id == fpid } ?: return
         if (!state.isSelectingTarget || !state.isPlayerTurn || isBusy || target.isDefeated) return
-        _uiState.update { it.copy(isProcessing = true, isSelectingTarget = false) }
+        launchPlayerAction(attackerFpid) {
+            attackUseCase(attackerFpid = attackerFpid, targetFpid = fpid)?.let(::attackNarration)
+        }
+    }
+
+    /**
+     * 味方のカードがタップされたときに呼ばれる。
+     *
+     * スキルの対象選択中・プレイヤーの手番・演出中でない・対象が戦闘不能でない、をすべて満たすときだけ、
+     * 選んでおいたスキルを手番の味方からタップされた味方へ使う。結果をナレーションで表示して間を置いた
+     * あと、手番を終える。条件を満たさなければ何も行わない。
+     *
+     * @param fpid タップされた味方のFPID([BattleUnitUiModel.id])。
+     */
+    fun onAllyClick(fpid: Int) {
+        val state = _uiState.value
+        val actorFpid = state.currentActorId ?: return
+        val selection = state.selection as? BattleSelection.SkillTarget ?: return
+        val target = state.partySlots.firstOrNull { it?.id == fpid } ?: return
+        if (!state.isPlayerTurn || isBusy || target.isDefeated) return
+        launchPlayerAction(actorFpid) {
+            useSkillUseCase(actorFpid = actorFpid, skillId = selection.skillId, targetFpid = fpid)
+                ?.let(::skillNarration)
+        }
+    }
+
+    /**
+     * 味方の行動(通常攻撃・スキル)の演出ジョブを開始する。
+     *
+     * 流れは「演出中にして選択状態を解除 → 行動の実行 → 結果のナレーション → 間 → 手番終了 → 演出終了」。
+     * 演出中の状態は同期的に設定するため、連打しても二重に開始されない。行動が実行できなかった場合
+     * ([execute]が`null`)は、手番を終えずに行動選択へ戻す。
+     *
+     * @param actorFpid 行動する味方のFPID。
+     * @param execute 行動を実行し、結果のナレーションを返す処理。実行できなければ`null`を返す。
+     */
+    private fun launchPlayerAction(actorFpid: Int, execute: suspend () -> BattleNarration?) {
+        _uiState.update { it.copy(isProcessing = true, selection = BattleSelection.None) }
         playerActionJob = viewModelScope.launch {
-            val result = attackUseCase(attackerFpid = attackerFpid, targetFpid = fpid)
-            if (result != null) {
-                showAttackResult(result.attackerFpid, result.targetFpid, result.damage)
+            val narration = execute()
+            if (narration != null) {
+                _uiState.update { it.copy(processingNarration = narration) }
                 delay(RESULT_DISPLAY_MS)
-                endTurnUseCase(attackerFpid)
+                endTurnUseCase(actorFpid)
             }
             _uiState.update { it.copy(isProcessing = false, processingNarration = null) }
             playerActionJob = null
@@ -186,7 +263,7 @@ class BattleViewModel @AssistedInject constructor(
             delay(ENEMY_TURN_DELAY_MS)
             val result = executeEnemyTurnUseCase(actorFpid)
             if (result != null) {
-                showAttackResult(result.attackerFpid, result.targetFpid, result.damage)
+                _uiState.update { it.copy(processingNarration = attackNarration(result)) }
                 delay(RESULT_DISPLAY_MS)
             }
             endTurnUseCase(actorFpid)
@@ -197,22 +274,34 @@ class BattleViewModel @AssistedInject constructor(
     }
 
     /**
-     * 攻撃結果のナレーションを表示状態にする。
+     * 攻撃結果から、表示するナレーションを作る。
      *
-     * @param attackerFpid 攻撃した個体のFPID。
-     * @param targetFpid 攻撃を受けた個体のFPID。
-     * @param damage 与えたダメージ量。
+     * @param result 攻撃の結果。
+     * @return 誰が誰にどれだけのダメージを与えたかを伝えるナレーション。
      */
-    private fun showAttackResult(attackerFpid: Int, targetFpid: Int, damage: Int) {
-        _uiState.update {
-            it.copy(
-                processingNarration = BattleNarration.AttackResult(
-                    attackerName = it.nameOf(attackerFpid),
-                    targetName = it.nameOf(targetFpid),
-                    damage = damage,
-                ),
-            )
-        }
+    private fun attackNarration(result: AttackResult): BattleNarration {
+        val state = _uiState.value
+        return BattleNarration.AttackResult(
+            attackerName = state.nameOf(result.attackerFpid),
+            targetName = state.nameOf(result.targetFpid),
+            damage = result.damage,
+        )
+    }
+
+    /**
+     * スキルの結果から、表示するナレーションを作る。
+     *
+     * @param result スキルの結果。
+     * @return 誰が誰にどのスキルを使い、HPがどれだけ回復したかを伝えるナレーション。
+     */
+    private fun skillNarration(result: SkillResult): BattleNarration {
+        val state = _uiState.value
+        return BattleNarration.SkillResult(
+            actorName = state.nameOf(result.actorFpid),
+            targetName = state.nameOf(result.targetFpid),
+            skillName = result.skillName,
+            healedAmount = result.healedAmount,
+        )
     }
 
     /**
@@ -234,7 +323,8 @@ class BattleViewModel @AssistedInject constructor(
  * 戦闘フィールドの最新状態を、現在のUiStateへ反映した新しいUiStateを返す。
  *
  * 同名の個体には[resolveDisplayNames]で表示名を付け、演出中の状態(演出フラグ・一時ナレーション)や
- * 対象選択状態は維持する。手番の個体が変わって味方の手番でなくなった場合は対象選択状態を解除する。
+ * 選択状態は維持する。手番の個体が変わって味方の手番でなくなった場合は選択状態を解除する。
+ * 手番の味方が使えるスキルと、その時点のMPで使えるかどうかも反映する。
  *
  * @receiver 最新の戦闘フィールド。
  * @param current 反映先の現在のUiState。
@@ -247,6 +337,7 @@ private fun BattleField.reflectedIn(current: BattleUiState): BattleUiState {
     val alliesBySlot = allies.associateBy(BattleAlly::slot)
     val actor = currentActorFpid
     val isPlayerTurn = allies.any { it.fpid == actor }
+    val actorAlly = allies.firstOrNull { it.fpid == actor }
     return current.copy(
         enemies = enemies.map { it.toUiModel(names.getValue(it.fpid), it.fpid == actor) },
         partySlots = List(Formation.SLOT_COUNT) { slot ->
@@ -254,7 +345,17 @@ private fun BattleField.reflectedIn(current: BattleUiState): BattleUiState {
         },
         currentActorId = actor,
         isPlayerTurn = isPlayerTurn,
-        isSelectingTarget = current.isSelectingTarget && isPlayerTurn,
+        selection = if (isPlayerTurn) current.selection else BattleSelection.None,
+        skills = actorAlly?.let { ally ->
+            ally.activeSkills.map { skill ->
+                BattleSkillUiModel(
+                    id = skill.id,
+                    name = skill.name,
+                    cost = skill.cost,
+                    isUsable = ally.currentMp >= skill.cost,
+                )
+            }
+        }.orEmpty(),
         outcome = outcome,
     )
 }
@@ -287,7 +388,8 @@ private fun BattleEnemy.toUiModel(displayName: String, isActive: Boolean) = Batt
  *
  * [id][BattleUnitUiModel.id]にはキャラクター自身のIDではなく、[BattleEnemy]を含めた
  * フィールド全体で一意な[BattleAlly.fpid]を用いる。HPは戦闘中に変化する
- * [BattleAlly.currentHp]を現在値、[BattleAlly.maxHp]を最大値として用いる。
+ * [BattleAlly.currentHp]を現在値、[BattleAlly.maxHp]を最大値として用いる。MPも同様に
+ * [BattleAlly.currentMp]を現在値、[BattleAlly.maxMp]を最大値として用いる。
  *
  * @receiver 変換元のフィールド上の味方個体。
  * @param displayName 同名個体の区別を付けた表示名。
@@ -299,8 +401,8 @@ private fun BattleAlly.toUiModel(displayName: String, isActive: Boolean) = Battl
     name = displayName,
     hp = currentHp,
     maxHp = maxHp,
-    mana = character.mana,
-    maxMana = character.mana,
+    mana = currentMp,
+    maxMana = maxMp,
     isDefeated = isDefeated,
     isActive = isActive,
 )

@@ -1,6 +1,8 @@
 package jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase
 
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.ActionTimeline
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.TEST_DIA
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.TEST_STEEL_BODY
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.testAlly
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.testEnemy
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleField
@@ -23,8 +25,9 @@ class AdvanceToNextBattleUseCaseTest {
 
     private val characters = listOf(1, 2).map {
         Character(
-            id = it, name = "味方$it", hp = 100, mana = 0, attack = 100, defense = 100,
+            id = it, name = "味方$it", hp = 100, mana = 100, attack = 100, defense = 100,
             manaOutput = 0, manaResistance = 0, agility = 100, luck = 0,
+            activeSkillIds = listOf(1, 99), passiveSkillIds = listOf(1, 1),
         )
     }
     private val goblin = Enemy(
@@ -37,7 +40,7 @@ class AdvanceToNextBattleUseCaseTest {
         progress: FakeMapProgressRepository,
         repo: FakeBattleRepository,
     ) = AdvanceToNextBattleUseCase(
-        GetBattleFieldUseCase(FakeCharacters(characters), FakeEnemies(listOf(goblin))),
+        GetBattleFieldUseCase(FakeCharacters(characters), FakeEnemies(listOf(goblin)), FakeSkillRepository()),
         repo,
         progress,
         Random(0),
@@ -46,8 +49,8 @@ class AdvanceToNextBattleUseCaseTest {
     /** 勝利した戦闘のフィールド。味方2は戦闘不能で、味方1は一部ダメージを受けており、敵は全滅している。 */
     private fun victoryField() = BattleField(
         allies = listOf(
-            testAlly(1).copy(character = characters[0], slot = 0, currentHp = 40, turnCount = 3, remainingDistance = 123.0),
-            testAlly(2).copy(character = characters[1], slot = 3, currentHp = 0, turnCount = 2, remainingDistance = 456.0),
+            testAlly(1).copy(character = characters[0], slot = 0, currentHp = 40, currentMp = 30, turnCount = 3, remainingDistance = 123.0),
+            testAlly(2).copy(character = characters[1], slot = 3, currentHp = 0, currentMp = 0, turnCount = 2, remainingDistance = 456.0),
         ),
         enemies = listOf(testEnemy(3).copy(currentHp = 0), testEnemy(4).copy(currentHp = 0)),
     )
@@ -62,7 +65,11 @@ class AdvanceToNextBattleUseCaseTest {
 
         val field = repo.current
         assertEquals(listOf(40, 0), field.allies.map { it.currentHp })
+        assertEquals(listOf(30, 0), field.allies.map { it.currentMp })
         assertEquals(listOf(0, 3), field.allies.map { it.slot })
+        // 存在しないスキルIDは無視され、重複して設定されたIDは1つに解決される。
+        assertEquals(listOf(TEST_DIA), field.allies[0].activeSkills)
+        assertEquals(listOf(TEST_STEEL_BODY), field.allies[0].passiveSkills)
         assertEquals(listOf(1, 2, 3, 4), field.allPawns.map { it.fpid })
         assertEquals(listOf(goblin.hp, goblin.hp), field.enemies.map { it.currentHp })
         assertTrue(field.enemies.all { it.turnCount == 0 })

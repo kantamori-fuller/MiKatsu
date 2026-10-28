@@ -8,10 +8,12 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.data.repository.BattleRepositoryImp
 import jp.co.fuller.morikan.bootcamp.mikatsu.data.repository.CharacterRepositoryImpl
 import jp.co.fuller.morikan.bootcamp.mikatsu.data.repository.EnemyRepositoryImpl
 import jp.co.fuller.morikan.bootcamp.mikatsu.data.repository.MapProgressRepositoryImpl
+import jp.co.fuller.morikan.bootcamp.mikatsu.data.repository.SkillRepositoryImpl
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.repository.BattleRepository
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.repository.CharacterRepository
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.repository.EnemyRepository
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.repository.MapProgressRepository
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.repository.SkillRepository
 import javax.inject.Singleton
 
 /**
@@ -67,4 +69,14 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindMapProgressRepository(impl: MapProgressRepositoryImpl): MapProgressRepository
+
+    /**
+     * [SkillRepository]が要求された際に[SkillRepositoryImpl]を注入するよう束縛する。
+     *
+     * @param impl Hiltが生成した[SkillRepositoryImpl]のインスタンス。
+     * @return [SkillRepository]として扱われる実装。
+     */
+    @Binds
+    @Singleton
+    abstract fun bindSkillRepository(impl: SkillRepositoryImpl): SkillRepository
 }

@@ -12,6 +12,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -19,6 +20,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -28,10 +30,14 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.R
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillLimits
+import jp.co.fuller.morikan.bootcamp.mikatsu.ui.charactercreate.components.SkillSection
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.charactercreate.components.StatField
+import jp.co.fuller.morikan.bootcamp.mikatsu.ui.charactercreate.model.SkillPickerKind
+import jp.co.fuller.morikan.bootcamp.mikatsu.ui.charactercreate.model.SkillUiModel
 
 /**
- * キャラクターの名前と8つのステータスを入力し、保存するための画面。
+ * キャラクターの名前と8つのステータス、Aスキル・Pスキルを設定し、保存するための画面。
  *
  * [CharacterCreateViewModel.uiState]を購読して描画するのみに徹し、入力検証や保存処理は
  * 一切持たない(MVVMにおけるViewの責務のみを担う)。編集対象のキャラクターIDが指定されている
@@ -54,6 +60,17 @@ fun CharacterCreateScreen(
 
     LaunchedEffect(uiState.isSaved) {
         if (uiState.isSaved) onSaved()
+    }
+
+    uiState.skillPicker?.let { kind ->
+        SkillPickerDialog(
+            title = stringResource(
+                if (kind == SkillPickerKind.ACTIVE) R.string.skill_picker_title_active else R.string.skill_picker_title_passive,
+            ),
+            candidates = uiState.skillPickerCandidates,
+            onPick = viewModel::onSkillPicked,
+            onDismiss = viewModel::onSkillPickerDismiss,
+        )
     }
 
     Scaffold(
@@ -110,6 +127,24 @@ fun CharacterCreateScreen(
             )
             StatField(label = stringResource(R.string.label_agility), value = uiState.agility, onValueChange = viewModel::onAgilityChange)
             StatField(label = stringResource(R.string.label_luck), value = uiState.luck, onValueChange = viewModel::onLuckChange)
+            Spacer(Modifier.height(16.dp))
+            SkillSection(
+                title = stringResource(R.string.label_active_skills),
+                skills = uiState.activeSkills,
+                maxCount = SkillLimits.MAX_ACTIVE_SKILLS,
+                canAdd = uiState.canAddActiveSkill,
+                onAddClick = viewModel::onAddActiveSkillClick,
+                onRemoveClick = viewModel::onRemoveActiveSkill,
+            )
+            Spacer(Modifier.height(16.dp))
+            SkillSection(
+                title = stringResource(R.string.label_passive_skills),
+                skills = uiState.passiveSkills,
+                maxCount = SkillLimits.MAX_PASSIVE_SKILLS,
+                canAdd = uiState.canAddPassiveSkill,
+                onAddClick = viewModel::onAddPassiveSkillClick,
+                onRemoveClick = viewModel::onRemovePassiveSkill,
+            )
             Spacer(Modifier.height(24.dp))
             Button(
                 onClick = viewModel::onSaveClick,
@@ -120,4 +155,43 @@ fun CharacterCreateScreen(
             }
         }
     }
+}
+
+/**
+ * まだ設定していないスキルの中から、追加するスキルを選ぶダイアログ。
+ *
+ * 追加できるスキルがない場合はその旨を表示する。選択肢の決定はViewModelが行い、ここでは描画のみを担う。
+ *
+ * @param title ダイアログの見出し。
+ * @param candidates 選べるスキル(未設定のもの)。
+ * @param onPick スキルが選ばれたときに呼ばれるコールバック(引数はスキルID)。
+ * @param onDismiss ダイアログが閉じられたとき(キャンセル・外側のタップ)に呼ばれるコールバック。
+ */
+@Composable
+private fun SkillPickerDialog(
+    title: String,
+    candidates: List<SkillUiModel>,
+    onPick: (Int) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Column {
+                if (candidates.isEmpty()) {
+                    Text(stringResource(R.string.skill_picker_empty))
+                }
+                candidates.forEach { skill ->
+                    TextButton(onClick = { onPick(skill.id) }, modifier = Modifier.fillMaxWidth()) {
+                        Text(skill.name)
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
+        },
+    )
 }
