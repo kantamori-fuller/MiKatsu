@@ -19,11 +19,11 @@ class UseSkillUseCase(private val battleRepository: BattleRepository) {
      * 使用者から対象へスキルを使う。
      *
      * 使用者が現在の行動者ではない場合、スキルを持っていない場合、MPが足りない場合、
-     * 対象がスキルの対象指定に合わない場合は、何も変更せずに`null`を返す。
+     * 対象がレンジ外・陣営違い・戦闘不能などで選べない場合は、何も変更せずに`null`を返す。
      *
      * @param actorFpid スキルを使う個体のFPID。
      * @param skillId 使うアクティブスキルのID(アクティブ採番のマスターデータのID)。
-     * @param targetFpid 対象の個体のFPID。
+     * @param targetFpid 選んだ対象(アンカー)のFPID。範囲スキルでは、この個体を基準に対象が広がる。
      * @return スキルの結果。使えなかった場合は`null`。
      */
     suspend operator fun invoke(actorFpid: Int, skillId: Int, targetFpid: Int): SkillResult? {

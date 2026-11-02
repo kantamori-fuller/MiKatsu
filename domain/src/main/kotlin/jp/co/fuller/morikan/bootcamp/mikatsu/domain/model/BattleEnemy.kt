@@ -13,6 +13,8 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.PassiveSkill
  *   含めたフィールド全体で重複しない。
  * @property enemy 個体の元になった敵のマスターデータ(種族・ステータス)。
  * @property currentHp 現在のHP。戦闘開始時は最大HPと同じ。
+ * @property slot 敵陣営の2行×3列の配置におけるマスの番号([BattleFieldPawn.slot])。出現順に0から連番で割り当てられ、
+ *   0〜2が前衛、3〜5が後衛となる。
  * @property remainingDistance 次の手番までに進む必要がある残り距離([BattleFieldPawn.remainingDistance])。
  * @property turnCount この個体が終えた自分の手番の回数([BattleFieldPawn.turnCount])。
  */
@@ -20,6 +22,7 @@ data class BattleEnemy(
     override val fpid: Int,
     val enemy: Enemy,
     override val currentHp: Int,
+    override val slot: Int,
     override val remainingDistance: Double,
     override val turnCount: Int,
 ) : BattleFieldPawn {

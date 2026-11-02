@@ -29,6 +29,7 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillCostType
  * @param attack 破壊力。
  * @param defense 耐久力。
  * @param mp 現在MP(最大MPも同値)。
+ * @param slot 陣形上のスロット番号。省略時は`fpid - 1`(FPID1〜3が前衛、4〜6が後衛)。
  * @param activeSkills 使えるアクティブスキル。
  * @param passiveSkills 発揮しているパッシブスキル。
  * @return 生成した味方個体。
@@ -41,6 +42,7 @@ fun testAlly(
     attack: Int = 100,
     defense: Int = 100,
     mp: Int = 0,
+    slot: Int = fpid - 1,
     activeSkills: List<ActiveSkill> = emptyList(),
     passiveSkills: List<PassiveSkill> = emptyList(),
 ) = BattleAlly(
@@ -51,7 +53,7 @@ fun testAlly(
     ),
     currentHp = hp,
     currentMp = mp,
-    slot = fpid,
+    slot = slot,
     remainingDistance = ActionTimeline.BASE_DISTANCE,
     turnCount = 0,
     activeSkills = activeSkills,
@@ -67,6 +69,7 @@ fun testAlly(
  * @param hp 現在HP(最大HPも同値)。
  * @param attack 破壊力。
  * @param defense 耐久力。
+ * @param slot 敵陣営のスロット番号。省略時は0(前衛の左端)。
  * @return 生成した敵個体。
  */
 fun testEnemy(
@@ -76,6 +79,7 @@ fun testEnemy(
     hp: Int = 50,
     attack: Int = 100,
     defense: Int = 100,
+    slot: Int = 0,
 ) = BattleEnemy(
     fpid = fpid,
     enemy = Enemy(
@@ -83,6 +87,7 @@ fun testEnemy(
         manaOutput = 0, manaResistance = 0, agility = agility, luck = luck,
     ),
     currentHp = hp,
+    slot = slot,
     remainingDistance = ActionTimeline.BASE_DISTANCE,
     turnCount = 0,
 )
@@ -94,6 +99,9 @@ fun testEnemy(
  * @param name スキル名。
  * @param costs コスト。
  * @param targetSide 対象にする陣営。
+ * @param range レンジ。
+ * @param area 範囲。
+ * @param targetSelection 対象選択。
  * @param basePower 基礎威力。
  * @param hitCount 攻撃回数。
  * @param effects 効果。
@@ -104,6 +112,9 @@ fun testActiveSkill(
     name: String,
     costs: List<SkillCost> = emptyList(),
     targetSide: SkillTargetSide = SkillTargetSide.ALLY,
+    range: SkillRange = SkillRange.RANGE_1,
+    area: SkillArea = SkillArea.SINGLE,
+    targetSelection: SkillTargetSelection = SkillTargetSelection.ONE,
     basePower: Int? = null,
     hitCount: Int = 1,
     effects: List<ActiveSkillEffect> = emptyList(),
@@ -116,9 +127,9 @@ fun testActiveSkill(
     costs = costs,
     coolTime = 0,
     contactType = SkillContactType.NON_CONTACT,
-    range = SkillRange.RANGE_1,
-    area = SkillArea.SINGLE,
-    targetSelection = SkillTargetSelection.ONE,
+    range = range,
+    area = area,
+    targetSelection = targetSelection,
     basePower = basePower,
     hitCount = hitCount,
     effects = effects,
@@ -133,10 +144,12 @@ val TEST_NORMAL_ATTACK = testActiveSkill(
     basePower = 100,
 ).copy(categories = setOf(SkillCategory.PHYSICAL_ATTACK), physicalAttribute = PhysicalAttribute.IMPACT, contactType = SkillContactType.CONTACT)
 
-/** テスト用の「ディア」(Aスキル2・MP10・味方単体のHPを50回復)。マスターデータと同じ内容。 */
+/** テスト用の「ディア」(Aスキル2・MP10・レンジ3・エリア全体から一体選択・HPを50回復)。マスターデータと同じ内容。 */
 val TEST_DIA = testActiveSkill(
     id = 2,
     name = "ディア",
+    range = SkillRange.RANGE_3,
+    area = SkillArea.AREA,
     costs = listOf(SkillCost(SkillCostType.MP, 10)),
     effects = listOf(ActiveSkillEffect.Heal(amount = 50)),
 )

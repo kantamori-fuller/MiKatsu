@@ -18,6 +18,9 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillTargetSide
  * @param name スキル名。
  * @param costs コスト。
  * @param targetSide 対象にする陣営。
+ * @param range レンジ。
+ * @param area 範囲。
+ * @param targetSelection 対象選択。
  * @param basePower 基礎威力。
  * @param hitCount 攻撃回数。
  * @param effects 効果。
@@ -28,6 +31,9 @@ fun testActiveSkill(
     name: String,
     costs: List<SkillCost> = emptyList(),
     targetSide: SkillTargetSide = SkillTargetSide.ALLY,
+    range: SkillRange = SkillRange.RANGE_1,
+    area: SkillArea = SkillArea.SINGLE,
+    targetSelection: SkillTargetSelection = SkillTargetSelection.ONE,
     basePower: Int? = null,
     hitCount: Int = 1,
     effects: List<ActiveSkillEffect> = emptyList(),
@@ -40,9 +46,9 @@ fun testActiveSkill(
     costs = costs,
     coolTime = 0,
     contactType = SkillContactType.NON_CONTACT,
-    range = SkillRange.RANGE_1,
-    area = SkillArea.SINGLE,
-    targetSelection = SkillTargetSelection.ONE,
+    range = range,
+    area = area,
+    targetSelection = targetSelection,
     basePower = basePower,
     hitCount = hitCount,
     effects = effects,

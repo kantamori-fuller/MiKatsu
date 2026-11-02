@@ -31,6 +31,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleOutcome
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.Formation
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.R
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.components.FormationGrid
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.components.FormationSlotFrame
@@ -39,8 +40,6 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleNarration
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleSelection
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleSkillUiModel
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleUnitUiModel
-
-private const val ENEMY_GRID_COLUMNS = 3
 
 /** 勝敗表示のオーバーレイ背景の不透明度。 */
 private const val OVERLAY_ALPHA = 0.6f
@@ -55,13 +54,14 @@ private val ENEMY_CARD_WIDTH = 100.dp
  * 敵陣営・味方陣営の状態表示とコマンド選択を行うバトル画面。
  *
  * [BattleViewModel.uiState]を購読して描画するのみに徹する(MVVMにおけるViewの責務のみを担う)。
- * 画面上部に敵陣営(最大6体)のカードを並べ、画面下部には編成画面と同じ形の陣形の表
+ * 画面上部に敵陣営(最大6体)のカードを2行×3列で並べ(前衛が味方に近い下側、後衛が上側)、画面下部には編成画面と同じ形の陣形の表
  * (縦2マス×横3マス)に味方陣営のカードを配置し、その下にコマンド選択部分(攻撃・スキル・撤退)を
  * 配置する。手番が来た味方は自動で行動者となり、選択中と同じ見た目で強調表示される。
- * 攻撃ボタンはプレイヤーの手番で演出中でないときのみ押下できる。陣形の上にはバトルナレーターを表示する。
+ * 攻撃ボタンはプレイヤーの手番で演出中でなく、攻撃が届く相手がいるときのみ押下できる。陣形の上にはバトルナレーターを表示する。
  * 攻撃ボタン押下後は対象選択状態となり、ボタン表示が「選択中」「キャンセル」に変わって
- * 敵のカードを選択できるようになる。スキルボタン押下後はスキル一覧(名前とMP消費量)が表示され、
- * スキルを選ぶと味方のカードを選択できるようになる。戦闘不能のカードはグレーアウトされる。勝敗が決まると
+ * 攻撃が届く相手のカードを選択できるようになる。スキルボタン押下後はスキル一覧(名前とMP消費量)が表示され、
+ * スキルを選ぶとそのスキルが届く相手のカードを選択できるようになる。選べる相手のカードは、
+ * 点滅する太い枠線で強調され、敵・味方どちらのカードでもタップできる(それ以外のカードはタップできない)。戦闘不能のカードはグレーアウトされる。勝敗が決まると
  * 画面全体に結果を重ねて表示する。勝利時は「次に進む」ボタンで[BattleViewModel.onNextBattleClick]を呼び、
  * 敗北時はオーバーレイのタップで[onDefeat]を呼ぶ。敵カードの下の空きには進行度を表示する。
  * 他の画面と異なりトップバーは表示しない。
@@ -92,8 +92,9 @@ fun BattleScreen(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     EnemyGrid(
-                        enemies = uiState.enemies,
-                        onEnemyClick = if (uiState.isSelectingTarget) viewModel::onEnemyClick else null,
+                        enemySlots = uiState.enemySlots,
+                        selectableTargetIds = uiState.selectableTargetIds,
+                        onEnemyClick = viewModel::onEnemyClick,
                     )
                     Spacer(Modifier.weight(1f))
                     Text(
@@ -116,11 +117,13 @@ fun BattleScreen(
                     slotContent = { slot, slotModifier ->
                         val member = uiState.partySlots[slot]
                         if (member != null) {
+                            val isSelectable = member.id in uiState.selectableTargetIds
                             UnitStatCard(
                                 unit = member,
                                 modifier = slotModifier,
                                 isSelected = member.isActive,
-                                onClick = if (uiState.selection is BattleSelection.SkillTarget) {
+                                isSelectable = isSelectable,
+                                onClick = if (isSelectable) {
                                     { viewModel.onAllyClick(member.id) }
                                 } else {
                                     null
@@ -276,37 +279,51 @@ private fun BattleOutcomeOverlay(
 }
 
 /**
- * 敵陣営のカードを、3列のグリッド状に並べて表示する。
+ * 敵陣営のカードを、2行×3列のグリッド状に並べて表示する。
  *
- * 敵は最大6体を想定するため3列×2行の枠に収まるが、実際に並ぶ行数は[enemies]の件数に従う。
+ * 味方に近い側(画面の下側)に前衛(スロット0〜2)、遠い側(上側)に後衛(スロット3〜5)を置き、
+ * 列はスロット番号の`% 3`に従う。敵のいないマスは、同じ幅の空白にして列を揃える。
+ * いま選べる相手([selectableTargetIds]に含まれる敵)だけが、目立つ枠線つきでタップできる。
  *
- * @param enemies 表示する敵の一覧。
+ * @param enemySlots スロット番号ごとの敵。敵のいないマスは`null`。要素数は[Formation.SLOT_COUNT]。
+ * @param selectableTargetIds いま選べる対象のFPID。
  * @param onEnemyClick 敵のカードがタップされたときに呼ばれるコールバック(引数はタップされた敵のFPID)。
- *   敵を選択できない状態では`null`とし、カードをタップ不可にする。
  * @param modifier このComposableに適用する[Modifier]。
  */
 @Composable
 private fun EnemyGrid(
-    enemies: List<BattleUnitUiModel>,
-    onEnemyClick: ((Int) -> Unit)?,
+    enemySlots: List<BattleUnitUiModel?>,
+    selectableTargetIds: Set<Int>,
+    onEnemyClick: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        enemies.chunked(ENEMY_GRID_COLUMNS).forEach { rowEnemies ->
+        // 画面の上から順に後衛(最後の行)、前衛(最初の行)とする。
+        enemySlots.chunked(Formation.COLUMNS).asReversed().forEach { rowEnemies ->
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 rowEnemies.forEach { enemy ->
-                    UnitStatCard(
-                        unit = enemy,
-                        isSelected = enemy.isActive,
-                        modifier = Modifier.width(ENEMY_CARD_WIDTH),
-                        onClick = onEnemyClick?.let { onClick -> { onClick(enemy.id) } },
-                    )
+                    if (enemy != null) {
+                        val isSelectable = enemy.id in selectableTargetIds
+                        UnitStatCard(
+                            unit = enemy,
+                            isSelected = enemy.isActive,
+                            isSelectable = isSelectable,
+                            modifier = Modifier.width(ENEMY_CARD_WIDTH),
+                            onClick = if (isSelectable) {
+                                { onEnemyClick(enemy.id) }
+                            } else {
+                                null
+                            },
+                        )
+                    } else {
+                        Spacer(Modifier.width(ENEMY_CARD_WIDTH))
+                    }
                 }
             }
         }
@@ -326,10 +343,15 @@ private fun BattleNarration.toText(): String = when (this) {
     is BattleNarration.SelectAction -> stringResource(R.string.battle_narration_select_action, actorName)
     BattleNarration.SelectTarget -> stringResource(R.string.battle_narration_select_target)
     is BattleNarration.EnemyTurn -> stringResource(R.string.battle_narration_enemy_turn, actorName)
+    is BattleNarration.EnemyCannotReach -> stringResource(R.string.battle_narration_enemy_cannot_reach, actorName)
     BattleNarration.SelectSkill -> stringResource(R.string.battle_narration_select_skill)
     BattleNarration.SelectAllyTarget -> stringResource(R.string.battle_narration_select_ally_target)
     is BattleNarration.AttackResult ->
         stringResource(R.string.battle_narration_attack_result, attackerName, targetName, damage)
     is BattleNarration.SkillResult ->
         stringResource(R.string.battle_narration_skill_result, actorName, targetName, skillName, healedAmount)
+    is BattleNarration.MultiAttackResult ->
+        stringResource(R.string.battle_narration_multi_attack_result, attackerName, targetCount, totalDamage)
+    is BattleNarration.MultiSkillResult ->
+        stringResource(R.string.battle_narration_multi_skill_result, actorName, skillName, targetCount, totalHealed)
 }

@@ -12,7 +12,7 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.repository.SkillRepository
  * 必ずFPID(フィールドポーンID)で指定する。手番の終了は本UseCaseでは行わず、
  * 呼び出し側が[EndTurnUseCase]で行う。
  *
- * 威力・攻撃回数は通常攻撃のスキルデータ([SkillRepository.getNormalAttack])から読む。
+ * 威力・攻撃回数・レンジ・範囲・対象選択は通常攻撃のスキルデータ([SkillRepository.getNormalAttack])から読む。
  *
  * @property battleRepository 戦闘状態を保持するRepository。
  * @property skillRepository 通常攻撃のスキルデータを提供するRepository。
@@ -26,10 +26,10 @@ class AttackUseCase(
      * 攻撃者から対象へ通常攻撃を行い、ダメージを適用する。
      *
      * 攻撃者が現在の行動者ではない場合、攻撃者か対象が見つからない場合、攻撃者か対象が
-     * 戦闘不能の場合は、何も変更せずに`null`を返す。
+     * 戦闘不能の場合、対象がレンジ外・陣営違いで選べない場合は、何も変更せずに`null`を返す。
      *
      * @param attackerFpid 攻撃者のFPID。
-     * @param targetFpid 攻撃対象のFPID。
+     * @param targetFpid 選んだ攻撃対象(アンカー)のFPID。
      * @return 攻撃の結果。攻撃できなかった場合は`null`。
      */
     suspend operator fun invoke(attackerFpid: Int, targetFpid: Int): AttackResult? {

@@ -19,6 +19,8 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.repository.SkillRepository
  * 一意な値を割り当てる。同じ敵種(EID)がフィールドに複数体登場する場合の展開も
  * ここで行う。
  *
+ * 敵は出現順にスロット0〜5へ並べる(0〜2が前衛、3〜5が後衛)。
+ *
  * 敵の出現条件(敵種ごとの登場数など)を決定する戦闘ロジックは未実装のため、
  * 現段階では暫定的に各敵種を[ENCOUNTER_COUNT_PER_ENEMY]体ずつ登場させる。
  *
@@ -107,19 +109,27 @@ class GetBattleFieldUseCase(
     /**
      * 敵のマスターデータから、満タンHPの敵個体を[ENCOUNTER_COUNT_PER_ENEMY]体ずつ生成する。
      *
-     * 初戦と次戦の敵の生成・FPID採番を同じ処理に集約し、重複させないことを目的とする。
+     * 初戦と次戦の敵の生成・FPID採番・スロットの割り当てを同じ処理に集約し、重複させないことを目的とする。
+     * スロットは出現順に0から連番で割り当て(0〜2が前衛、3〜5が後衛)、スロット数([Formation.SLOT_COUNT])を
+     * 超える分は出現させない。FPIDの採番ルールは変えない。
      *
      * @param firstFpid 最初の敵に割り当てるFPID。以降は連番で採番する。
-     * @return FPIDを割り当てた敵個体の一覧。
+     * @return FPIDとスロットを割り当てた敵個体の一覧。
      */
-    private suspend fun spawnEnemies(firstFpid: Int): List<BattleEnemy> {
-        var nextFpid = firstFpid
-        return enemyRepository.getEnemies().flatMap { enemy ->
-            List(ENCOUNTER_COUNT_PER_ENEMY) {
-                BattleEnemy(fpid = nextFpid++, enemy = enemy, currentHp = enemy.hp, remainingDistance = ActionTimeline.BASE_DISTANCE, turnCount = 0)
+    private suspend fun spawnEnemies(firstFpid: Int): List<BattleEnemy> =
+        enemyRepository.getEnemies()
+            .flatMap { enemy -> List(ENCOUNTER_COUNT_PER_ENEMY) { enemy } }
+            .take(Formation.SLOT_COUNT)
+            .mapIndexed { slot, enemy ->
+                BattleEnemy(
+                    fpid = firstFpid + slot,
+                    enemy = enemy,
+                    currentHp = enemy.hp,
+                    slot = slot,
+                    remainingDistance = ActionTimeline.BASE_DISTANCE,
+                    turnCount = 0,
+                )
             }
-        }
-    }
 
     companion object {
         /** 敵種ごとにフィールドへ登場させる暫定の体数。 */

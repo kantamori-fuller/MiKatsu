@@ -31,7 +31,7 @@ class ExecuteEnemyTurnUseCaseTest {
 
             assertNotNull(result)
             assertEquals(4, result!!.attackerFpid)
-            assertEquals(2, result.targetFpid)
+            assertEquals(listOf(2), result.hits.map { it.targetFpid })
             assertTrue(repo.current.allies[1].currentHp < 100)
         }
     }
@@ -76,7 +76,57 @@ class ExecuteEnemyTurnUseCaseTest {
 
         val result = ExecuteEnemyTurnUseCase(repo, skills, RandomEnemyTargetSelector(Random(0)))(actorFpid = 2)
 
-        assertEquals(92, result?.damage) // 威力200の1ヒットは46、2回で92
+        assertEquals(92, result?.totalDamage) // 威力200の1ヒットは46、2回で92
         assertEquals(100 - 92, repo.current.allies[0].currentHp)
+    }
+
+    /** 敵が前衛なら、届く前衛の味方だけを狙い、後衛の味方は狙わないこと。 */
+    @Test
+    fun invoke_targetsOnlyReachableAllies() = runBlocking {
+        repeat(30) { seed ->
+            val repo = FakeBattleRepository(
+                BattleField(
+                    allies = listOf(testAlly(1, slot = 0), testAlly(2, slot = 3), testAlly(3, slot = 1)),
+                    enemies = listOf(testEnemy(4, slot = 0)),
+                    turnQueue = listOf(4),
+                ),
+            )
+
+            val result = ExecuteEnemyTurnUseCase(repo, FakeSkillRepository(), RandomEnemyTargetSelector(Random(seed)))(actorFpid = 4)
+
+            assertTrue(checkNotNull(result).hits.single().targetFpid in listOf(1, 3))
+            assertEquals(100, repo.current.allies[1].currentHp)
+        }
+    }
+
+    /** 届く相手がいない(後衛の敵からレンジ1)とき、何もせずnullを返し、フィールドも変わらないこと。 */
+    @Test
+    fun invoke_noReachableTarget_doesNothing() = runBlocking {
+        val field = BattleField(
+            allies = listOf(testAlly(1, slot = 0)),
+            enemies = listOf(testEnemy(2, slot = 0), testEnemy(3, slot = 3)),
+            turnQueue = listOf(3),
+        )
+        val repo = FakeBattleRepository(field)
+
+        assertNull(ExecuteEnemyTurnUseCase(repo, FakeSkillRepository(), RandomEnemyTargetSelector(Random(0)))(actorFpid = 3))
+
+        assertEquals(field, repo.current)
+    }
+
+    /** 前衛の敵が全滅して後衛が繰り上がると、後衛の敵も攻撃できること。 */
+    @Test
+    fun invoke_promotedBackEnemyAttacks() = runBlocking {
+        val repo = FakeBattleRepository(
+            BattleField(
+                allies = listOf(testAlly(1, slot = 0)),
+                enemies = listOf(testEnemy(2, slot = 0).copy(currentHp = 0), testEnemy(3, slot = 3)),
+                turnQueue = listOf(3),
+            ),
+        )
+
+        val result = ExecuteEnemyTurnUseCase(repo, FakeSkillRepository(), RandomEnemyTargetSelector(Random(0)))(actorFpid = 3)
+
+        assertEquals(listOf(1), result?.hits?.map { it.targetFpid })
     }
 }

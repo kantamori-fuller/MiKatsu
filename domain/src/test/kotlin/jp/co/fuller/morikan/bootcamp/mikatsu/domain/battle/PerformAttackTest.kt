@@ -1,6 +1,10 @@
 package jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle
 
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.AttackHit
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleField
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillArea
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillRange
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillTargetSelection
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -20,7 +24,7 @@ class PerformAttackTest {
     fun normalAttack_usesBasePower100_singleHit() {
         val (after, result) = checkNotNull(field().performAttack(1, 2, TEST_NORMAL_ATTACK))
 
-        assertEquals(24, result.damage)
+        assertEquals(24, result.totalDamage)
         assertEquals(1000 - 24, after.enemies[0].currentHp)
     }
 
@@ -31,7 +35,7 @@ class PerformAttackTest {
 
         val (_, result) = checkNotNull(field().performAttack(1, 2, skill))
 
-        assertEquals(46, result.damage)
+        assertEquals(46, result.totalDamage)
     }
 
     /** 攻撃回数だけ繰り返し、合計ダメージが返ること。 */
@@ -41,7 +45,7 @@ class PerformAttackTest {
 
         val (after, result) = checkNotNull(field().performAttack(1, 2, skill))
 
-        assertEquals(48, result.damage)
+        assertEquals(48, result.totalDamage)
         assertEquals(1000 - 48, after.enemies[0].currentHp)
     }
 
@@ -52,7 +56,7 @@ class PerformAttackTest {
 
         val (after, result) = checkNotNull(field(enemyHp = 30).performAttack(1, 2, skill))
 
-        assertEquals(48, result.damage) // 24 + 24 で30を超えたので3回目は行わない
+        assertEquals(48, result.totalDamage) // 24 + 24 で30を超えたので3回目は行わない
         assertEquals(0, after.enemies[0].currentHp)
     }
 
@@ -67,12 +71,99 @@ class PerformAttackTest {
 
         val (_, result) = checkNotNull(f.performAttack(2, 1, TEST_NORMAL_ATTACK.copy(hitCount = 2)))
 
-        assertEquals(96, result.damage)
+        assertEquals(96, result.totalDamage)
     }
 
     /** 基礎威力のないスキルでは攻撃できないこと。 */
     @Test
     fun noBasePower_returnsNull() {
         assertNull(field().performAttack(1, 2, TEST_NORMAL_ATTACK.copy(basePower = null)))
+    }
+
+    /** 敵3体(前衛2・後衛1)がいる、範囲攻撃の検証用フィールド。耐久100の1ヒットは24ダメージ。 */
+    private fun multiField() = BattleField(
+        allies = listOf(testAlly(1)),
+        enemies = listOf(
+            testEnemy(2, hp = 1000, slot = 0),
+            testEnemy(3, hp = 1000, slot = 1),
+            testEnemy(4, hp = 1000, slot = 3),
+        ),
+        turnQueue = listOf(1),
+    )
+
+    /** 陣(ALL)の攻撃が、アンカーと同じ段の敵全員に1ヒットずつ効き、他の敵には効かないこと。 */
+    @Test
+    fun formationAll_hitsEveryoneInTheRow() {
+        val skill = TEST_NORMAL_ATTACK.copy(area = SkillArea.FORMATION, targetSelection = SkillTargetSelection.ALL)
+
+        val (after, result) = checkNotNull(multiField().performAttack(1, 2, skill))
+
+        assertEquals(listOf(AttackHit(2, 24), AttackHit(3, 24)), result.hits)
+        assertEquals(48, result.totalDamage)
+        assertEquals(listOf(976, 976, 1000), after.enemies.map { it.currentHp })
+    }
+
+    /** 範囲攻撃でも、ダメージ軽減と打ち切りは対象ごとに行われること(戦闘不能になった対象だけ打ち切る)。 */
+    @Test
+    fun areaAll_reductionAndCutoffPerTarget() {
+        val f = BattleField(
+            allies = listOf(testAlly(1)),
+            enemies = listOf(testEnemy(2, hp = 30), testEnemy(3, hp = 1000)),
+            turnQueue = listOf(1),
+        )
+        val skill = TEST_NORMAL_ATTACK.copy(
+            area = SkillArea.AREA, targetSelection = SkillTargetSelection.ALL, hitCount = 5,
+        )
+
+        val (after, result) = checkNotNull(f.performAttack(1, 2, skill))
+
+        assertEquals(listOf(AttackHit(2, 48), AttackHit(3, 120)), result.hits) // 30のHPは2ヒット、1000のHPは5ヒット
+        assertEquals(listOf(0, 880), after.enemies.map { it.currentHp })
+    }
+
+    /** 戦闘不能の敵は範囲攻撃の対象に含まれないこと。 */
+    @Test
+    fun areaAll_skipsDefeated() {
+        val f = multiField().let { it.copy(enemies = it.enemies.map { e -> if (e.fpid == 3) e.copy(currentHp = 0) else e }) }
+        val skill = TEST_NORMAL_ATTACK.copy(area = SkillArea.AREA, targetSelection = SkillTargetSelection.ALL, range = SkillRange.RANGE_3)
+
+        val (_, result) = checkNotNull(f.performAttack(1, 2, skill))
+
+        assertEquals(listOf(2, 4), result.hits.map { it.targetFpid })
+    }
+
+    /** 一体選択の攻撃は、範囲が広くてもアンカー1体だけに効くこと。 */
+    @Test
+    fun oneSelection_hitsOnlyAnchor() {
+        val skill = TEST_NORMAL_ATTACK.copy(area = SkillArea.AREA, targetSelection = SkillTargetSelection.ONE)
+
+        val (after, result) = checkNotNull(multiField().performAttack(1, 3, skill))
+
+        assertEquals(listOf(3), result.hits.map { it.targetFpid })
+        assertEquals(listOf(1000, 976, 1000), after.enemies.map { it.currentHp })
+    }
+
+    /** レンジ外の敵(後衛)を、レンジ1の通常攻撃で選ぶと攻撃できずnullになり、レンジ2なら届くこと。 */
+    @Test
+    fun outOfRange_returnsNull() {
+        assertNull(multiField().performAttack(1, 4, TEST_NORMAL_ATTACK))
+        assertNull(multiField().performAttack(1, 1, TEST_NORMAL_ATTACK)) // 陣営違い(味方)
+
+        val (_, result) = checkNotNull(multiField().performAttack(1, 4, TEST_NORMAL_ATTACK.copy(range = SkillRange.RANGE_2)))
+        assertEquals(listOf(4), result.hits.map { it.targetFpid })
+    }
+
+    /** 後衛の味方は、前衛が生きている間はレンジ1の通常攻撃が届かず、前衛が全滅すると届くこと。 */
+    @Test
+    fun backRowAttacker_reachesOnlyAfterFrontDefeated() {
+        val back = BattleField(
+            allies = listOf(testAlly(1, slot = 0).copy(currentHp = 100), testAlly(2, slot = 3)),
+            enemies = listOf(testEnemy(3, slot = 0)),
+            turnQueue = listOf(2),
+        )
+        assertNull(back.performAttack(2, 3, TEST_NORMAL_ATTACK))
+
+        val promoted = back.copy(allies = back.allies.map { if (it.fpid == 1) it.copy(currentHp = 0) else it })
+        assertEquals(listOf(3), checkNotNull(promoted.performAttack(2, 3, TEST_NORMAL_ATTACK)).second.hits.map { it.targetFpid })
     }
 }

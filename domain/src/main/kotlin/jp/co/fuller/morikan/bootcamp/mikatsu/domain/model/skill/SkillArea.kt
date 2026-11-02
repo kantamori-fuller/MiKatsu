@@ -3,7 +3,9 @@ package jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill
 /**
  * スキルの範囲(スキル一覧の「範囲」列)。1回の使用で選べる対象の広がりを表す。
  *
- * 現段階では値を持つだけで、対象選択の制限には使っていない。
+ * [SkillTargetSelection]と組み合わせて、プレイヤーが選んだ対象(アンカー)から実際の対象を決める
+ * (`SkillTargeting.kt`の`resolveTargets`を参照)。[SkillTargetSelection.ONE]ではアンカー1体のみが対象となり、
+ * [SkillTargetSelection.ALL]では各値が示す「まとまり」の生存個体全員が対象となる。
  */
 enum class SkillArea {
     /** 単体。単体選択。 */

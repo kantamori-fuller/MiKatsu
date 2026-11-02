@@ -3,7 +3,8 @@ package jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill
 /**
  * スキルの対象選択(スキル一覧の「対象選択」列)。[SkillArea]の範囲内でどう対象を決めるかを表す。
  *
- * 現段階では値を持つだけで、対象選択の挙動には使っていない。
+ * 範囲が[SkillArea.SINGLE]のときは、どちらでも常にアンカー1体だけが対象になる
+ * (`SkillTargeting.kt`の`resolveTargets`を参照)。
  */
 enum class SkillTargetSelection {
     /** 一体選択。範囲内で一体選択。 */

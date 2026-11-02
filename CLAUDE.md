@@ -117,11 +117,17 @@ ui/<screenName>/
 - **スキルID**: `Skill.id`。マスターデータのID(敵のEIDと同じ位置づけ)で、AスキルとPスキルはそれぞれ独立して採番する(通常攻撃=Aスキル1、ディア=Aスキル2(スキル一覧に未掲載のため仮)、鋼の体=Pスキル1)。同じ数値でもAスキル1とPスキル1は別のスキルであり、IDは必ず種別(A/P)とセットで扱う。種別を決めずにIDだけでスキルを探さないこと。戦闘中の個体を識別するFPIDとも別物で、Aスキルは`Character.activeSkillIds`、Pスキルは`passiveSkillIds`に分けて保存する(`characters.json`にキーがない旧データは空リスト、存在しないIDは解決時に無視)。マスターデータは`SkillRepositoryImpl`が保持する。
 - **スキル一覧とテンプレート**: スキルの正本は`data/スキル一覧.xlsx`(Aスキルは属性ごとのシート、Pスキル、項目の定義など)。`ActiveSkill`はシートの列と1対1で対応する(ID、名前、属性`SkillElement`(シートのタブ)、スキルタイプ`SkillCategory`(物理型攻撃/特殊型攻撃/回復/変化/バフ/デバフ/ポジティブエフェクト/ネガティブエフェクト/トラップ。複数可・空もあり)、物理属性`PhysicalAttribute`(衝撃/斬撃/刺突)、コストタイプ+コスト消費`costs: List<SkillCost>`(MP/HP。例: MP30&HP10)、CT`coolTime`、接触`SkillContactType`、レンジ`SkillRange`、範囲`SkillArea`、対象選択`SkillTargetSelection`、基礎威力`basePower`、攻撃回数`hitCount`、効果`effects`)。`PassiveSkill`はID、名前、スキルタイプ、効果。シートの1行をコードへ書き写す雛形は`SkillRepositoryImpl`のKDocにあるので、スキルを追加するときはそれに従う。
 - **シートに無い項目**: `ActiveSkill.targetSide`(`SkillTargetSide`: 敵/味方)はシートに列が無いが、狙う陣営を表すために暫定で持つ。
-- **データだけの項目**: レンジ・範囲・対象選択・CTは現状データとして持つだけで、戦闘ルール(前衛/後衛による対象制限、陣・列攻撃、クールタイム)としてはまだ効いていない。基礎威力・攻撃回数・コスト・効果は戦闘で使われる。
-- **通常攻撃**: Aスキル1。全キャラクター・全敵が標準で持つ特別なスキルで、スキル枠を使わず、キャラ編集画面の一覧にもバトルの「スキル」一覧にも出ない(`SkillRepository.getNormalAttack()`で取得し、`getActiveSkills()`/`getActiveSkill(id)`には含まれない)。「攻撃」ボタンと敵の手番は`AttackUseCase`/`ExecuteEnemyTurnUseCase`がこのデータを`performAttack`へ渡して実行する。威力は基礎威力、攻撃回数の分だけ1回ずつダメージ計算と軽減を行い、対象が戦闘不能になったら打ち切る。特殊型攻撃の計算式(C/Dを使う)は未実装。
+- **データだけの項目**: CTは現状データとして持つだけで、クールタイムとしてはまだ効いていない。基礎威力・攻撃回数・コスト・効果・レンジ・範囲・対象選択は戦闘で使われる。
+- **前衛/後衛と配置**: 味方・敵とも2行×3列(スロット0〜5)。`slot / 3`が0なら前衛、1なら後衛、列は`slot % 3`。味方は`Formation`のスロット(画面の上段=敵に近い側が前衛)、敵は`GetBattleFieldUseCase`が出現順にスロット0から詰めて割り当てる(画面では前衛を下側=味方側に表示)。陣営の前衛に生存個体がいなければ、その陣営の後衛は前衛として扱う(繰り上がり。`effectiveRowOf`)。
+- **対象の決め方**: `domain/battle/SkillTargeting.kt`の`selectableTargets` / `resolveTargets`が唯一の判定箇所。
+  - **レンジ**: 味方後衛=0・味方前衛=1・敵前衛=2・敵後衛=3の一直線で、使用者と対象の有効な段の距離が`SkillRange.reach`以下なら選べる(反対陣営は`1+深さ+深さ`、同じ陣営は`|深さの差|`)。
+  - **陣営**: `targetSide`(使用者から見た相対。ENEMY=反対陣営、ALLY=自分を含む自陣営)。範囲が`FIELD`のときだけ両陣営。
+  - **範囲×対象選択**: タップした1体(アンカー)が選べる相手であること。一体選択(`ONE`)と`SINGLE`はアンカーのみ。全て対象(`ALL`)はアンカーの属するまとまりの生存個体全員(陣=同じ陣営の同じ有効な段、列=同じ陣営の同じ列、エリア全体=アンカーの陣営全員、フィールド全体=全員)で、まとまりの他のメンバーはレンジ外でも対象になる。
+  - 選べる相手がいない行動は使えない(「攻撃」ボタン・スキル一覧が無効)。敵は届く相手がいなければ何もせず手番を終える。画面では選べる相手のカードに点滅する太い枠を付け、そのカードだけタップできる。
+- **通常攻撃**: Aスキル1。全キャラクター・全敵が標準で持つ特別なスキルで、スキル枠を使わず、キャラ編集画面の一覧にもバトルの「スキル」一覧にも出ない(`SkillRepository.getNormalAttack()`で取得し、`getActiveSkills()`/`getActiveSkill(id)`には含まれない)。「攻撃」ボタンと敵の手番は`AttackUseCase`/`ExecuteEnemyTurnUseCase`がこのデータを`performAttack`へ渡して実行する。対象は`resolveTargets`で決め(範囲攻撃なら対象ごとに)、威力は基礎威力、攻撃回数の分だけ1回ずつダメージ計算と軽減を行い、対象が戦闘不能になったらその対象への攻撃を打ち切る。特殊型攻撃の計算式(C/Dを使う)は未実装。
 - **スロット数**: Aスキル・Pスキルともに最大8個(暫定。`SkillLimits`)。同じスキルの重複設定は不可。キャラ編集画面(`CharacterCreateViewModel`)で追加・削除する。
 - **戦闘での解決**: `GetBattleFieldUseCase`がスキルIDを解決して`BattleAlly.activeSkills` / `passiveSkills`に持たせる(FPIDの採番には影響しない)。`BattleFieldPawn.passiveSkills`は敵では空。
-- **Aスキルの使用**: `BattleField.performSkill`(`UseSkillUseCase`経由)が唯一の適用箇所。使用者が現在の行動者の味方・戦闘不能でない・スキルを設定済み・コスト(MP・HP。HPコストは支払い後にHPが1以上残る場合のみ)を払える・対象が条件に合致(`targetSide`)のときだけ成立し、コスト消費と効果適用を行う。現状は味方を対象とするダメージなしのスキルのみ使用できる。手番の終了は通常攻撃と同じく呼び出し側が`EndTurnUseCase`で行う。対象は必ずFPIDで指定する。
+- **Aスキルの使用**: `BattleField.performSkill`(`UseSkillUseCase`経由)が唯一の適用箇所。使用者が現在の行動者の味方・戦闘不能でない・スキルを設定済み・コスト(MP・HP。HPコストは支払い後にHPが1以上残る場合のみ)を払える・選んだ対象が選べる相手(`selectableTargets`)のときだけ成立し、コスト消費と、`resolveTargets`で決めた全対象への効果適用を行う。現状はダメージなし(基礎威力なし)のスキルのみ使用できる。手番の終了は通常攻撃と同じく呼び出し側が`EndTurnUseCase`で行う。対象は必ずFPIDで指定する。
 - **ディア**: 無属性(仮)/非接触/回復+変化/MP10/レンジ3・エリア全体・一体選択(仮)。自分を含む味方1体のHPを固定で50回復(最大HPで頭打ち、戦闘不能の味方は対象外で蘇生しない)。
 - **Pスキルの適用**: ダメージ軽減は`domain/battle/PassiveSkillEffects.kt`の`reduceDamage`が唯一の適用箇所で、`performAttack`が`DamageFormula`の最終結果(+2の後)に、1ヒットごとに対象のPスキルの軽減合計を適用する。軽減が1以上あるときは`max(ダメージ - 軽減合計, 1)`。鋼の体は受けるダメージを20減らす(タイプは空)。
 - **MP**: 最大MPは`Character.mana`。戦闘開始時は満タンで、`BattleAlly.currentMp`がスキル使用で減る。次の戦闘へは現在HPと同様に持ち越す(`createNextBattleField`)。敵のMPは現状使わない。
