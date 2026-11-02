@@ -1,18 +1,36 @@
 package jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill
 
 /**
- * スキルタイプ(スキルの性質の分類)。1つのスキルが複数のタイプを併せ持てる。
+ * スキルタイプ(スキル一覧の「スキルタイプ」列)。1つのスキルが複数のタイプを併せ持てる。
  *
  * 将来、タイプごとの強化・耐性・使用制限などを、スキル個別ではなく属性として一括して
  * 扱えるようにすることを目的とする。
  */
 enum class SkillCategory {
-    /** 攻撃スキル。 */
-    ATTACK,
+    /** 物理型攻撃。 */
+    PHYSICAL_ATTACK,
 
-    /** 回復スキル。 */
+    /** 特殊型攻撃。(C・Dのステータスを使うダメージ式は未実装) */
+    SPECIAL_ATTACK,
+
+    /** 回復。 */
     HEAL,
 
-    /** 変化スキル。能力や状態に変化を与える。 */
+    /** 変化。 */
     STATUS,
+
+    /** バフ。 */
+    BUFF,
+
+    /** デバフ。 */
+    DEBUFF,
+
+    /** ポジティブエフェクト。 */
+    POSITIVE_EFFECT,
+
+    /** ネガティブエフェクト。 */
+    NEGATIVE_EFFECT,
+
+    /** トラップ。 */
+    TRAP,
 }

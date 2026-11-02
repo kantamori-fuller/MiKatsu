@@ -1,5 +1,6 @@
 package jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase
 
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.TEST_NORMAL_ATTACK
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.testAlly
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.testEnemy
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.AttackResult
@@ -20,7 +21,7 @@ class AttackUseCaseTest {
             turnQueue = listOf(1),
         ),
     )
-    private val useCase = AttackUseCase(repository)
+    private val useCase = AttackUseCase(repository, FakeSkillRepository())
 
     /** 対象のHPだけが減り、味方のHPは変わらず、結果が返ること。 */
     @Test
@@ -75,8 +76,19 @@ class AttackUseCaseTest {
         )
         val repo = FakeBattleRepository(field)
 
-        assertNull(AttackUseCase(repo)(attackerFpid = 1, targetFpid = 2))
+        assertNull(AttackUseCase(repo, FakeSkillRepository())(attackerFpid = 1, targetFpid = 2))
 
         assertEquals(field, repo.current)
+    }
+
+    /** 味方の攻撃が、通常攻撃のスキルデータの攻撃回数を使うこと。 */
+    @Test
+    fun invoke_usesNormalAttackHitCount() = runBlocking {
+        val skills = FakeSkillRepository(TEST_NORMAL_ATTACK.copy(hitCount = 2))
+
+        val result = AttackUseCase(repository, skills)(attackerFpid = 1, targetFpid = 2)
+
+        assertEquals(48, result?.damage)
+        assertEquals(2, repository.current.enemies[0].currentHp)
     }
 }

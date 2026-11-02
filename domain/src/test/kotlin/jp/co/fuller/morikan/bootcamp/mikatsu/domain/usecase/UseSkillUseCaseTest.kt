@@ -26,7 +26,7 @@ class UseSkillUseCaseTest {
     /** 回復とMP消費がRepositoryに反映され、結果が返ること。 */
     @Test
     fun invoke_appliesEffect() = runBlocking {
-        val result = useCase(actorFpid = 1, skillId = 1, targetFpid = 2)
+        val result = useCase(actorFpid = 1, skillId = TEST_DIA.id, targetFpid = 2)
 
         assertEquals(50, result?.healedAmount)
         assertEquals(60, repository.current.allies[1].currentHp)
@@ -36,10 +36,10 @@ class UseSkillUseCaseTest {
     /** 使えない場合はnullを返し、何も変わらないこと(2回目はMP不足)。 */
     @Test
     fun invoke_whenNotUsable_returnsNullAndChangesNothing() = runBlocking {
-        useCase(actorFpid = 1, skillId = 1, targetFpid = 2)
+        useCase(actorFpid = 1, skillId = TEST_DIA.id, targetFpid = 2)
         val before = repository.current
 
-        assertNull(useCase(actorFpid = 1, skillId = 1, targetFpid = 2))
+        assertNull(useCase(actorFpid = 1, skillId = TEST_DIA.id, targetFpid = 2))
 
         assertEquals(before, repository.current)
     }

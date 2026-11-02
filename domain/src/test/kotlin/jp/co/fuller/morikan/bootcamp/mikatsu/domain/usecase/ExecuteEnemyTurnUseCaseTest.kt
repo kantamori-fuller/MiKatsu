@@ -1,6 +1,7 @@
 package jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase
 
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.RandomEnemyTargetSelector
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.TEST_NORMAL_ATTACK
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.testAlly
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.testEnemy
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleField
@@ -26,7 +27,7 @@ class ExecuteEnemyTurnUseCaseTest {
                     turnQueue = listOf(4),
                 ),
             )
-            val result = ExecuteEnemyTurnUseCase(repo, RandomEnemyTargetSelector(Random(seed)))(actorFpid = 4)
+            val result = ExecuteEnemyTurnUseCase(repo, FakeSkillRepository(), RandomEnemyTargetSelector(Random(seed)))(actorFpid = 4)
 
             assertNotNull(result)
             assertEquals(4, result!!.attackerFpid)
@@ -45,7 +46,7 @@ class ExecuteEnemyTurnUseCaseTest {
         )
         val repo = FakeBattleRepository(field)
 
-        assertNull(ExecuteEnemyTurnUseCase(repo, RandomEnemyTargetSelector(Random(0)))(actorFpid = 2))
+        assertNull(ExecuteEnemyTurnUseCase(repo, FakeSkillRepository(), RandomEnemyTargetSelector(Random(0)))(actorFpid = 2))
 
         assertEquals(field, repo.current)
     }
@@ -60,8 +61,22 @@ class ExecuteEnemyTurnUseCaseTest {
         )
         val repo = FakeBattleRepository(field)
 
-        assertNull(ExecuteEnemyTurnUseCase(repo, RandomEnemyTargetSelector(Random(0)))(actorFpid = 3))
+        assertNull(ExecuteEnemyTurnUseCase(repo, FakeSkillRepository(), RandomEnemyTargetSelector(Random(0)))(actorFpid = 3))
 
         assertEquals(field, repo.current)
+    }
+
+    /** 敵の攻撃が、通常攻撃のスキルデータ(基礎威力・攻撃回数)を使うこと。 */
+    @Test
+    fun invoke_usesNormalAttackData() = runBlocking {
+        val repo = FakeBattleRepository(
+            BattleField(allies = listOf(testAlly(1)), enemies = listOf(testEnemy(2)), turnQueue = listOf(2)),
+        )
+        val skills = FakeSkillRepository(TEST_NORMAL_ATTACK.copy(basePower = 200, hitCount = 2))
+
+        val result = ExecuteEnemyTurnUseCase(repo, skills, RandomEnemyTargetSelector(Random(0)))(actorFpid = 2)
+
+        assertEquals(92, result?.damage) // 威力200の1ヒットは46、2回で92
+        assertEquals(100 - 92, repo.current.allies[0].currentHp)
     }
 }

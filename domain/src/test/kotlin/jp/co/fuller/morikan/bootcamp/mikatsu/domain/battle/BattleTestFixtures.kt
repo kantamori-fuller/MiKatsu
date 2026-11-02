@@ -8,10 +8,16 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.ActiveSkill
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.ActiveSkillEffect
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.PassiveSkill
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.PassiveSkillEffect
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.PhysicalAttribute
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillArea
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillCategory
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillCost
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillElement
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillRange
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillTargetSelection
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillTargetSide
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillContactType
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillCostType
-import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillTarget
 
 /**
  * テスト用に味方個体を生成する。
@@ -81,22 +87,72 @@ fun testEnemy(
     turnCount = 0,
 )
 
-/** テスト用の「ディア」(MP10・味方単体のHPを50回復)。マスターデータと同じ内容。 */
-val TEST_DIA = ActiveSkill(
-    id = 1,
-    name = "ディア",
-    categories = setOf(SkillCategory.HEAL, SkillCategory.STATUS),
+/**
+ * テスト用のアクティブスキルを、必要な項目だけ指定して生成する。
+ *
+ * @param id スキルID。
+ * @param name スキル名。
+ * @param costs コスト。
+ * @param targetSide 対象にする陣営。
+ * @param basePower 基礎威力。
+ * @param hitCount 攻撃回数。
+ * @param effects 効果。
+ * @return 生成したアクティブスキル。
+ */
+fun testActiveSkill(
+    id: Int,
+    name: String,
+    costs: List<SkillCost> = emptyList(),
+    targetSide: SkillTargetSide = SkillTargetSide.ALLY,
+    basePower: Int? = null,
+    hitCount: Int = 1,
+    effects: List<ActiveSkillEffect> = emptyList(),
+) = ActiveSkill(
+    id = id,
+    name = name,
+    element = SkillElement.NONE,
+    categories = setOf(SkillCategory.HEAL),
+    physicalAttribute = null,
+    costs = costs,
+    coolTime = 0,
     contactType = SkillContactType.NON_CONTACT,
-    costType = SkillCostType.MP,
-    cost = 10,
-    target = SkillTarget.SingleAlly,
-    effect = ActiveSkillEffect.Heal(amount = 50),
+    range = SkillRange.RANGE_1,
+    area = SkillArea.SINGLE,
+    targetSelection = SkillTargetSelection.ONE,
+    basePower = basePower,
+    hitCount = hitCount,
+    effects = effects,
+    targetSide = targetSide,
 )
 
-/** テスト用の「鋼の体」(受けるダメージを20減らす)。マスターデータと同じ内容。 */
+/** テスト用の通常攻撃(Aスキル1。基礎威力100・1回攻撃)。マスターデータと同じ内容。 */
+val TEST_NORMAL_ATTACK = testActiveSkill(
+    id = 1,
+    name = "通常攻撃",
+    targetSide = SkillTargetSide.ENEMY,
+    basePower = 100,
+).copy(categories = setOf(SkillCategory.PHYSICAL_ATTACK), physicalAttribute = PhysicalAttribute.IMPACT, contactType = SkillContactType.CONTACT)
+
+/** テスト用の「ディア」(Aスキル2・MP10・味方単体のHPを50回復)。マスターデータと同じ内容。 */
+val TEST_DIA = testActiveSkill(
+    id = 2,
+    name = "ディア",
+    costs = listOf(SkillCost(SkillCostType.MP, 10)),
+    effects = listOf(ActiveSkillEffect.Heal(amount = 50)),
+)
+
+/** テスト用の「鋼の体」(Pスキル1・受けるダメージを20減らす)。マスターデータと同じ内容。 */
 val TEST_STEEL_BODY = PassiveSkill(
     id = 1,
     name = "鋼の体",
     categories = emptySet(),
-    effect = PassiveSkillEffect.DamageReduction(amount = 20),
+    effects = listOf(PassiveSkillEffect.DamageReduction(amount = 20)),
+)
+
+/** テスト用のもう1つのパッシブスキル(Pスキル2)。ディア(Aスキル2)と同じ数値のIDでも別のスキルとして扱われることの確認に使う。 */
+val TEST_OTHER_PASSIVE = PassiveSkill(
+    id = 2,
+    name = "別のPスキル",
+    categories = emptySet(),
+    effects = listOf(PassiveSkillEffect.DamageReduction(amount = 1)),
 )

@@ -187,7 +187,7 @@ fun BattleScreen(
 }
 
 /**
- * 手番の味方が使えるアクティブスキルを、名前とMP消費量つきで縦に並べて表示する。
+ * 手番の味方が使えるアクティブスキルを、名前とコスト(MP、HPコストがあればHPも)つきで縦に並べて表示する。
  *
  * 現在のMPでコストを支払えないスキルは選択できない(無効表示になる)。数が多い場合は
  * [SKILL_LIST_MAX_HEIGHT]の中でスクロールする。
@@ -215,7 +215,13 @@ private fun SkillList(
                 enabled = skill.isUsable,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text(stringResource(R.string.battle_skill_item_format, skill.name, skill.cost))
+                Text(
+                    if (skill.hpCost > 0) {
+                        stringResource(R.string.battle_skill_item_with_hp_format, skill.name, skill.mpCost, skill.hpCost)
+                    } else {
+                        stringResource(R.string.battle_skill_item_format, skill.name, skill.mpCost)
+                    },
+                )
             }
         }
     }

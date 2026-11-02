@@ -13,6 +13,8 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleOutcome
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.AttackResult
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.Formation
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.SkillResult
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillCostType
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.canAfford
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.AdvanceToNextBattleUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.AttackUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.EndTurnUseCase
@@ -351,8 +353,9 @@ private fun BattleField.reflectedIn(current: BattleUiState): BattleUiState {
                 BattleSkillUiModel(
                     id = skill.id,
                     name = skill.name,
-                    cost = skill.cost,
-                    isUsable = ally.currentMp >= skill.cost,
+                    mpCost = skill.costOf(SkillCostType.MP),
+                    hpCost = skill.costOf(SkillCostType.HP),
+                    isUsable = ally.canAfford(skill),
                 )
             }
         }.orEmpty(),

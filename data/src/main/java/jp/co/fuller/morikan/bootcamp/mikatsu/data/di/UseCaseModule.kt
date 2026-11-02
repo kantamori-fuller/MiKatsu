@@ -132,11 +132,12 @@ object UseCaseModule {
 
     /**
      * @param battleRepository 注入される[BattleRepository]。
+     * @param skillRepository 注入される[SkillRepository]。
      * @return 通常攻撃を実行する[AttackUseCase]。
      */
     @Provides
-    fun provideAttackUseCase(battleRepository: BattleRepository): AttackUseCase =
-        AttackUseCase(battleRepository)
+    fun provideAttackUseCase(battleRepository: BattleRepository, skillRepository: SkillRepository): AttackUseCase =
+        AttackUseCase(battleRepository, skillRepository)
 
     /**
      * @param battleRepository 注入される[BattleRepository]。
@@ -172,14 +173,16 @@ object UseCaseModule {
 
     /**
      * @param battleRepository 注入される[BattleRepository]。
+     * @param skillRepository 注入される[SkillRepository]。
      * @param enemyTargetSelector 注入される[EnemyTargetSelector]。
      * @return 敵の手番の攻撃を実行する[ExecuteEnemyTurnUseCase]。
      */
     @Provides
     fun provideExecuteEnemyTurnUseCase(
         battleRepository: BattleRepository,
+        skillRepository: SkillRepository,
         enemyTargetSelector: EnemyTargetSelector,
-    ): ExecuteEnemyTurnUseCase = ExecuteEnemyTurnUseCase(battleRepository, enemyTargetSelector)
+    ): ExecuteEnemyTurnUseCase = ExecuteEnemyTurnUseCase(battleRepository, skillRepository, enemyTargetSelector)
 
     /**
      * 行動順・攻撃対象の選択に使う乱数を提供する。UseCaseが乱数を引数で受け取れる(テストで固定できる)ようにするため。

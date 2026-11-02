@@ -40,13 +40,15 @@ data class BattleUnitUiModel(
  *
  * @property id アクティブスキルのID(アクティブ採番のマスターデータのID。FPIDではない)。
  * @property name スキルの名前。
- * @property cost 使用に必要なMP。
- * @property isUsable 現在のMPでコストを支払えるかどうか。`false`のとき一覧で選択できない。
+ * @property mpCost 使用に必要なMP。
+ * @property hpCost 使用に必要なHP。消費しない場合は0。
+ * @property isUsable 現在のMP・HPですべてのコストを支払えるかどうか。`false`のとき一覧で選択できない。
  */
 data class BattleSkillUiModel(
     val id: Int,
     val name: String,
-    val cost: Int,
+    val mpCost: Int,
+    val hpCost: Int,
     val isUsable: Boolean,
 )
 

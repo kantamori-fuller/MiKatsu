@@ -48,6 +48,7 @@
     <string name="battle_narration_select_ally_target">対象の味方を選択してください</string>
     <string name="battle_narration_skill_result">%1$sは%2$sに%3$sを使った！%2$sのHPが%4$d回復した！</string>
     <string name="battle_skill_item_format">%1$s　MP%2$d</string>
+    <string name="battle_skill_item_with_hp_format">%1$s　MP%2$d・HP%3$d</string>
     <string name="label_active_skills">Aスキル</string>
     <string name="label_passive_skills">Pスキル</string>
     <string name="skill_none_set">未設定</string>

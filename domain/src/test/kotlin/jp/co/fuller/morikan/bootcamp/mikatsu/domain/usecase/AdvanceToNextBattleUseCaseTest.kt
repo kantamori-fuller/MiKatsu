@@ -27,7 +27,7 @@ class AdvanceToNextBattleUseCaseTest {
         Character(
             id = it, name = "味方$it", hp = 100, mana = 100, attack = 100, defense = 100,
             manaOutput = 0, manaResistance = 0, agility = 100, luck = 0,
-            activeSkillIds = listOf(1, 99), passiveSkillIds = listOf(1, 1),
+            activeSkillIds = listOf(1, 2, 99), passiveSkillIds = listOf(1, 1),
         )
     }
     private val goblin = Enemy(

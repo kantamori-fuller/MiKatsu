@@ -3,7 +3,7 @@ package jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill
 /**
  * アクティブスキルが発動したときの効果。
  *
- * 効果の種類をデータとして表し、効果の適用処理を戦闘ロジック側へ集約することを目的とする。
+ * スキル一覧の「効果」列に対応する。効果の種類をデータとして表し、効果の適用処理を戦闘ロジック側へ集約することを目的とする。
  */
 sealed interface ActiveSkillEffect {
 

@@ -14,9 +14,19 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.PassiveSkill
 interface SkillRepository {
 
     /**
-     * 全アクティブスキルのマスターデータを取得する。
+     * 全キャラクター・全敵が標準で持つ通常攻撃(Aスキル1)を取得する。
      *
-     * @return アクティブスキルの一覧。
+     * 通常攻撃は設定枠を使わず、[getActiveSkills]の一覧にも[getActiveSkill]の検索結果にも含まれない。
+     * 「攻撃」コマンドと敵の手番の攻撃が、威力や攻撃回数をこのデータから読むために使う。
+     *
+     * @return 通常攻撃のアクティブスキル。
+     */
+    suspend fun getNormalAttack(): ActiveSkill
+
+    /**
+     * キャラクターに設定できるアクティブスキルのマスターデータを取得する。通常攻撃は含まれない。
+     *
+     * @return 設定可能なアクティブスキルの一覧。
      */
     suspend fun getActiveSkills(): List<ActiveSkill>
 
@@ -28,10 +38,12 @@ interface SkillRepository {
     suspend fun getPassiveSkills(): List<PassiveSkill>
 
     /**
-     * スキルIDからアクティブスキルを取得する。
+     * キャラクターが設定したアクティブスキルのIDを解決する。通常攻撃(Aスキル1)は返さない。
      *
-     * @param id スキルID。
-     * @return 該当するアクティブスキル。存在しない(またはパッシブスキルのIDである)場合は`null`。
+     * 旧データでAスキル1がディアを指していた場合に、通常攻撃として解決されてしまわないようにするためである。
+     *
+     * @param id アクティブスキルのID。
+     * @return 該当するアクティブスキル。存在しない・通常攻撃のIDである場合は`null`。
      */
     suspend fun getActiveSkill(id: Int): ActiveSkill?
 

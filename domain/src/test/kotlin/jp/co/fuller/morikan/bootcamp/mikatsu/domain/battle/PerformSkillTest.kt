@@ -2,6 +2,9 @@ package jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle
 
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleField
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.SkillResult
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillCost
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillCostType
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillTargetSide
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -28,7 +31,7 @@ class PerformSkillTest {
 
         assertEquals(100, after.allies[1].currentHp)
         assertEquals(20, after.allies[0].currentMp)
-        assertEquals(SkillResult(1, 1, "ディア", 2, 50), result)
+        assertEquals(SkillResult(1, 2, "ディア", 2, 50), result)
     }
 
     /** 回復は最大HPで頭打ちになり、実際の回復量が結果に入ること。 */
@@ -121,5 +124,55 @@ class PerformSkillTest {
         val f = field().let { it.copy(allies = it.allies.map { a -> if (a.fpid == 1) a.copy(currentHp = 0) else a }) }
 
         assertNull(f.performSkill(1, TEST_DIA.id, 2))
+    }
+
+    /** HPコストとMPコストの両方が消費され、すべて払えるときだけ使えること。 */
+    @Test
+    fun hpAndMpCosts_areDeductedTogether() {
+        val skill = TEST_DIA.copy(costs = listOf(SkillCost(SkillCostType.MP, 30), SkillCost(SkillCostType.HP, 10)))
+        val f = field().let { it.copy(allies = it.allies.map { a -> if (a.fpid == 1) a.copy(activeSkills = listOf(skill)) else a }) }
+
+        val (after, _) = checkNotNull(f.performSkill(1, skill.id, 2))
+
+        assertEquals(0, after.allies[0].currentMp)
+        assertEquals(90, after.allies[0].currentHp)
+    }
+
+    /** MPが足りなければ、HPが足りていても使えないこと(逆も同様)。 */
+    @Test
+    fun hpAndMpCosts_allMustBeAffordable() {
+        val skill = TEST_DIA.copy(costs = listOf(SkillCost(SkillCostType.MP, 31), SkillCost(SkillCostType.HP, 10)))
+        val f = field().let { it.copy(allies = it.allies.map { a -> if (a.fpid == 1) a.copy(activeSkills = listOf(skill)) else a }) }
+        assertNull(f.performSkill(1, skill.id, 2))
+
+        val hpHeavy = TEST_DIA.copy(costs = listOf(SkillCost(SkillCostType.HP, 100)))
+        val g = field().let { it.copy(allies = it.allies.map { a -> if (a.fpid == 1) a.copy(activeSkills = listOf(hpHeavy)) else a }) }
+        assertNull(g.performSkill(1, hpHeavy.id, 2)) // 払うとHPが0になる
+        val ok = TEST_DIA.copy(costs = listOf(SkillCost(SkillCostType.HP, 99)))
+        val h = field().let { it.copy(allies = it.allies.map { a -> if (a.fpid == 1) a.copy(activeSkills = listOf(ok)) else a }) }
+        assertEquals(1, checkNotNull(h.performSkill(1, ok.id, 2)).first.allies[0].currentHp)
+    }
+
+    /** 自分に回復スキルを使うとき、HPコスト消費後のHPを基準に回復すること。 */
+    @Test
+    fun selfHeal_afterHpCost() {
+        val skill = TEST_DIA.copy(costs = listOf(SkillCost(SkillCostType.HP, 10)))
+        val f = field().let { it.copy(allies = it.allies.map { a -> if (a.fpid == 1) a.copy(activeSkills = listOf(skill)) else a }) }
+
+        val (after, result) = checkNotNull(f.performSkill(1, skill.id, 1))
+
+        assertEquals(10, result.healedAmount)
+        assertEquals(100, after.allies[0].currentHp)
+    }
+
+    /** 敵を対象にするスキル・基礎威力を持つスキルは、performSkillでは使えないこと。 */
+    @Test
+    fun enemySideOrDamagingSkill_returnsNull() {
+        val enemySide = TEST_DIA.copy(targetSide = SkillTargetSide.ENEMY)
+        val damaging = TEST_DIA.copy(basePower = 100)
+        val f = field().let { it.copy(allies = it.allies.map { a -> if (a.fpid == 1) a.copy(activeSkills = listOf(enemySide, damaging.copy(id = 9))) else a }) }
+
+        assertNull(f.performSkill(1, enemySide.id, 2))
+        assertNull(f.performSkill(1, 9, 2))
     }
 }
