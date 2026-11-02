@@ -1,6 +1,7 @@
 package jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle
 
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleField
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillTargetSide
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -17,7 +18,7 @@ class DamageReductionTest {
 
         val (_, result) = checkNotNull(field.performAttack(2, 1, TEST_NORMAL_ATTACK))
 
-        assertEquals(baseDamage, result.damage)
+        assertEquals(baseDamage, result.totalDamage)
     }
 
     /** 敵が鋼の体を持つ味方を攻撃すると、ダメージが20減ること。 */
@@ -31,7 +32,7 @@ class DamageReductionTest {
         // 攻撃300・耐久100: 300*100*11/(100*50)+2 = 68
         val (after, result) = checkNotNull(field.performAttack(2, 1, TEST_NORMAL_ATTACK))
 
-        assertEquals(48, result.damage)
+        assertEquals(48, result.totalDamage)
         assertEquals(100 - 48, after.allies[0].currentHp)
     }
 
@@ -44,9 +45,9 @@ class DamageReductionTest {
             turnQueue = listOf(1),
         )
 
-        val (_, result) = checkNotNull(field.performAttack(1, 2, TEST_NORMAL_ATTACK))
+        val (_, result) = checkNotNull(field.performAttack(1, 2, TEST_NORMAL_ATTACK.copy(targetSide = SkillTargetSide.ALLY)))
 
-        assertEquals(48, result.damage)
+        assertEquals(48, result.totalDamage)
     }
 
     /** 軽減量がダメージ(攻撃10なら4)を上回っても、軽減後のダメージは最低1になること。 */
@@ -60,7 +61,7 @@ class DamageReductionTest {
 
         val (_, result) = checkNotNull(field.performAttack(2, 1, TEST_NORMAL_ATTACK))
 
-        assertEquals(1, result.damage)
+        assertEquals(1, result.totalDamage)
     }
 
     /** 鋼の体を持たない敵が受けるダメージは軽減されないこと。 */
@@ -74,7 +75,7 @@ class DamageReductionTest {
 
         val (_, result) = checkNotNull(field.performAttack(1, 2, TEST_NORMAL_ATTACK))
 
-        assertEquals(68, result.damage)
+        assertEquals(68, result.totalDamage)
     }
 
     /** 軽減が複数ある場合は合計して適用されること。 */

@@ -19,6 +19,7 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.EndTurnUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.ExecuteEnemyTurnUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.GetBattleFieldUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.GetCharacterUseCase
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.GetNormalAttackUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.GetSkillsUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.ObserveBattleFieldUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.ObserveCharactersUseCase
@@ -53,6 +54,14 @@ object UseCaseModule {
     @Provides
     fun provideGetCharacterUseCase(repository: CharacterRepository): GetCharacterUseCase =
         GetCharacterUseCase(repository)
+
+    /**
+     * @param skillRepository 注入される[SkillRepository]。
+     * @return 通常攻撃のスキルデータを取得する[GetNormalAttackUseCase]。
+     */
+    @Provides
+    fun provideGetNormalAttackUseCase(skillRepository: SkillRepository): GetNormalAttackUseCase =
+        GetNormalAttackUseCase(skillRepository)
 
     /**
      * @param repository 注入される[CharacterRepository]。
@@ -166,7 +175,7 @@ object UseCaseModule {
 
     /**
      * @param random 注入される[Random]。
-     * @return 生きている味方からランダムに攻撃対象を選ぶ[EnemyTargetSelector]。
+     * @return 届く相手からランダムに攻撃対象を選ぶ[EnemyTargetSelector]。
      */
     @Provides
     fun provideEnemyTargetSelector(random: Random): EnemyTargetSelector = RandomEnemyTargetSelector(random)

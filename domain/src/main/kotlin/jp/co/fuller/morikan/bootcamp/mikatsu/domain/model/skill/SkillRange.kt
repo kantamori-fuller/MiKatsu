@@ -3,15 +3,18 @@ package jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill
 /**
  * スキルのレンジ(スキル一覧の「レンジ」列)。味方と敵のどの位置関係まで届くかを表す。
  *
- * 現段階では値を持つだけで、対象選択の制限には使っていない。
+ * 一直線上の位置を「味方後衛=0・味方前衛=1・敵前衛=2・敵後衛=3」と考え、使用者の位置から対象の位置までの
+ * 距離を数えたとき、距離が[reach]以下の相手が選べる(距離の求め方は`SkillTargeting.kt`の`distanceBetween`を参照)。
+ *
+ * @property reach 届く距離。使用者から対象までの距離がこの値以下なら対象にできる。
  */
-enum class SkillRange {
+enum class SkillRange(val reach: Int) {
     /** レンジ1。味方前衛から敵前衛など、目の前を対象にできる。 */
-    RANGE_1,
+    RANGE_1(1),
 
     /** レンジ2。味方前衛から敵後衛まで、または味方後衛から敵前衛までを選択できる。 */
-    RANGE_2,
+    RANGE_2(2),
 
     /** レンジ3。味方後衛から敵後衛まで選択できる。 */
-    RANGE_3,
+    RANGE_3(3),
 }

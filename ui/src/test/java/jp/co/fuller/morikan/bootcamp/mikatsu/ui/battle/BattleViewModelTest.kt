@@ -16,7 +16,10 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.ActiveSkill
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.ActiveSkillEffect
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.PassiveSkill
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillCost
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillArea
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillCostType
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillRange
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillTargetSelection
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillTargetSide
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.testActiveSkill
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.UseSkillUseCase
@@ -29,6 +32,7 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.AttackUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.EndTurnUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.ExecuteEnemyTurnUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.GetBattleFieldUseCase
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.GetNormalAttackUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.ObserveBattleFieldUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.StartBattleUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleNarration
@@ -46,6 +50,8 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -79,12 +85,18 @@ class BattleViewModelTest {
      * @param enemyHp 敵のHP。
      * @param allyMana 味方のマナ総量(最大MP)。
      * @param activeSkillIds 味方が設定しているアクティブスキルのID。
+     * @param enemyKindCount 登場させる敵種の数。敵は1種につき2体ずつ出現するため、2種なら4体になり4体目が後衛(スロット3)に並ぶ。
+     * @param allySlots 味方(すべて同じキャラクター)を配置する陣形のスロット番号(0〜2が前衛、3〜5が後衛)。
+     * @param normalAttack 通常攻撃として使うスキル。
      * @return ViewModelと戦闘状態のRepository。
      */
     private fun createViewModel(
         enemyHp: Int = 1000,
         allyMana: Int = 0,
         activeSkillIds: List<Int> = emptyList(),
+        enemyKindCount: Int = 1,
+        allySlots: List<Int> = listOf(0),
+        normalAttack: ActiveSkill = DEFAULT_NORMAL_ATTACK,
     ): Pair<BattleViewModel, FakeBattleRepository> {
         val battleRepository = FakeBattleRepository()
         val character = Character(
@@ -98,14 +110,15 @@ class BattleViewModelTest {
         )
         val random = Random(0)
         val mapProgressRepository = FakeMapProgressRepository()
-        val getBattleFieldUseCase = GetBattleFieldUseCase(FakeCharacterRepository(character), FakeEnemyRepository(enemy), FakeSkillRepository())
+        val getBattleFieldUseCase = GetBattleFieldUseCase(FakeCharacterRepository(character), FakeEnemyRepository(List(enemyKindCount) { enemy }), FakeSkillRepository(normalAttack))
         val viewModel = BattleViewModel(
-            formation = Formation(listOf(1, null, null, null, null, null)),
+            formation = Formation(List(Formation.SLOT_COUNT) { if (it in allySlots) 1 else null }),
             startBattleUseCase = StartBattleUseCase(getBattleFieldUseCase, battleRepository, mapProgressRepository, random),
             observeBattleFieldUseCase = ObserveBattleFieldUseCase(battleRepository),
-            attackUseCase = AttackUseCase(battleRepository, FakeSkillRepository()),
+            attackUseCase = AttackUseCase(battleRepository, FakeSkillRepository(normalAttack)),
+            getNormalAttackUseCase = GetNormalAttackUseCase(FakeSkillRepository(normalAttack)),
             useSkillUseCase = UseSkillUseCase(battleRepository),
-            executeEnemyTurnUseCase = ExecuteEnemyTurnUseCase(battleRepository, FakeSkillRepository(), RandomEnemyTargetSelector(random)),
+            executeEnemyTurnUseCase = ExecuteEnemyTurnUseCase(battleRepository, FakeSkillRepository(normalAttack), RandomEnemyTargetSelector(random)),
             endTurnUseCase = EndTurnUseCase(battleRepository, random),
             observeMapProgressUseCase = ObserveMapProgressUseCase(mapProgressRepository),
             advanceToNextBattleUseCase = AdvanceToNextBattleUseCase(
@@ -144,7 +157,7 @@ class BattleViewModelTest {
         assertFalse(state.isProcessing)
         assertEquals(BattleNarration.SelectAction("味方"), state.narration)
         assertTrue(state.isAttackEnabled)
-        assertEquals(listOf("ゴブリンA", "ゴブリンB"), state.enemies.map { it.name })
+        assertEquals(listOf("ゴブリンA", "ゴブリンB", null, null, null, null), state.enemySlots.map { it?.name })
     }
 
     /** 最後の敵を倒すと勝利になり、それ以降は敵のジョブが起動しないこと。 */
@@ -157,7 +170,7 @@ class BattleViewModelTest {
         while (viewModel.uiState.value.outcome == null && guard++ < 10) {
             assertTrue(viewModel.uiState.value.isPlayerTurn)
             viewModel.onAttackClick()
-            val target = viewModel.uiState.value.enemies.first { !it.isDefeated }
+            val target = viewModel.uiState.value.enemySlots.filterNotNull().first { !it.isDefeated }
             viewModel.onEnemyClick(target.id)
             advanceUntilIdle()
         }
@@ -179,7 +192,7 @@ class BattleViewModelTest {
         var guard = 0
         while (viewModel.uiState.value.outcome == null && guard++ < 10) {
             viewModel.onAttackClick()
-            viewModel.onEnemyClick(viewModel.uiState.value.enemies.first { !it.isDefeated }.id)
+            viewModel.onEnemyClick(viewModel.uiState.value.enemySlots.filterNotNull().first { !it.isDefeated }.id)
             advanceUntilIdle()
         }
         assertEquals(BattleOutcome.Victory, viewModel.uiState.value.outcome)
@@ -192,7 +205,7 @@ class BattleViewModelTest {
         assertEquals(null, state.outcome)
         assertEquals(2, state.progress)
         assertTrue(repository.current.enemies.all { it.currentHp == 1 })
-        assertTrue(state.enemies.none { it.isDefeated })
+        assertTrue(state.enemySlots.filterNotNull().none { it.isDefeated })
     }
 
     /** 敵2体の攻撃(1回24ダメージ)を受けた直後の味方が、ディアで回復する一連の流れを検証する。 */
@@ -202,7 +215,7 @@ class BattleViewModelTest {
         advanceUntilIdle()
         val allyFpid = repository.current.allies[0].fpid
         val state = viewModel.uiState.value
-        assertEquals(listOf(BattleSkillUiModel(2, "ディア", 10, 0, true)), state.skills)
+        assertEquals(listOf(BattleSkillUiModel(2, "ディア", 10, 0, setOf(allyFpid), true)), state.skills)
         assertTrue(state.isSkillEnabled)
         assertEquals(100, state.partySlots[0]?.mana)
         assertEquals(100, state.partySlots[0]?.maxMana)
@@ -302,20 +315,227 @@ class BattleViewModelTest {
         assertEquals(100, repository.current.allies[0].currentMp)
     }
 
-    /** テスト用の、ディア(MP10・50回復)だけを返す[SkillRepository]。 */
-    private class FakeSkillRepository : SkillRepository {
-        private val normalAttack = testActiveSkill(
-            id = 1, name = "通常攻撃", targetSide = SkillTargetSide.ENEMY, basePower = 100,
+    /** 攻撃の対象選択中は届く敵だけが選べる相手になり、敵のカードをタップして通常攻撃できること。 */
+    @Test
+    fun attackTargets_areReachableEnemies_andReflectedInSelectableIds() = runTest(dispatcher) {
+        val (viewModel, repository) = createViewModel()
+        advanceUntilIdle()
+        val enemyFpids = repository.current.enemies.map { it.fpid }.toSet()
+
+        assertEquals(enemyFpids, viewModel.uiState.value.attackTargetIds)
+        assertEquals(emptySet<Int>(), viewModel.uiState.value.selectableTargetIds)
+
+        viewModel.onAttackClick()
+        assertEquals(enemyFpids, viewModel.uiState.value.selectableTargetIds)
+
+        // 味方(選べない相手)をタップしても何も起きない。
+        viewModel.onAllyClick(repository.current.allies[0].fpid)
+        runCurrent()
+        assertFalse(viewModel.uiState.value.isProcessing)
+
+        viewModel.onEnemyClick(enemyFpids.first())
+        runCurrent()
+        assertTrue(viewModel.uiState.value.isProcessing)
+        assertEquals(BattleNarration.AttackResult("味方", "ゴブリンA", 24), viewModel.uiState.value.narration)
+    }
+
+    /** 前衛が生きている間、後衛の味方はレンジ1の通常攻撃が届かず、攻撃ボタンが無効になること。 */
+    @Test
+    fun backRowAlly_cannotAttackWithRangeOne_whileFrontAlive() = runTest(dispatcher) {
+        val (viewModel, _) = createViewModel(allySlots = listOf(0, 3))
+        advanceUntilIdle()
+
+        var guard = 0
+        while (viewModel.uiState.value.partySlots[3]?.isActive != true && guard++ < 10) {
+            // 前衛の味方の手番では通常攻撃が使えて、攻撃すると手番が進む。
+            assertTrue(viewModel.uiState.value.isAttackEnabled)
+            viewModel.onAttackClick()
+            viewModel.onEnemyClick(viewModel.uiState.value.attackTargetIds.first())
+            advanceUntilIdle()
+        }
+
+        val state = viewModel.uiState.value
+        assertTrue(state.partySlots[3]?.isActive == true)
+        assertTrue(state.isPlayerTurn)
+        assertEquals(emptySet<Int>(), state.attackTargetIds)
+        assertFalse(state.isAttackEnabled)
+        viewModel.onAttackClick()
+        assertEquals(BattleSelection.None, viewModel.uiState.value.selection)
+    }
+
+    /** 前衛がいない陣営の後衛は前衛として扱われ、後衛に1人だけでもレンジ1の通常攻撃が届くこと。 */
+    @Test
+    fun lonelyBackRowAlly_isPromotedToFront() = runTest(dispatcher) {
+        val (viewModel, _) = createViewModel(allySlots = listOf(3))
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertNull(state.partySlots[0])
+        assertEquals("味方", state.partySlots[3]?.name)
+        assertEquals(2, state.attackTargetIds.size)
+        assertTrue(state.isAttackEnabled)
+    }
+
+    /** スキルの対象選択中は、そのスキルで選べる相手(味方)だけがタップでき、敵をタップしても何も起きないこと。 */
+    @Test
+    fun skillTargets_selectableIdsFollowSelectedSkill() = runTest(dispatcher) {
+        val (viewModel, repository) = createViewModel(allyMana = 100, activeSkillIds = listOf(2))
+        advanceUntilIdle()
+        val allyFpid = repository.current.allies[0].fpid
+
+        viewModel.onSkillClick()
+        assertEquals(emptySet<Int>(), viewModel.uiState.value.selectableTargetIds)
+        viewModel.onSkillSelected(2)
+        assertEquals(setOf(allyFpid), viewModel.uiState.value.selectableTargetIds)
+
+        viewModel.onEnemyClick(repository.current.enemies[0].fpid)
+        runCurrent()
+        assertFalse(viewModel.uiState.value.isProcessing)
+        assertEquals(BattleSelection.SkillTarget(2), viewModel.uiState.value.selection)
+    }
+
+    /** 選べる相手がいないスキルは、コストを払えても使用不可になること(前衛の味方からは届くが、後衛の味方からは届かない)。 */
+    @Test
+    fun skillWithoutTargets_isNotUsable() = runTest(dispatcher) {
+        val (viewModel, _) = createViewModel(activeSkillIds = listOf(FAR_STRIKE_ID), allySlots = listOf(0, 3))
+        advanceUntilIdle()
+
+        var guard = 0
+        while (viewModel.uiState.value.partySlots[3]?.isActive != true && guard++ < 10) {
+            val skill = viewModel.uiState.value.skills.single()
+            assertTrue(skill.targetIds.isNotEmpty())
+            assertTrue(skill.isUsable)
+            viewModel.onAttackClick()
+            viewModel.onEnemyClick(viewModel.uiState.value.attackTargetIds.first())
+            advanceUntilIdle()
+        }
+
+        val skill = viewModel.uiState.value.skills.single()
+        assertEquals(emptySet<Int>(), skill.targetIds)
+        assertFalse(skill.isUsable)
+        viewModel.onSkillClick()
+        viewModel.onSkillSelected(FAR_STRIKE_ID)
+        assertNotEquals(BattleSelection.SkillTarget(FAR_STRIKE_ID), viewModel.uiState.value.selection)
+    }
+
+    /** 範囲(全て対象)の通常攻撃は複数対象のナレーションになり、全員にダメージが入ること。 */
+    @Test
+    fun areaAttack_showsMultiTargetNarration() = runTest(dispatcher) {
+        val areaAttack = DEFAULT_NORMAL_ATTACK.copy(area = SkillArea.AREA, targetSelection = SkillTargetSelection.ALL)
+        val (viewModel, repository) = createViewModel(normalAttack = areaAttack)
+        advanceUntilIdle()
+
+        viewModel.onAttackClick()
+        viewModel.onEnemyClick(repository.current.enemies[0].fpid)
+        runCurrent()
+
+        assertEquals(BattleNarration.MultiAttackResult("味方", 2, 48), viewModel.uiState.value.narration)
+        assertEquals(listOf(976, 976), repository.current.enemies.map { it.currentHp })
+    }
+
+    /** 全て対象の回復スキルは、味方全員に効き、複数対象のナレーションになること。 */
+    @Test
+    fun areaSkill_showsMultiTargetNarration() = runTest(dispatcher) {
+        val (viewModel, repository) = createViewModel(activeSkillIds = listOf(HEAL_ALL_ID), allySlots = listOf(0, 3))
+        advanceUntilIdle()
+        val allyFpids = repository.current.allies.map { it.fpid }.toSet()
+
+        viewModel.onSkillClick()
+        viewModel.onSkillSelected(HEAL_ALL_ID)
+        assertEquals(allyFpids, viewModel.uiState.value.selectableTargetIds)
+        viewModel.onAllyClick(allyFpids.first())
+        runCurrent()
+
+        val narration = viewModel.uiState.value.narration
+        assertTrue(narration is BattleNarration.MultiSkillResult)
+        narration as BattleNarration.MultiSkillResult
+        assertEquals("全体回復", narration.skillName)
+        assertEquals(2, narration.targetCount)
+    }
+
+    /** 敵の手番で攻撃が届く相手がいないとき、「届かない」ナレーションを表示してから手番を終え、味方のHPは変わらないこと。 */
+    @Test
+    fun enemyTurn_noReachableTarget_showsCannotReachAndEndsTurn() = runTest(dispatcher) {
+        // 敵4体のうち4体目は後衛(スロット3)で、前衛の味方(レンジ1)には届かない。
+        val (viewModel, repository) = createViewModel(enemyKindCount = 2)
+        val backEnemyFpid = 5 // 味方がFPID1、敵が2〜5の順に採番され、4体目の敵(スロット3)がFPID5
+        var guard = 0
+        while (viewModel.uiState.value.narration != BattleNarration.EnemyCannotReach("ゴブリンD") && guard++ < 200) {
+            advanceTimeBy(50)
+            runCurrent()
+        }
+        assertEquals(BattleNarration.EnemyCannotReach("ゴブリンD"), viewModel.uiState.value.narration)
+        assertEquals(3, repository.current.enemies.first { it.fpid == backEnemyFpid }.slot)
+        assertEquals(backEnemyFpid, repository.current.currentActorFpid)
+        val hpBefore = repository.current.allies[0].currentHp
+
+        advanceTimeBy(1200)
+        runCurrent()
+
+        assertEquals(1, repository.current.enemies.first { it.fpid == backEnemyFpid }.turnCount)
+        assertEquals(hpBefore, repository.current.allies[0].currentHp)
+        assertFalse(viewModel.uiState.value.narration is BattleNarration.EnemyCannotReach)
+    }
+
+    /** 対象選択中に選べない相手(レンジ外の敵・選べない味方)をタップしても、何も起きないこと。 */
+    @Test
+    fun tapUnselectableTargets_doesNothing() = runTest(dispatcher) {
+        val (viewModel, repository) = createViewModel(enemyKindCount = 2)
+        advanceUntilIdle()
+        val allyFpid = repository.current.allies[0].fpid
+        val backEnemyFpid = repository.current.enemies.first { it.slot == 3 }.fpid
+        viewModel.onAttackClick()
+        assertFalse(backEnemyFpid in viewModel.uiState.value.selectableTargetIds)
+        val before = repository.current
+
+        viewModel.onEnemyClick(backEnemyFpid)
+        viewModel.onAllyClick(allyFpid)
+        viewModel.onEnemyClick(999)
+        runCurrent()
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.isProcessing)
+        assertEquals(BattleSelection.AttackTarget, viewModel.uiState.value.selection)
+        assertEquals(before, repository.current)
+    }
+
+    /**
+     * テスト用の、通常攻撃・ディア(MP10・50回復・レンジ3・エリア全体から一体選択)・近接技・全体回復を返す[SkillRepository]。
+     *
+     * @property normalAttack 通常攻撃として返すスキル。
+     */
+    private class FakeSkillRepository(private val normalAttack: ActiveSkill) : SkillRepository {
+        private val farStrike = testActiveSkill(id = FAR_STRIKE_ID, name = "近接技", targetSide = SkillTargetSide.ENEMY)
+        private val healAll = testActiveSkill(
+            id = HEAL_ALL_ID, name = "全体回復",
+            range = SkillRange.RANGE_3, area = SkillArea.AREA, targetSelection = SkillTargetSelection.ALL,
+            effects = listOf(ActiveSkillEffect.Heal(50)),
         )
         private val dia = testActiveSkill(
             id = 2, name = "ディア", costs = listOf(SkillCost(SkillCostType.MP, 10)),
+            range = SkillRange.RANGE_3, area = SkillArea.AREA,
             effects = listOf(ActiveSkillEffect.Heal(50)),
         )
         override suspend fun getNormalAttack(): ActiveSkill = normalAttack
-        override suspend fun getActiveSkills(): List<ActiveSkill> = listOf(dia)
+        private val all = listOf(dia, farStrike, healAll)
+        override suspend fun getActiveSkills(): List<ActiveSkill> = all
         override suspend fun getPassiveSkills(): List<PassiveSkill> = emptyList()
-        override suspend fun getActiveSkill(id: Int): ActiveSkill? = dia.takeIf { it.id == id }
+        override suspend fun getActiveSkill(id: Int): ActiveSkill? = all.firstOrNull { it.id == id }
         override suspend fun getPassiveSkill(id: Int): PassiveSkill? = null
+    }
+
+    /** テスト用の定数をまとめたcompanion。 */
+    private companion object {
+        /** レンジ1・敵対象の、ダメージなしの近接スキル(後衛からは届かない)のID。 */
+        const val FAR_STRIKE_ID = 3
+
+        /** レンジ3・味方エリア全体・全て対象の回復スキルのID。 */
+        const val HEAL_ALL_ID = 4
+
+        /** 通常攻撃(基礎威力100・レンジ1・単体・一体選択・敵対象)。 */
+        val DEFAULT_NORMAL_ATTACK = testActiveSkill(
+            id = 1, name = "通常攻撃", targetSide = SkillTargetSide.ENEMY, basePower = 100,
+        )
     }
 
     /** テスト用の、1体のキャラクターだけを返す[CharacterRepository]。 */
@@ -326,9 +546,9 @@ class BattleViewModelTest {
         override suspend fun deleteCharacter(id: Int) = error("not used")
     }
 
-    /** テスト用の、1種類の敵だけを返す[EnemyRepository]。 */
-    private class FakeEnemyRepository(private val enemy: Enemy) : EnemyRepository {
-        override suspend fun getEnemies(): List<Enemy> = listOf(enemy)
+    /** テスト用の、指定した敵種を返す[EnemyRepository]。 */
+    private class FakeEnemyRepository(private val enemies: List<Enemy>) : EnemyRepository {
+        override suspend fun getEnemies(): List<Enemy> = enemies
     }
 
     /** テスト用の、戦闘フィールドをメモリ上に保持する[BattleRepository]。 */

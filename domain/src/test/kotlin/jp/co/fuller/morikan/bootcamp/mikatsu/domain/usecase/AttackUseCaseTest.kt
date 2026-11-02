@@ -3,6 +3,7 @@ package jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.TEST_NORMAL_ATTACK
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.testAlly
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.testEnemy
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.AttackHit
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.AttackResult
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleField
 import kotlinx.coroutines.runBlocking
@@ -29,7 +30,7 @@ class AttackUseCaseTest {
         val result = useCase(attackerFpid = 1, targetFpid = 2)
 
         val field = repository.current
-        assertEquals(AttackResult(attackerFpid = 1, targetFpid = 2, damage = 24), result)
+        assertEquals(AttackResult(attackerFpid = 1, hits = listOf(AttackHit(targetFpid = 2, damage = 24))), result)
         assertEquals(26, field.enemies[0].currentHp)
         assertEquals(50, field.enemies[1].currentHp)
         assertEquals(100, field.allies[0].currentHp)
@@ -88,7 +89,7 @@ class AttackUseCaseTest {
 
         val result = AttackUseCase(repository, skills)(attackerFpid = 1, targetFpid = 2)
 
-        assertEquals(48, result?.damage)
+        assertEquals(48, result?.totalDamage)
         assertEquals(2, repository.current.enemies[0].currentHp)
     }
 }

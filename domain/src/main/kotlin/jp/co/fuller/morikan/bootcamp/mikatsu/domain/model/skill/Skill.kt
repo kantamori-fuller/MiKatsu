@@ -34,9 +34,9 @@ sealed interface Skill {
  * @property costs コスト(列「コストタイプ」「コスト消費」)。「MP30&HP10」は2要素。コストなし(0)は空リスト。
  * @property coolTime クールタイム(列「CT」)。ターン数。「1t」なら1。現段階では値を持つだけで制限には使わない。
  * @property contactType 接触タイプ(列「接触」)。
- * @property range レンジ(列「レンジ」)。現段階では値を持つだけ。
- * @property area 範囲(列「範囲」)。現段階では値を持つだけ。
- * @property targetSelection 対象選択(列「対象選択」)。現段階では値を持つだけ。
+ * @property range レンジ(列「レンジ」)。使用者から届く距離で、選べる相手を制限する。
+ * @property area 範囲(列「範囲」)。対象選択と組み合わせて、選んだ相手から実際の対象を決める。
+ * @property targetSelection 対象選択(列「対象選択」)。一体選択か、範囲内の全て対象か。
  * @property basePower 基礎威力(列「基礎威力」)。ダメージを与えないスキルは`null`。
  * @property hitCount 攻撃回数(列「攻撃回数」)。「2回」なら2。
  * @property effects 効果(列「効果」)。「なし」は空リスト。

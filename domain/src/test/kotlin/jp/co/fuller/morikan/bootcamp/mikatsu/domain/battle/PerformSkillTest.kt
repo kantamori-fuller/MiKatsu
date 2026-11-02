@@ -2,8 +2,12 @@ package jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle
 
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleField
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.SkillResult
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.SkillTargetResult
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillArea
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillCost
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillCostType
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillRange
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillTargetSelection
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillTargetSide
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -31,7 +35,7 @@ class PerformSkillTest {
 
         assertEquals(100, after.allies[1].currentHp)
         assertEquals(20, after.allies[0].currentMp)
-        assertEquals(SkillResult(1, 2, "ディア", 2, 50), result)
+        assertEquals(SkillResult(1, 2, "ディア", listOf(SkillTargetResult(2, 50))), result)
     }
 
     /** 回復は最大HPで頭打ちになり、実際の回復量が結果に入ること。 */
@@ -42,7 +46,7 @@ class PerformSkillTest {
         val (after, result) = checkNotNull(f.performSkill(1, TEST_DIA.id, 2))
 
         assertEquals(100, after.allies[1].currentHp)
-        assertEquals(20, result.healedAmount)
+        assertEquals(20, result.totalHealed)
     }
 
     /** 自分自身も対象にでき、MP消費と回復の両方が反映されること。 */
@@ -54,7 +58,7 @@ class PerformSkillTest {
 
         assertEquals(60, after.allies[0].currentHp)
         assertEquals(20, after.allies[0].currentMp)
-        assertEquals(50, result.healedAmount)
+        assertEquals(50, result.totalHealed)
     }
 
     /** MPがちょうどコストと同じなら使え、使うと0になること。 */
@@ -161,11 +165,11 @@ class PerformSkillTest {
 
         val (after, result) = checkNotNull(f.performSkill(1, skill.id, 1))
 
-        assertEquals(10, result.healedAmount)
+        assertEquals(10, result.totalHealed)
         assertEquals(100, after.allies[0].currentHp)
     }
 
-    /** 敵を対象にするスキル・基礎威力を持つスキルは、performSkillでは使えないこと。 */
+    /** 陣営が合わないスキル(味方を選ぶスキルで敵を選ぶ、敵を選ぶスキルで味方を選ぶ)・基礎威力を持つスキルは、performSkillでは使えないこと。 */
     @Test
     fun enemySideOrDamagingSkill_returnsNull() {
         val enemySide = TEST_DIA.copy(targetSide = SkillTargetSide.ENEMY)
@@ -174,5 +178,47 @@ class PerformSkillTest {
 
         assertNull(f.performSkill(1, enemySide.id, 2))
         assertNull(f.performSkill(1, 9, 2))
+    }
+
+    /** エリア全体の全て対象スキルが、味方の生存個体全員を回復し(最大HPで頭打ち)、戦闘不能者は蘇生しないこと。 */
+    @Test
+    fun areaAll_healsEveryLivingAlly() {
+        val skill = TEST_DIA.copy(targetSelection = SkillTargetSelection.ALL)
+        val f = field().let { it.copy(allies = it.allies.map { a -> if (a.fpid == 1) a.copy(activeSkills = listOf(skill), currentHp = 90) else a }) }
+
+        val (after, result) = checkNotNull(f.performSkill(1, skill.id, 2))
+
+        assertEquals(listOf(100, 100, 0), after.allies.map { it.currentHp })
+        assertEquals(
+            listOf(SkillTargetResult(1, 10), SkillTargetResult(2, 50)),
+            result.targets,
+        )
+        assertEquals(60, result.totalHealed)
+        assertEquals(20, after.allies[0].currentMp)
+    }
+
+    /** 一体選択のスキルは、アンカー以外の味方を回復しないこと。 */
+    @Test
+    fun oneSelection_healsOnlyAnchor() {
+        val f = field().let { it.copy(allies = it.allies.map { a -> if (a.fpid == 1) a.copy(currentHp = 10) else a }) }
+
+        val (after, result) = checkNotNull(f.performSkill(1, TEST_DIA.id, 2))
+
+        assertEquals(listOf(10, 100, 0), after.allies.map { it.currentHp })
+        assertEquals(listOf(2), result.targets.map { it.targetFpid })
+    }
+
+    /** 同じ陣営の距離は最大1なので、レンジ1の回復でも後衛の味方を対象にできるが、敵は対象にできないこと。 */
+    @Test
+    fun rangeOne_reachesOwnBackRow_butNotEnemy() {
+        val skill = TEST_DIA.copy(range = SkillRange.RANGE_1, area = SkillArea.SINGLE)
+        val f = BattleField(
+            allies = listOf(testAlly(1, mp = 30, activeSkills = listOf(skill), slot = 0), testAlly(2, slot = 4).copy(currentHp = 10)),
+            enemies = listOf(testEnemy(3)),
+            turnQueue = listOf(1),
+        )
+
+        assertNotNull(f.performSkill(1, skill.id, 2))
+        assertNull(f.performSkill(1, skill.id, 3))
     }
 }

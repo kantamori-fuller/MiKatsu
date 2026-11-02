@@ -72,6 +72,7 @@ class AdvanceToNextBattleUseCaseTest {
         assertEquals(listOf(TEST_STEEL_BODY), field.allies[0].passiveSkills)
         assertEquals(listOf(1, 2, 3, 4), field.allPawns.map { it.fpid })
         assertEquals(listOf(goblin.hp, goblin.hp), field.enemies.map { it.currentHp })
+        assertEquals(listOf(0, 1), field.enemies.map { it.slot })
         assertTrue(field.enemies.all { it.turnCount == 0 })
         assertTrue(field.allies.all { it.turnCount == 0 })
         assertTrue(field.allPawns.all { it.remainingDistance <= ActionTimeline.BASE_DISTANCE })

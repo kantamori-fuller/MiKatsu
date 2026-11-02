@@ -28,7 +28,7 @@ class UseSkillUseCaseTest {
     fun invoke_appliesEffect() = runBlocking {
         val result = useCase(actorFpid = 1, skillId = TEST_DIA.id, targetFpid = 2)
 
-        assertEquals(50, result?.healedAmount)
+        assertEquals(50, result?.totalHealed)
         assertEquals(60, repository.current.allies[1].currentHp)
         assertEquals(0, repository.current.allies[0].currentMp)
     }

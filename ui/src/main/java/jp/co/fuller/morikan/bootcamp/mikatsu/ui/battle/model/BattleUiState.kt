@@ -42,13 +42,17 @@ data class BattleUnitUiModel(
  * @property name スキルの名前。
  * @property mpCost 使用に必要なMP。
  * @property hpCost 使用に必要なHP。消費しない場合は0。
- * @property isUsable 現在のMP・HPですべてのコストを支払えるかどうか。`false`のとき一覧で選択できない。
+ * @property targetIds このスキルで選べる対象のFPID([BattleUnitUiModel.id])。レンジ・陣営の条件を満たす相手で、
+ *   手番の味方から見たもの。
+ * @property isUsable 現在のMP・HPですべてのコストを支払え、かつ選べる相手([targetIds])が1体以上いるかどうか。
+ *   `false`のとき一覧で選択できない。
  */
 data class BattleSkillUiModel(
     val id: Int,
     val name: String,
     val mpCost: Int,
     val hpCost: Int,
+    val targetIds: Set<Int>,
     val isUsable: Boolean,
 )
 
@@ -63,14 +67,14 @@ sealed interface BattleSelection {
     /** 何も選択していない(行動選択の状態)。 */
     data object None : BattleSelection
 
-    /** 通常攻撃の対象となる敵を選んでいる。 */
+    /** 通常攻撃の対象を選んでいる。 */
     data object AttackTarget : BattleSelection
 
     /** 使うスキルを一覧から選んでいる。 */
     data object SkillList : BattleSelection
 
     /**
-     * 選んだスキルの対象となる味方を選んでいる。
+     * 選んだスキルの対象を選んでいる。
      *
      * @property skillId 選択済みのスキルID。
      */
@@ -80,7 +84,8 @@ sealed interface BattleSelection {
 /**
  * バトル画面(BattleScreen)の画面状態を表すUiState。
  *
- * @property enemies 敵陣営の一覧。最大6体を想定する。
+ * @property enemySlots 敵陣営の、スロット番号ごとの敵。要素数は[Formation.SLOT_COUNT]であり、
+ *   敵がいないマスは`null`となる。スロットの行が0(0〜2)が前衛、1(3〜5)が後衛で、列は`スロット番号 % 3`。
  * @property partySlots 味方(プレイヤー)陣営の陣形の、スロット番号ごとの味方。要素数は
  *   [Formation.SLOT_COUNT]であり、味方が配置されていないマスは`null`となる。
  * @property currentActorId 現在の手番の個体のFPID([BattleUnitUiModel.id])。手番の個体がいなければ`null`。
@@ -90,19 +95,21 @@ sealed interface BattleSelection {
  * @property selection プレイヤーが行動を選択している途中の段階。「攻撃」「スキル」ボタンの押下で
  *   遷移し、キャンセルまたは対象の選択で[BattleSelection.None]に戻る。
  * @property skills 現在の手番の味方が使えるアクティブスキルの一覧。手番が味方でなければ空。
+ * @property attackTargetIds 通常攻撃で選べる対象のFPID。手番が味方でなければ空。
  * @property outcome 戦闘の勝敗。決着がついていなければ`null`。
  * @property progress マップの進行度(今いる戦闘が何戦目か)。最初は1。
  * @property processingNarration 演出中だけ表示する一時的なナレーション(敵の行動・攻撃結果)。
  *   それ以外のナレーションは状態から算出する。
  */
 data class BattleUiState(
-    val enemies: List<BattleUnitUiModel> = emptyList(),
+    val enemySlots: List<BattleUnitUiModel?> = List(Formation.SLOT_COUNT) { null },
     val partySlots: List<BattleUnitUiModel?> = List(Formation.SLOT_COUNT) { null },
     val currentActorId: Int? = null,
     val isPlayerTurn: Boolean = false,
     val isProcessing: Boolean = false,
     val selection: BattleSelection = BattleSelection.None,
     val skills: List<BattleSkillUiModel> = emptyList(),
+    val attackTargetIds: Set<Int> = emptySet(),
     val outcome: BattleOutcome? = null,
     val processingNarration: BattleNarration? = null,
     val progress: Int = 1,
@@ -122,10 +129,11 @@ data class BattleUiState(
     /**
      * 「攻撃」ボタンを押下できるかどうか。
      *
-     * プレイヤーの手番で、演出中でなく、勝敗が決まっておらず、スキルの選択中でないときのみ`true`となる。
+     * プレイヤーの手番で、演出中でなく、勝敗が決まっておらず、スキルの選択中でなく、
+     * 通常攻撃で選べる相手([attackTargetIds])が1体以上いるときのみ`true`となる。
      */
     val isAttackEnabled: Boolean
-        get() = isInputAcceptable && !isSelectingSkill
+        get() = isInputAcceptable && !isSelectingSkill && attackTargetIds.isNotEmpty()
 
     /**
      * 「スキル」ボタンを押下できるかどうか。
@@ -143,7 +151,20 @@ data class BattleUiState(
      * @return 表示名。見つからなければ空文字。
      */
     fun nameOf(id: Int): String =
-        (enemies + partySlots.filterNotNull()).firstOrNull { it.id == id }?.name.orEmpty()
+        (enemySlots.filterNotNull() + partySlots.filterNotNull()).firstOrNull { it.id == id }?.name.orEmpty()
+
+    /**
+     * 現在の選択状態で、タップして対象にできる個体のFPID。
+     *
+     * 通常攻撃の対象選択中は[attackTargetIds]、スキルの対象選択中は選んだスキルの
+     * [BattleSkillUiModel.targetIds]、それ以外は空となる。敵・味方どちらのカードにも共通で用いる。
+     */
+    val selectableTargetIds: Set<Int>
+        get() = when (val current = selection) {
+            BattleSelection.AttackTarget -> attackTargetIds
+            is BattleSelection.SkillTarget -> skills.firstOrNull { it.id == current.skillId }?.targetIds.orEmpty()
+            else -> emptySet()
+        }
 
     /**
      * 現在の状態に応じて表示すべきバトルナレーター。

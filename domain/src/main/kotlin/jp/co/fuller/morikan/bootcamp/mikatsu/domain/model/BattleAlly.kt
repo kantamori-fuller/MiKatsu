@@ -16,7 +16,7 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.PassiveSkill
  * @property currentHp 現在のHP。戦闘開始時は最大HPと同じ。
  * @property currentMp 現在のMP。戦闘開始時は最大MP([maxMp])と同じで、スキルの使用で減少する。
  *   次の戦闘へ持ち越される。
- * @property slot 陣形([Formation])上で配置されているマスのスロット番号。
+ * @property slot 陣形([Formation])上で配置されているマスのスロット番号([BattleFieldPawn.slot])。上段(0〜2)が前衛、下段(3〜5)が後衛。
  * @property remainingDistance 次の手番までに進む必要がある残り距離([BattleFieldPawn.remainingDistance])。
  * @property turnCount この個体が終えた自分の手番の回数([BattleFieldPawn.turnCount])。
  * @property activeSkills [Character.activeSkillIds]から解決した、使えるアクティブスキル。
@@ -27,7 +27,7 @@ data class BattleAlly(
     val character: Character,
     override val currentHp: Int,
     val currentMp: Int,
-    val slot: Int,
+    override val slot: Int,
     override val remainingDistance: Double,
     override val turnCount: Int,
     val activeSkills: List<ActiveSkill> = emptyList(),

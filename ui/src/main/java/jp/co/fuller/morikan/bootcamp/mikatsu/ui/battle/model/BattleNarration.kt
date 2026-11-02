@@ -32,6 +32,13 @@ sealed interface BattleNarration {
     data class EnemyTurn(val actorName: String) : BattleNarration
 
     /**
+     * 敵の攻撃が、届く(レンジ・陣営の条件を満たす)相手がいなかったことを伝える。
+     *
+     * @property actorName 攻撃しようとした敵の表示名。
+     */
+    data class EnemyCannotReach(val actorName: String) : BattleNarration
+
+    /**
      * 攻撃の結果(誰が誰にどれだけのダメージを与えたか)を伝える。
      *
      * @property attackerName 攻撃した個体の表示名。
@@ -42,6 +49,19 @@ sealed interface BattleNarration {
         val attackerName: String,
         val targetName: String,
         val damage: Int,
+    ) : BattleNarration
+
+    /**
+     * 範囲攻撃の結果(誰が何体に合計どれだけのダメージを与えたか)を伝える。対象が複数のときに使う。
+     *
+     * @property attackerName 攻撃した個体の表示名。
+     * @property targetCount 攻撃を受けた個体の数。
+     * @property totalDamage 全対象に与えたダメージの合計。
+     */
+    data class MultiAttackResult(
+        val attackerName: String,
+        val targetCount: Int,
+        val totalDamage: Int,
     ) : BattleNarration
 
     /**
@@ -57,5 +77,20 @@ sealed interface BattleNarration {
         val targetName: String,
         val skillName: String,
         val healedAmount: Int,
+    ) : BattleNarration
+
+    /**
+     * 範囲の回復スキルの結果(誰が何体のHPを合計どれだけ回復したか)を伝える。対象が複数のときに使う。
+     *
+     * @property actorName スキルを使った味方の表示名。
+     * @property skillName 使ったスキルの名前。
+     * @property targetCount 対象になった個体の数。
+     * @property totalHealed 全対象で実際に回復したHP量の合計。
+     */
+    data class MultiSkillResult(
+        val actorName: String,
+        val skillName: String,
+        val targetCount: Int,
+        val totalHealed: Int,
     ) : BattleNarration
 }

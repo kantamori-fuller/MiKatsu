@@ -2,6 +2,7 @@ package jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase
 
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.EnemyTargetSelector
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.performAttack
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.selectableTargets
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.AttackResult
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.repository.BattleRepository
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.repository.SkillRepository
@@ -9,8 +10,9 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.repository.SkillRepository
 /**
  * 現在の手番が敵のとき、その敵の通常攻撃を実行するUseCase。
  *
- * 狙う相手の選び方は[EnemyTargetSelector]に委ね、ダメージ処理は味方の攻撃([AttackUseCase])と
- * 同じ共通関数を使う。手番の終了は呼び出し側が[EndTurnUseCase]で行う。
+ * 通常攻撃が届く(レンジ・陣営の条件を満たす)相手を[selectableTargets]で求め、その中から誰を狙うかを
+ * [EnemyTargetSelector]に委ねる。ダメージ処理は味方の攻撃([AttackUseCase])と同じ共通関数を使う。
+ * 届く相手がいなければ何もしない。手番の終了は呼び出し側が[EndTurnUseCase]で行う。
  *
  * 威力・攻撃回数は通常攻撃のスキルデータ([SkillRepository.getNormalAttack])から読む。
  *
@@ -31,7 +33,7 @@ class ExecuteEnemyTurnUseCase(
      * 行動者をFPIDで受け取り、現在の手番の敵でなければ何もしない。
      *
      * @param actorFpid 攻撃させる敵のFPID。
-     * @return 攻撃の結果。[actorFpid]が現在の手番の敵でない場合や、攻撃できる対象がいない場合は`null`。
+     * @return 攻撃の結果。[actorFpid]が現在の手番の敵でない場合や、攻撃が届く対象がいない場合は`null`(何も変更しない)。
      */
     suspend operator fun invoke(actorFpid: Int): AttackResult? {
         // updateBattleFieldのtransformは再実行され得るため、最後に計算した結果を外の変数に残す。
@@ -39,7 +41,8 @@ class ExecuteEnemyTurnUseCase(
         var result: AttackResult? = null
         battleRepository.updateBattleField { field ->
             val attacker = field.enemies.firstOrNull { it.fpid == actorFpid && it.fpid == field.currentActorFpid }
-            val target = attacker?.let { enemyTargetSelector.select(field, it) }
+            val candidates = attacker?.let { field.selectableTargets(it.fpid, normalAttack) }.orEmpty()
+            val target = attacker?.takeIf { candidates.isNotEmpty() }?.let { enemyTargetSelector.select(field, it, candidates) }
             val attack = if (attacker != null && target != null) {
                 field.performAttack(attacker.fpid, target.fpid, normalAttack)
             } else {
