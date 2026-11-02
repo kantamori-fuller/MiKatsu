@@ -1,6 +1,7 @@
 package jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase
 
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.TEST_DIA
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.TEST_OTHER_PASSIVE
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.TEST_STEEL_BODY
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.Character
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.CharacterDraft
@@ -21,7 +22,7 @@ class GetBattleFieldUseCaseSkillTest {
     private val skilled = Character(
         id = 1, name = "味方", hp = 100, mana = 40, attack = 100, defense = 100,
         manaOutput = 0, manaResistance = 0, agility = 100, luck = 0,
-        activeSkillIds = listOf(1, 77), passiveSkillIds = listOf(1),
+        activeSkillIds = listOf(1, 2, 77), passiveSkillIds = listOf(1),
     )
     private val plain = skilled.copy(id = 2, name = "素手", activeSkillIds = emptyList(), passiveSkillIds = emptyList())
     private val characters = listOf(skilled, plain)
@@ -42,8 +43,8 @@ class GetBattleFieldUseCaseSkillTest {
     /** アクティブのID1(ディア)とパッシブのID1(鋼の体)は別の種別として、それぞれ独立に解決されること。 */
     @Test
     fun invoke_sameIdInBothKinds_resolvedSeparately() = runBlocking {
-        val onlyPassive = skilled.copy(id = 2, activeSkillIds = emptyList(), passiveSkillIds = listOf(1))
-        val onlyActive = skilled.copy(id = 3, activeSkillIds = listOf(1), passiveSkillIds = emptyList())
+        val onlyPassive = skilled.copy(id = 2, activeSkillIds = emptyList(), passiveSkillIds = listOf(2))
+        val onlyActive = skilled.copy(id = 3, activeSkillIds = listOf(2), passiveSkillIds = emptyList())
         val all = listOf(onlyPassive, onlyActive)
         val useCase = GetBattleFieldUseCase(
             object : CharacterRepository {
@@ -60,12 +61,19 @@ class GetBattleFieldUseCaseSkillTest {
 
         val field = useCase(Formation(listOf(2, 3, null, null, null, null)))
 
-        assertEquals(1, TEST_DIA.id)
-        assertEquals(1, TEST_STEEL_BODY.id)
+        assertEquals(TEST_DIA.id, TEST_OTHER_PASSIVE.id)
         assertTrue(field.allies[0].activeSkills.isEmpty())
-        assertEquals(listOf(TEST_STEEL_BODY), field.allies[0].passiveSkills)
+        assertEquals(listOf(TEST_OTHER_PASSIVE), field.allies[0].passiveSkills)
         assertEquals(listOf(TEST_DIA), field.allies[1].activeSkills)
         assertTrue(field.allies[1].passiveSkills.isEmpty())
+    }
+
+    /** 旧データのAスキル1(以前はディア)は通常攻撃として解決されず、無視されること(上の設定にA1を含めている)。 */
+    @Test
+    fun invoke_staleActiveId1_isIgnored() = runBlocking {
+        val field = useCase(Formation(listOf(1, null, null, null, null, null)))
+
+        assertEquals(listOf(TEST_DIA), field.allies[0].activeSkills)
     }
 
     /** MPは最大MP(マナ総量)で始まり、スキルは解決され、未知のIDは無視され、FPIDの採番は変わらないこと。 */

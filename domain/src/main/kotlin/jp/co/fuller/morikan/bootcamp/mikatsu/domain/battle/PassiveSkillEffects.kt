@@ -15,7 +15,9 @@ private const val MIN_DAMAGE_AFTER_REDUCTION = 1
  * @return [PassiveSkillEffect.DamageReduction]の軽減量の合計。持たなければ0。
  */
 fun BattleFieldPawn.totalDamageReduction(): Int =
-    passiveSkills.sumOf { (it.effect as? PassiveSkillEffect.DamageReduction)?.amount ?: 0 }
+    passiveSkills
+        .flatMap { it.effects }
+        .sumOf { (it as? PassiveSkillEffect.DamageReduction)?.amount ?: 0 }
 
 /**
  * ダメージ計算式の最終結果に、この個体のパッシブスキルによる軽減を適用する。

@@ -6,11 +6,8 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.ActiveSkill
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.ActiveSkillEffect
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.PassiveSkill
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.PassiveSkillEffect
-import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillCategory
-import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillContactType
-import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillCostType
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillLimits
-import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillTarget
+import jp.co.fuller.morikan.bootcamp.mikatsu.ui.testActiveSkill
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.repository.CharacterRepository
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.repository.SkillRepository
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.GetCharacterUseCase
@@ -51,18 +48,15 @@ class CharacterCreateViewModelTest {
         Dispatchers.resetMain()
     }
 
-    /** アクティブスキルをIDの数だけ(ID 1〜)、パッシブスキルを1つ(ID 1。アクティブと同じ数値だが別のスキル)持つテスト用の[SkillRepository]。 */
+    /** テスト用の架空のカタログ。アクティブスキルをIDの数だけ(ID 1〜)、パッシブスキルを1つ(ID 1。アクティブと同じ数値だが別のスキル)持つテスト用の[SkillRepository]。 */
     private class FakeSkillRepository(activeCount: Int = 10) : SkillRepository {
         private val actives = (1..activeCount).map {
-            ActiveSkill(
-                id = it, name = "A$it", categories = setOf(SkillCategory.HEAL),
-                contactType = SkillContactType.NON_CONTACT, costType = SkillCostType.MP, cost = 1,
-                target = SkillTarget.SingleAlly, effect = ActiveSkillEffect.Heal(1),
-            )
+            testActiveSkill(id = it, name = "A$it", effects = listOf(ActiveSkillEffect.Heal(1)))
         }
         private val passives = listOf(
-            PassiveSkill(id = 1, name = "P", categories = emptySet(), effect = PassiveSkillEffect.DamageReduction(1)),
+            PassiveSkill(id = 1, name = "P", categories = emptySet(), effects = listOf(PassiveSkillEffect.DamageReduction(1))),
         )
+        override suspend fun getNormalAttack(): ActiveSkill = testActiveSkill(id = 0, name = "通常攻撃")
         override suspend fun getActiveSkills(): List<ActiveSkill> = actives
         override suspend fun getPassiveSkills(): List<PassiveSkill> = passives
         override suspend fun getActiveSkill(id: Int): ActiveSkill? = actives.firstOrNull { it.id == id }

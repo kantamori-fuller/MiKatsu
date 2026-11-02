@@ -4,6 +4,7 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.EnemyTargetSelector
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.performAttack
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.AttackResult
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.repository.BattleRepository
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.repository.SkillRepository
 
 /**
  * 現在の手番が敵のとき、その敵の通常攻撃を実行するUseCase。
@@ -11,11 +12,15 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.repository.BattleRepository
  * 狙う相手の選び方は[EnemyTargetSelector]に委ね、ダメージ処理は味方の攻撃([AttackUseCase])と
  * 同じ共通関数を使う。手番の終了は呼び出し側が[EndTurnUseCase]で行う。
  *
+ * 威力・攻撃回数は通常攻撃のスキルデータ([SkillRepository.getNormalAttack])から読む。
+ *
  * @property battleRepository 戦闘状態を保持するRepository。
+ * @property skillRepository 通常攻撃のスキルデータを提供するRepository。
  * @property enemyTargetSelector 敵の攻撃対象を選ぶ方法。
  */
 class ExecuteEnemyTurnUseCase(
     private val battleRepository: BattleRepository,
+    private val skillRepository: SkillRepository,
     private val enemyTargetSelector: EnemyTargetSelector,
 ) {
 
@@ -30,12 +35,13 @@ class ExecuteEnemyTurnUseCase(
      */
     suspend operator fun invoke(actorFpid: Int): AttackResult? {
         // updateBattleFieldのtransformは再実行され得るため、最後に計算した結果を外の変数に残す。
+        val normalAttack = skillRepository.getNormalAttack()
         var result: AttackResult? = null
         battleRepository.updateBattleField { field ->
             val attacker = field.enemies.firstOrNull { it.fpid == actorFpid && it.fpid == field.currentActorFpid }
             val target = attacker?.let { enemyTargetSelector.select(field, it) }
             val attack = if (attacker != null && target != null) {
-                field.performAttack(attacker.fpid, target.fpid)
+                field.performAttack(attacker.fpid, target.fpid, normalAttack)
             } else {
                 null
             }

@@ -15,7 +15,7 @@ class DamageReductionTest {
     fun noPassive_damageUnchanged() {
         val field = BattleField(listOf(testAlly(1)), listOf(testEnemy(2)), turnQueue = listOf(2))
 
-        val (_, result) = checkNotNull(field.performAttack(2, 1))
+        val (_, result) = checkNotNull(field.performAttack(2, 1, TEST_NORMAL_ATTACK))
 
         assertEquals(baseDamage, result.damage)
     }
@@ -29,7 +29,7 @@ class DamageReductionTest {
             turnQueue = listOf(2),
         )
         // 攻撃300・耐久100: 300*100*11/(100*50)+2 = 68
-        val (after, result) = checkNotNull(field.performAttack(2, 1))
+        val (after, result) = checkNotNull(field.performAttack(2, 1, TEST_NORMAL_ATTACK))
 
         assertEquals(48, result.damage)
         assertEquals(100 - 48, after.allies[0].currentHp)
@@ -44,7 +44,7 @@ class DamageReductionTest {
             turnQueue = listOf(1),
         )
 
-        val (_, result) = checkNotNull(field.performAttack(1, 2))
+        val (_, result) = checkNotNull(field.performAttack(1, 2, TEST_NORMAL_ATTACK))
 
         assertEquals(48, result.damage)
     }
@@ -58,7 +58,7 @@ class DamageReductionTest {
             turnQueue = listOf(2),
         )
 
-        val (_, result) = checkNotNull(field.performAttack(2, 1))
+        val (_, result) = checkNotNull(field.performAttack(2, 1, TEST_NORMAL_ATTACK))
 
         assertEquals(1, result.damage)
     }
@@ -72,7 +72,7 @@ class DamageReductionTest {
             turnQueue = listOf(1),
         )
 
-        val (_, result) = checkNotNull(field.performAttack(1, 2))
+        val (_, result) = checkNotNull(field.performAttack(1, 2, TEST_NORMAL_ATTACK))
 
         assertEquals(68, result.damage)
     }

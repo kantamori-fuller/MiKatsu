@@ -3,6 +3,7 @@ package jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.performAttack
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.AttackResult
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.repository.BattleRepository
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.repository.SkillRepository
 
 /**
  * 味方の通常攻撃を実行し、対象の現在HPを減らすUseCase。
@@ -11,9 +12,15 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.repository.BattleRepository
  * 必ずFPID(フィールドポーンID)で指定する。手番の終了は本UseCaseでは行わず、
  * 呼び出し側が[EndTurnUseCase]で行う。
  *
+ * 威力・攻撃回数は通常攻撃のスキルデータ([SkillRepository.getNormalAttack])から読む。
+ *
  * @property battleRepository 戦闘状態を保持するRepository。
+ * @property skillRepository 通常攻撃のスキルデータを提供するRepository。
  */
-class AttackUseCase(private val battleRepository: BattleRepository) {
+class AttackUseCase(
+    private val battleRepository: BattleRepository,
+    private val skillRepository: SkillRepository,
+) {
 
     /**
      * 攻撃者から対象へ通常攻撃を行い、ダメージを適用する。
@@ -27,9 +34,10 @@ class AttackUseCase(private val battleRepository: BattleRepository) {
      */
     suspend operator fun invoke(attackerFpid: Int, targetFpid: Int): AttackResult? {
         // updateBattleFieldのtransformは再実行され得るため、最後に計算した結果を外の変数に残す。
+        val normalAttack = skillRepository.getNormalAttack()
         var result: AttackResult? = null
         battleRepository.updateBattleField { field ->
-            val attack = field.performAttack(attackerFpid, targetFpid)
+            val attack = field.performAttack(attackerFpid, targetFpid, normalAttack)
             result = attack?.second
             attack?.first ?: field
         }

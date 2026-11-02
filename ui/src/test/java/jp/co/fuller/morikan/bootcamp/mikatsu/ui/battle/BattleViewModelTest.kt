@@ -15,10 +15,10 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.repository.SkillRepository
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.ActiveSkill
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.ActiveSkillEffect
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.PassiveSkill
-import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillCategory
-import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillContactType
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillCost
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillCostType
-import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillTarget
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillTargetSide
+import jp.co.fuller.morikan.bootcamp.mikatsu.ui.testActiveSkill
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.UseSkillUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleSelection
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleSkillUiModel
@@ -103,9 +103,9 @@ class BattleViewModelTest {
             formation = Formation(listOf(1, null, null, null, null, null)),
             startBattleUseCase = StartBattleUseCase(getBattleFieldUseCase, battleRepository, mapProgressRepository, random),
             observeBattleFieldUseCase = ObserveBattleFieldUseCase(battleRepository),
-            attackUseCase = AttackUseCase(battleRepository),
+            attackUseCase = AttackUseCase(battleRepository, FakeSkillRepository()),
             useSkillUseCase = UseSkillUseCase(battleRepository),
-            executeEnemyTurnUseCase = ExecuteEnemyTurnUseCase(battleRepository, RandomEnemyTargetSelector(random)),
+            executeEnemyTurnUseCase = ExecuteEnemyTurnUseCase(battleRepository, FakeSkillRepository(), RandomEnemyTargetSelector(random)),
             endTurnUseCase = EndTurnUseCase(battleRepository, random),
             observeMapProgressUseCase = ObserveMapProgressUseCase(mapProgressRepository),
             advanceToNextBattleUseCase = AdvanceToNextBattleUseCase(
@@ -198,11 +198,11 @@ class BattleViewModelTest {
     /** 敵2体の攻撃(1回24ダメージ)を受けた直後の味方が、ディアで回復する一連の流れを検証する。 */
     @Test
     fun skillFlow_selectSkill_selectAlly_healsAndEndsTurn() = runTest(dispatcher) {
-        val (viewModel, repository) = createViewModel(allyMana = 100, activeSkillIds = listOf(1))
+        val (viewModel, repository) = createViewModel(allyMana = 100, activeSkillIds = listOf(2))
         advanceUntilIdle()
         val allyFpid = repository.current.allies[0].fpid
         val state = viewModel.uiState.value
-        assertEquals(listOf(BattleSkillUiModel(1, "ディア", 10, true)), state.skills)
+        assertEquals(listOf(BattleSkillUiModel(2, "ディア", 10, 0, true)), state.skills)
         assertTrue(state.isSkillEnabled)
         assertEquals(100, state.partySlots[0]?.mana)
         assertEquals(100, state.partySlots[0]?.maxMana)
@@ -212,8 +212,8 @@ class BattleViewModelTest {
         assertEquals(BattleNarration.SelectSkill, viewModel.uiState.value.narration)
         assertFalse(viewModel.uiState.value.isAttackEnabled)
 
-        viewModel.onSkillSelected(1)
-        assertEquals(BattleSelection.SkillTarget(1), viewModel.uiState.value.selection)
+        viewModel.onSkillSelected(2)
+        assertEquals(BattleSelection.SkillTarget(2), viewModel.uiState.value.selection)
         assertEquals(BattleNarration.SelectAllyTarget, viewModel.uiState.value.narration)
 
         viewModel.onAllyClick(allyFpid)
@@ -236,12 +236,12 @@ class BattleViewModelTest {
     /** MPが足りないスキルは一覧で使用不可になり、選んでも対象選択へ進まないこと。 */
     @Test
     fun skillSelection_insufficientMp_isIgnored() = runTest(dispatcher) {
-        val (viewModel, _) = createViewModel(allyMana = 5, activeSkillIds = listOf(1))
+        val (viewModel, _) = createViewModel(allyMana = 5, activeSkillIds = listOf(2))
         advanceUntilIdle()
 
         assertEquals(false, viewModel.uiState.value.skills.single().isUsable)
         viewModel.onSkillClick()
-        viewModel.onSkillSelected(1)
+        viewModel.onSkillSelected(2)
 
         assertEquals(BattleSelection.SkillList, viewModel.uiState.value.selection)
     }
@@ -260,7 +260,7 @@ class BattleViewModelTest {
     /** スキル一覧・味方の対象選択のどちらからでも、キャンセルで行動選択に戻ること。 */
     @Test
     fun cancel_fromSkillListAndAllyTarget_returnsToActionSelection() = runTest(dispatcher) {
-        val (viewModel, _) = createViewModel(allyMana = 100, activeSkillIds = listOf(1))
+        val (viewModel, _) = createViewModel(allyMana = 100, activeSkillIds = listOf(2))
         advanceUntilIdle()
 
         viewModel.onSkillClick()
@@ -268,7 +268,7 @@ class BattleViewModelTest {
         assertEquals(BattleSelection.None, viewModel.uiState.value.selection)
 
         viewModel.onSkillClick()
-        viewModel.onSkillSelected(1)
+        viewModel.onSkillSelected(2)
         viewModel.onCancelClick()
         assertEquals(BattleSelection.None, viewModel.uiState.value.selection)
         assertEquals(BattleNarration.SelectAction("味方"), viewModel.uiState.value.narration)
@@ -277,7 +277,7 @@ class BattleViewModelTest {
     /** スキルの選択中は通常攻撃の対象選択へ移れず、攻撃の対象選択中はスキルを開けないこと。 */
     @Test
     fun attackAndSkillSelection_areMutuallyExclusive() = runTest(dispatcher) {
-        val (viewModel, _) = createViewModel(allyMana = 100, activeSkillIds = listOf(1))
+        val (viewModel, _) = createViewModel(allyMana = 100, activeSkillIds = listOf(2))
         advanceUntilIdle()
 
         viewModel.onSkillClick()
@@ -293,7 +293,7 @@ class BattleViewModelTest {
     /** 対象選択でない状態で味方をタップしても、スキルは発動しないこと。 */
     @Test
     fun allyClick_withoutSelection_doesNothing() = runTest(dispatcher) {
-        val (viewModel, repository) = createViewModel(allyMana = 100, activeSkillIds = listOf(1))
+        val (viewModel, repository) = createViewModel(allyMana = 100, activeSkillIds = listOf(2))
         advanceUntilIdle()
 
         viewModel.onAllyClick(repository.current.allies[0].fpid)
@@ -304,11 +304,14 @@ class BattleViewModelTest {
 
     /** テスト用の、ディア(MP10・50回復)だけを返す[SkillRepository]。 */
     private class FakeSkillRepository : SkillRepository {
-        private val dia = ActiveSkill(
-            id = 1, name = "ディア", categories = setOf(SkillCategory.HEAL, SkillCategory.STATUS),
-            contactType = SkillContactType.NON_CONTACT, costType = SkillCostType.MP, cost = 10,
-            target = SkillTarget.SingleAlly, effect = ActiveSkillEffect.Heal(50),
+        private val normalAttack = testActiveSkill(
+            id = 1, name = "通常攻撃", targetSide = SkillTargetSide.ENEMY, basePower = 100,
         )
+        private val dia = testActiveSkill(
+            id = 2, name = "ディア", costs = listOf(SkillCost(SkillCostType.MP, 10)),
+            effects = listOf(ActiveSkillEffect.Heal(50)),
+        )
+        override suspend fun getNormalAttack(): ActiveSkill = normalAttack
         override suspend fun getActiveSkills(): List<ActiveSkill> = listOf(dia)
         override suspend fun getPassiveSkills(): List<PassiveSkill> = emptyList()
         override suspend fun getActiveSkill(id: Int): ActiveSkill? = dia.takeIf { it.id == id }
