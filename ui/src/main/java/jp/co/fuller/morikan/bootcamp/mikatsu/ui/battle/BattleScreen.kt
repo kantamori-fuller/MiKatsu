@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -48,9 +47,6 @@ private const val OVERLAY_ALPHA = 0.6f
 
 /** スキル一覧の最大の高さ。スキルが多い場合はこの高さの中でスクロールする。 */
 private val SKILL_LIST_MAX_HEIGHT = 160.dp
-
-/** 敵陣営のカード1枚あたりの幅。 */
-private val ENEMY_CARD_WIDTH = 100.dp
 
 /**
  * 敵陣営・味方陣営の状態表示とコマンド選択を行うバトル画面。
@@ -305,37 +301,31 @@ private fun EnemyGrid(
     onEnemyClick: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(
+    // 画面の上から順に後衛(最後の行)、前衛(最初の行)とする。味方側と同じ表で並べて幅・間隔を揃える。
+    FormationGrid(
         modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        // 画面の上から順に後衛(最後の行)、前衛(最初の行)とする。
-        enemySlots.chunked(Formation.COLUMNS).asReversed().forEach { rowEnemies ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                rowEnemies.forEach { enemy ->
-                    if (enemy != null) {
-                        val isSelectable = enemy.id in selectableTargetIds
-                        UnitStatCard(
-                            unit = enemy,
-                            isSelected = enemy.isActive,
-                            isSelectable = isSelectable,
-                            modifier = Modifier.width(ENEMY_CARD_WIDTH),
-                            onClick = if (isSelectable) {
-                                { onEnemyClick(enemy.id) }
-                            } else {
-                                null
-                            },
-                        )
+        slotContent = { slot, slotModifier ->
+            val displayRow = slot / Formation.COLUMNS
+            val column = slot % Formation.COLUMNS
+            val enemy = enemySlots.getOrNull((Formation.ROWS - 1 - displayRow) * Formation.COLUMNS + column)
+            if (enemy != null) {
+                val isSelectable = enemy.id in selectableTargetIds
+                UnitStatCard(
+                    unit = enemy,
+                    isSelected = enemy.isActive,
+                    isSelectable = isSelectable,
+                    modifier = slotModifier,
+                    onClick = if (isSelectable) {
+                        { onEnemyClick(enemy.id) }
                     } else {
-                        Spacer(Modifier.width(ENEMY_CARD_WIDTH))
-                    }
-                }
+                        null
+                    },
+                )
+            } else {
+                Spacer(slotModifier)
             }
-        }
-    }
+        },
+    )
 }
 
 /**
