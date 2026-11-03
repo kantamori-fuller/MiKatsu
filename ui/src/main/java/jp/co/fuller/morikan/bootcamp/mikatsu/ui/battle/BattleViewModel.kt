@@ -9,6 +9,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleAlly
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleEnemy
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleField
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleFieldPawn
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.AttackResult
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleOutcome
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.Formation
@@ -16,7 +17,9 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.SkillResult
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.ActiveSkill
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillCostType
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.BreakFormula
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.BattleRow
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.canAfford
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.effectiveRowOf
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.selectableTargets
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.AdvanceToNextBattleUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.AttackUseCase
@@ -31,6 +34,8 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleNarration
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleSelection
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleSkillUiModel
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleUiState
+import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleUnitDetailUiModel
+import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleUnitPosition
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleUnitUiModel
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.resolveDisplayNames
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.toNarrations
@@ -143,6 +148,25 @@ class BattleViewModel @AssistedInject constructor(
      */
     fun onNarrationClick() {
         narrationSkipSignal?.complete(Unit)
+    }
+
+    /**
+     * カードが長押しされたときに呼ばれ、その個体の詳細ポップアップを開く。
+     *
+     * 味方・敵のどちらも、戦闘不能の個体も開ける。勝敗が決まった後と、存在しないFPIDは無視する。
+     * 選択状態は変えない。
+     *
+     * @param fpid 長押しされた個体のFPID([BattleUnitUiModel.id])。
+     */
+    fun onUnitLongPress(fpid: Int) {
+        _uiState.update {
+            if (it.outcome != null || fpid !in it.unitDetails) it else it.copy(detailUnitId = fpid)
+        }
+    }
+
+    /** 詳細ポップアップの外側のタップや戻る操作で呼ばれ、詳細ポップアップを閉じる。 */
+    fun onUnitDetailDismiss() {
+        _uiState.update { it.copy(detailUnitId = null) }
     }
 
     /**
@@ -427,7 +451,8 @@ class BattleViewModel @AssistedInject constructor(
  * 同名の個体には[resolveDisplayNames]で表示名を付け、演出中の状態(演出フラグ・一時ナレーション)や
  * 選択状態は維持する。手番の個体が変わって味方の手番でなくなった場合は選択状態を解除する。
  * 手番の味方が使えるスキルと、その時点のMPで使えるかどうか、通常攻撃・各スキルで選べる相手
- * ([selectableTargets])も反映する。
+ * ([selectableTargets])も反映する。全個体の詳細([BattleUnitDetailUiModel])も組み立て直し、
+ * 勝敗が決まったか、開いていた詳細の個体がいなくなったときは詳細ポップアップを閉じる。
  *
  * @receiver 最新の戦闘フィールド。
  * @param current 反映先の現在のUiState。
@@ -443,6 +468,7 @@ private fun BattleField.reflectedIn(current: BattleUiState, normalAttack: Active
     val actor = currentActorFpid
     val isPlayerTurn = allies.any { it.fpid == actor }
     val actorAlly = allies.firstOrNull { it.fpid == actor }
+    val details = allPawns.associate { it.fpid to detailOf(it, names.getValue(it.fpid)) }
     return current.copy(
         enemySlots = List(Formation.SLOT_COUNT) { slot ->
             enemiesBySlot[slot]?.let { it.toUiModel(names.getValue(it.fpid), it.fpid == actor) }
@@ -468,6 +494,54 @@ private fun BattleField.reflectedIn(current: BattleUiState, normalAttack: Active
         }.orEmpty(),
         attackTargetIds = actorAlly?.let { selectableTargetIds(it.fpid, normalAttack) }.orEmpty(),
         outcome = outcome,
+        unitDetails = details,
+        detailUnitId = current.detailUnitId?.takeIf { outcome == null && it in details },
+    )
+}
+
+/**
+ * 個体1体分の詳細ポップアップ用UIモデルを組み立てる。
+ *
+ * 値は[BattleFieldPawn]に該当プロパティがあればそれを、無ければ味方は[BattleAlly.character]、
+ * 敵は[BattleEnemy.enemy]から取る。位置は配置上の段と[effectiveRowOf]の有効な段から決める。
+ *
+ * @receiver 判定の基になる戦闘フィールド。
+ * @param pawn 対象の個体。
+ * @param displayName 同名個体の区別を付けた表示名。
+ * @return 詳細ポップアップ用のUIモデル。
+ */
+private fun BattleField.detailOf(pawn: BattleFieldPawn, displayName: String): BattleUnitDetailUiModel {
+    val position = when {
+        pawn.slot / Formation.COLUMNS == 0 -> BattleUnitPosition.FRONT
+        effectiveRowOf(pawn) == BattleRow.FRONT -> BattleUnitPosition.BACK_AS_FRONT
+        else -> BattleUnitPosition.BACK
+    }
+    val ally = pawn as? BattleAlly
+    val enemy = pawn as? BattleEnemy
+    return BattleUnitDetailUiModel(
+        id = pawn.fpid,
+        name = displayName,
+        hp = pawn.currentHp,
+        maxHp = pawn.maxHp,
+        mp = ally?.currentMp ?: enemy?.enemy?.mana ?: 0,
+        maxMp = ally?.maxMp ?: enemy?.enemy?.mana ?: 0,
+        breakGauge = floor(pawn.breakGauge).toInt(),
+        breakState = pawn.breakState,
+        position = position,
+        attack = pawn.attack,
+        defense = pawn.defense,
+        manaOutput = ally?.character?.manaOutput ?: enemy?.enemy?.manaOutput ?: 0,
+        manaResistance = ally?.character?.manaResistance ?: enemy?.enemy?.manaResistance ?: 0,
+        agility = pawn.agility,
+        luck = pawn.luck,
+        accuracy = pawn.accuracy,
+        evasion = pawn.evasion,
+        breakResistance = pawn.breakResistance,
+        breakPointRate = pawn.breakPointRate,
+        turnCount = pawn.turnCount,
+        remainingDistance = floor(pawn.remainingDistance).toInt(),
+        activeSkillNames = ally?.activeSkills?.map { it.name }.orEmpty(),
+        passiveSkillNames = pawn.passiveSkills.map { it.name },
     )
 }
 

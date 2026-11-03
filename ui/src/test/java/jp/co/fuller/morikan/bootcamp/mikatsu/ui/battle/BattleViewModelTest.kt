@@ -26,6 +26,7 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.ui.testActiveSkill
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.UseSkillUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleSelection
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleSkillUiModel
+import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleUnitPosition
 import kotlinx.coroutines.test.runCurrent
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.AdvanceToNextBattleUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.ObserveMapProgressUseCase
@@ -771,6 +772,111 @@ class BattleViewModelTest {
         assertFalse(viewModel.uiState.value.isProcessing)
         assertEquals(BattleSelection.AttackTarget, viewModel.uiState.value.selection)
         assertEquals(before, repository.current)
+    }
+
+    /** 長押しで味方・敵(戦闘不能も)の詳細が開き、選択状態は変わらず、閉じる操作で閉じること。存在しないFPIDは無視される。 */
+    @Test
+    fun longPress_opensAndDismissesDetail_withoutChangingSelection() = runTest(dispatcher) {
+        val (viewModel, repository) = createViewModel()
+        advanceUntilIdle()
+        viewModel.onAttackClick()
+        val allyFpid = repository.current.allies[0].fpid
+        val enemyFpid = repository.current.enemies[0].fpid
+
+        viewModel.onUnitLongPress(999)
+        assertNull(viewModel.uiState.value.detailUnitId)
+        viewModel.onUnitLongPress(allyFpid)
+        assertEquals("味方", viewModel.uiState.value.unitDetail?.name)
+        viewModel.onUnitLongPress(enemyFpid)
+        assertEquals(enemyFpid, viewModel.uiState.value.unitDetail?.id)
+        assertEquals(BattleSelection.AttackTarget, viewModel.uiState.value.selection)
+
+        repository.updateBattleField { f -> f.copy(enemies = f.enemies.map { if (it.fpid == enemyFpid) it.copy(currentHp = 0) else it }) }
+        runCurrent()
+        viewModel.onUnitDetailDismiss()
+        assertNull(viewModel.uiState.value.unitDetail)
+        viewModel.onUnitLongPress(enemyFpid) // 戦闘不能の個体も開ける
+        assertEquals(0, viewModel.uiState.value.unitDetail?.hp)
+    }
+
+    /** 勝敗が決まると開いていた詳細が閉じ、決着後は長押ししても開けないこと。 */
+    @Test
+    fun longPress_closesOnOutcome_andIgnoredAfter() = runTest(dispatcher) {
+        val (viewModel, repository) = createViewModel()
+        advanceUntilIdle()
+        viewModel.onUnitLongPress(repository.current.allies[0].fpid)
+        assertTrue(viewModel.uiState.value.detailUnitId != null)
+
+        repository.updateBattleField { f -> f.copy(enemies = f.enemies.map { it.copy(currentHp = 0) }) }
+        runCurrent()
+
+        assertEquals(BattleOutcome.Victory, viewModel.uiState.value.outcome)
+        assertNull(viewModel.uiState.value.detailUnitId)
+        viewModel.onUnitLongPress(repository.current.allies[0].fpid)
+        assertNull(viewModel.uiState.value.detailUnitId)
+    }
+
+    /** 詳細の値がフィールドの値と対応し、BG・残り距離は切り捨てられ、HPが戦闘の変化に追従すること。 */
+    @Test
+    fun detail_reflectsFieldValues_andFollowsChanges() = runTest(dispatcher) {
+        val (viewModel, repository) = createViewModel(allyMana = 30)
+        advanceUntilIdle()
+        val allyFpid = repository.current.allies[0].fpid
+        repository.updateBattleField { f ->
+            f.copy(
+                allies = f.allies.map {
+                    it.copy(breakGauge = 75.9, remainingDistance = 6200.7, turnCount = 3, breakState = BreakState.RECOVERING)
+                },
+            )
+        }
+        runCurrent()
+        viewModel.onUnitLongPress(allyFpid)
+
+        val detail = checkNotNull(viewModel.uiState.value.unitDetail)
+        assertEquals(75, detail.breakGauge)
+        assertEquals(6200, detail.remainingDistance)
+        assertEquals(3, detail.turnCount)
+        assertEquals(BreakState.RECOVERING, detail.breakState)
+        assertEquals(BattleUnitPosition.FRONT, detail.position)
+        assertEquals(1000, detail.maxHp)
+        assertEquals(30, detail.maxMp)
+        assertEquals(100, detail.attack)
+        assertEquals(100, detail.accuracy)
+
+        repository.updateBattleField { f -> f.copy(allies = f.allies.map { it.copy(currentHp = 400, currentMp = 5) }) }
+        runCurrent()
+        assertEquals(400, viewModel.uiState.value.unitDetail?.hp)
+        assertEquals(5, viewModel.uiState.value.unitDetail?.mp)
+    }
+
+    /** 後衛は「後衛」、前衛が全滅した陣営の後衛は「後衛(前衛扱い)」になること。 */
+    @Test
+    fun detail_position_backAndPromotedBack() = runTest(dispatcher) {
+        val (viewModel, repository) = createViewModel(allySlots = listOf(0, 3))
+        advanceUntilIdle()
+        val front = repository.current.allies.first { it.slot == 0 }
+        val back = repository.current.allies.first { it.slot == 3 }
+        assertEquals(BattleUnitPosition.BACK, viewModel.uiState.value.unitDetails.getValue(back.fpid).position)
+
+        repository.updateBattleField { f -> f.copy(allies = f.allies.map { if (it.fpid == front.fpid) it.copy(currentHp = 0) else it }) }
+        runCurrent()
+
+        assertEquals(BattleUnitPosition.FRONT, viewModel.uiState.value.unitDetails.getValue(front.fpid).position)
+        assertEquals(BattleUnitPosition.BACK_AS_FRONT, viewModel.uiState.value.unitDetails.getValue(back.fpid).position)
+    }
+
+    /** Aスキル名には通常攻撃が入らず設定済みのスキルだけが並び、敵はスキルを持たないこと。 */
+    @Test
+    fun detail_skills_excludeNormalAttack_andEnemyHasNone() = runTest(dispatcher) {
+        val (viewModel, repository) = createViewModel(allyMana = 30, activeSkillIds = listOf(2))
+        advanceUntilIdle()
+        val ally = viewModel.uiState.value.unitDetails.getValue(repository.current.allies[0].fpid)
+        val enemy = viewModel.uiState.value.unitDetails.getValue(repository.current.enemies[0].fpid)
+
+        assertEquals(listOf("ディア"), ally.activeSkillNames)
+        assertTrue(ally.passiveSkillNames.isEmpty())
+        assertTrue(enemy.activeSkillNames.isEmpty())
+        assertTrue(enemy.passiveSkillNames.isEmpty())
     }
 
     /**
