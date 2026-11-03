@@ -24,6 +24,7 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.PassiveSkill
  * @property breakPointRate ブレイクポイント倍率([BattleFieldPawn.breakPointRate])。性質は[breakGauge]と同じ。
  * @property criticalDamageRate クリティカル倍率の基本値([BattleFieldPawn.criticalDamageRate])。性質は[breakGauge]と同じ。
  * @property breakState ブレイクの状態([BattleFieldPawn.breakState])。性質は[breakGauge]と同じ。
+ * @property isDefending 防御状態か([BattleFieldPawn.isDefending])。性質は[breakGauge]と同じ。
  * @property statModifiers かけられているバフ・デバフ([BattleFieldPawn.statModifiers])。命中率・回避率の段階もここに含まれる。戦闘開始時は空。
  */
 data class BattleEnemy(
@@ -38,6 +39,7 @@ data class BattleEnemy(
     override val breakPointRate: Int = BreakFormula.BASE_BREAK_POINT_RATE,
     override val criticalDamageRate: Int = CriticalFormula.BASE_DAMAGE_RATE,
     override val breakState: BreakState = BreakState.NONE,
+    override val isDefending: Boolean = false,
     override val statModifiers: List<StatModifier> = emptyList(),
 ) : BattleFieldPawn {
     override val maxHp: Int get() = enemy.hp

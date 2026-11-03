@@ -160,6 +160,14 @@ data class BattleUiState(
         get() = isInputAcceptable && skills.isNotEmpty() && !isSelectingTarget
 
     /**
+     * 「防御」ボタンを押下できるかどうか。
+     *
+     * プレイヤーの手番で、演出中でなく、勝敗が決まっておらず、選択状態が[BattleSelection.None]のときのみ`true`となる。
+     */
+    val isDefendEnabled: Boolean
+        get() = isInputAcceptable && selection == BattleSelection.None
+
+    /**
      * 指定したFPIDの個体の表示名を返す。
      *
      * @param id 個体のFPID。

@@ -120,6 +120,17 @@ class AdvanceToNextBattleUseCaseTest {
         assertEquals(listOf(40, 0), repo.current.allies.map { it.currentHp })
     }
 
+    /** 防御状態は持ち越さず、次の戦闘では全員が防御していない状態で始まること。 */
+    @Test
+    fun victory_doesNotCarryOverDefending() = runBlocking {
+        val defending = victoryField().let { f -> f.copy(allies = f.allies.map { it.copy(isDefending = true) }) }
+        val repo = FakeBattleRepository(defending)
+
+        assertTrue(createUseCase(defending, FakeMapProgressRepository(), repo)())
+
+        assertTrue(repo.current.allPawns.none { it.isDefending })
+    }
+
     /** 未決着・敗北時は何も変わらないこと。 */
     @Test
     fun notVictory_changesNothing() = runBlocking {

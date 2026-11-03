@@ -127,4 +127,55 @@ class AttackNarrationsTest {
             result.toNarrations(nameOf),
         )
     }
+
+    /** 対象1体・1ヒットで防御がクリティカルを防いだら、その旨を持った1文になること。 */
+    @Test
+    fun single_oneShot_criticalBlocked() {
+        val result = AttackResult(1, listOf(AttackHit(2, listOf(AttackShot(true, 30, isCriticalBlocked = true)))))
+
+        assertEquals(
+            listOf(BattleNarration.AttackResult("味方", "ゴブリンA", 30, CriticalType.NONE, isCriticalBlocked = true)),
+            result.toNarrations(nameOf),
+        )
+    }
+
+    /** 多段では、防御がクリティカルを防いだヒットの行にだけ印が付くこと。 */
+    @Test
+    fun single_multiShot_criticalBlocked_perShot() {
+        val result = AttackResult(
+            1,
+            listOf(AttackHit(2, listOf(AttackShot(true, 30, isCriticalBlocked = true), AttackShot(true, 30)))),
+        )
+
+        assertEquals(
+            listOf(
+                BattleNarration.ShotHit(1, 30, CriticalType.NONE, isCriticalBlocked = true),
+                BattleNarration.ShotHit(2, 30),
+                BattleNarration.AttackTotal("味方", "ゴブリンA", 60, 2, 2),
+            ),
+            result.toNarrations(nameOf),
+        )
+    }
+
+    /** 範囲攻撃では、クリティカルの文と同じ位置(ダメージの文の後)に、防御でクリティカルを防いだ文が出ること。 */
+    @Test
+    fun area_criticalBlocked_sentenceInCriticalPosition() {
+        val result = AttackResult(
+            1,
+            listOf(
+                AttackHit(2, listOf(AttackShot(true, 30, isCriticalBlocked = true))),
+                AttackHit(3, listOf(AttackShot(true, 45, critical = CriticalType.CRITICAL))),
+            ),
+        )
+
+        assertEquals(
+            listOf(
+                BattleNarration.AreaAttackStart("味方"),
+                BattleNarration.AreaHit(listOf(AreaHitEntry("ゴブリンA", 30), AreaHitEntry("ゴブリンB", 45))),
+                BattleNarration.AreaCriticalBlocked("ゴブリンA"),
+                BattleNarration.AreaCritical("ゴブリンB"),
+            ),
+            result.toNarrations(nameOf),
+        )
+    }
 }

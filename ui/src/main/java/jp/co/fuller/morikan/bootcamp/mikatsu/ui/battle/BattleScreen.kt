@@ -176,6 +176,19 @@ fun BattleScreen(
                             ),
                         )
                     }
+                }
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    Button(
+                        onClick = viewModel::onDefendClick,
+                        enabled = uiState.isDefendEnabled,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Text(stringResource(R.string.action_defend))
+                    }
                     val isSelecting = uiState.selection != BattleSelection.None
                     Button(
                         onClick = if (isSelecting) viewModel::onCancelClick else onRetreat,
@@ -359,7 +372,8 @@ private fun BattleNarration.toText(): String = when (this) {
     BattleNarration.SelectAllyTarget -> stringResource(R.string.battle_narration_select_ally_target)
     is BattleNarration.AttackResult -> stringResource(
         when (critical) {
-            CriticalType.NONE -> R.string.battle_narration_attack_result
+            CriticalType.NONE ->
+                if (isCriticalBlocked) R.string.battle_narration_attack_result_critical_blocked else R.string.battle_narration_attack_result
             CriticalType.CRITICAL -> R.string.battle_narration_attack_result_critical
             CriticalType.BAD_CRITICAL -> R.string.battle_narration_attack_result_bad_critical
         },
@@ -372,7 +386,8 @@ private fun BattleNarration.toText(): String = when (this) {
     is BattleNarration.AttackMissed -> stringResource(R.string.battle_narration_attack_missed, attackerName, targetName)
     is BattleNarration.ShotHit -> stringResource(
         when (critical) {
-            CriticalType.NONE -> R.string.battle_narration_shot_hit
+            CriticalType.NONE ->
+                if (isCriticalBlocked) R.string.battle_narration_shot_critical_blocked else R.string.battle_narration_shot_hit
             CriticalType.CRITICAL -> R.string.battle_narration_shot_critical
             CriticalType.BAD_CRITICAL -> R.string.battle_narration_shot_bad_critical
         },
@@ -396,6 +411,8 @@ private fun BattleNarration.toText(): String = when (this) {
     )
     is BattleNarration.AreaCritical -> stringResource(R.string.battle_narration_area_critical, targetName)
     is BattleNarration.AreaBadCritical -> stringResource(R.string.battle_narration_area_bad_critical, targetName)
+    is BattleNarration.AreaCriticalBlocked -> stringResource(R.string.battle_narration_area_critical_blocked, targetName)
+    is BattleNarration.Defend -> stringResource(R.string.battle_narration_defend, actorName)
     is BattleNarration.Broke -> stringResource(R.string.battle_narration_broke, targetName)
     is BattleNarration.BreakStunned -> stringResource(R.string.battle_narration_break_stunned, actorName)
     is BattleNarration.BreakRecovered -> stringResource(R.string.battle_narration_break_recovered, actorName)

@@ -35,6 +35,7 @@ import kotlinx.coroutines.test.runCurrent
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.AdvanceToNextBattleUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.ObserveMapProgressUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.AttackUseCase
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.DefendUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.EndTurnUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.ExecuteEnemyTurnUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.GetBattleFieldUseCase
@@ -127,6 +128,7 @@ class BattleViewModelTest {
             attackUseCase = AttackUseCase(battleRepository, FakeSkillRepository(normalAttack), hitRandom),
             getNormalAttackUseCase = GetNormalAttackUseCase(FakeSkillRepository(normalAttack)),
             useSkillUseCase = UseSkillUseCase(battleRepository, random),
+            defendUseCase = DefendUseCase(battleRepository),
             executeEnemyTurnUseCase = ExecuteEnemyTurnUseCase(battleRepository, FakeSkillRepository(normalAttack), RandomEnemyTargetSelector(random), hitRandom),
             endTurnUseCase = EndTurnUseCase(battleRepository, random),
             observeMapProgressUseCase = ObserveMapProgressUseCase(mapProgressRepository),
@@ -1012,6 +1014,70 @@ class BattleViewModelTest {
             ),
             detail.statChanges,
         )
+    }
+
+    /** 敵の手番中は「防御」を押せず、押しても何も起きないこと。 */
+    @Test
+    fun defend_disabledDuringEnemyTurn() = runTest(dispatcher) {
+        val (viewModel, repository) = createViewModel()
+        runCurrent()
+
+        assertFalse(viewModel.uiState.value.isPlayerTurn)
+        assertFalse(viewModel.uiState.value.isDefendEnabled)
+        viewModel.onDefendClick()
+        runCurrent()
+
+        assertTrue(repository.current.allPawns.none { it.isDefending })
+    }
+
+    /** 攻撃の対象選択中は「防御」を押せず、キャンセルして選択状態がNoneに戻ると押せること。 */
+    @Test
+    fun defend_disabledWhileSelecting() = runTest(dispatcher) {
+        val (viewModel, repository) = createViewModel()
+        advanceUntilIdle()
+        assertTrue(viewModel.uiState.value.isDefendEnabled)
+
+        viewModel.onAttackClick()
+        assertFalse(viewModel.uiState.value.isDefendEnabled)
+        viewModel.onDefendClick()
+        runCurrent()
+        assertFalse(viewModel.uiState.value.isProcessing)
+        assertFalse(repository.current.allies[0].isDefending)
+
+        viewModel.onCancelClick()
+        assertTrue(viewModel.uiState.value.isDefendEnabled)
+    }
+
+    /**
+     * 「防御」を押すとナレーションを表示して手番が終わり、次の自分の手番まで防御状態が続いて(敵の攻撃が24→16に減る)、
+     * 自分の手番が来たら解除されること。詳細ポップアップ用のモデルにも防御中が反映される。
+     */
+    @Test
+    fun defendFlow_narratesEndsTurn_andReleasesOnOwnNextTurn() = runTest(dispatcher) {
+        val (viewModel, repository) = createViewModel()
+        advanceUntilIdle()
+        val allyFpid = repository.current.allies[0].fpid
+        assertEquals(1000 - 24 * 2, repository.current.allies[0].currentHp)
+
+        viewModel.onDefendClick()
+        viewModel.onDefendClick() // 連打しても二重に実行されない
+        runCurrent()
+
+        assertTrue(viewModel.uiState.value.isProcessing)
+        assertFalse(viewModel.uiState.value.isDefendEnabled)
+        assertEquals(BattleNarration.Defend("味方"), viewModel.uiState.value.narration)
+        assertTrue(repository.current.allies[0].isDefending)
+        assertTrue(viewModel.uiState.value.unitDetails.getValue(allyFpid).isDefending)
+
+        advanceUntilIdle()
+
+        val ally = repository.current.allies[0]
+        assertEquals(1, ally.turnCount)
+        // 次の自分の手番までに敵2体が計4回攻撃し、防御中なのでいずれも16ダメージ。
+        assertEquals(1000 - 24 * 2 - 16 * 4, ally.currentHp)
+        assertFalse(ally.isDefending)
+        assertFalse(viewModel.uiState.value.unitDetails.getValue(allyFpid).isDefending)
+        assertTrue(viewModel.uiState.value.isDefendEnabled)
     }
 
     /**

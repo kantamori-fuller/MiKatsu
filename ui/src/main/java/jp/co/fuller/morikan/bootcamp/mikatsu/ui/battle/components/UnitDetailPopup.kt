@@ -130,6 +130,9 @@ private fun UnitDetailContent(detail: BattleUnitDetailUiModel) {
         BreakState.RECOVERING -> Text(stringResource(R.string.battle_break_state_recovering), style = MaterialTheme.typography.labelMedium)
         BreakState.NONE -> Unit
     }
+    if (detail.isDefending) {
+        Text(stringResource(R.string.battle_detail_defending), style = MaterialTheme.typography.labelMedium)
+    }
 
     SectionTitle(R.string.battle_detail_section_status)
     ValueRow(R.string.label_hp, detail.maxHp.toString())

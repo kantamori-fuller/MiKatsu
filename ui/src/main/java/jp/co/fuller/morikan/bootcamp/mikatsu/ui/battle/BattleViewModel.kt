@@ -27,6 +27,7 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.effectiveRowOf
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.selectableTargets
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.AdvanceToNextBattleUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.AttackUseCase
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.DefendUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.EndTurnUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.ExecuteEnemyTurnUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.GetNormalAttackUseCase
@@ -69,7 +70,7 @@ private const val RESULT_DISPLAY_MS = 1200L
  * [observeBattleFieldUseCase]で購読した戦闘フィールド(現在HP・手番を含む。正はRepositoryが保持する)
  * をもとに、味方は陣形のマスごとに並べ直したうえで[uiState]として公開することを目的とする。
  * 手番が来た味方は自動で行動者となり、「攻撃」→対象のタップで[attackUseCase]による通常攻撃を、
- * 「スキル」→スキルの選択→対象のタップで[useSkillUseCase]によるスキルの使用を行う。
+ * 「スキル」→スキルの選択→対象のタップで[useSkillUseCase]によるスキルの使用を、「防御」で[defendUseCase]による防御を行う。
  * タップできる対象は、通常攻撃のデータ([getNormalAttackUseCase])と手番の味方のスキルのレンジ・範囲・陣営の条件から
  * 求めた「選べる相手」だけで、敵・味方どちらのカードからでも選べる。
  * 手番が敵のときは、間とナレーションを挟みながら[executeEnemyTurnUseCase]で自動的に攻撃させる。
@@ -85,6 +86,7 @@ private const val RESULT_DISPLAY_MS = 1200L
  * @property attackUseCase 味方の通常攻撃を実行するUseCase。
  * @property getNormalAttackUseCase 通常攻撃のスキルデータを取得するUseCase。通常攻撃で選べる相手の算出に使う。
  * @property useSkillUseCase 味方のアクティブスキルを使うUseCase。
+ * @property defendUseCase 味方の防御を実行するUseCase。
  * @property executeEnemyTurnUseCase 敵の手番の攻撃を実行するUseCase。
  * @property endTurnUseCase 現在の行動者の手番を終えるUseCase。
  * @property observeMapProgressUseCase マップの進行度を購読するUseCase。
@@ -98,6 +100,7 @@ class BattleViewModel @AssistedInject constructor(
     private val attackUseCase: AttackUseCase,
     private val getNormalAttackUseCase: GetNormalAttackUseCase,
     private val useSkillUseCase: UseSkillUseCase,
+    private val defendUseCase: DefendUseCase,
     private val executeEnemyTurnUseCase: ExecuteEnemyTurnUseCase,
     private val endTurnUseCase: EndTurnUseCase,
     private val observeMapProgressUseCase: ObserveMapProgressUseCase,
@@ -228,6 +231,23 @@ class BattleViewModel @AssistedInject constructor(
     }
 
     /**
+     * 「防御」ボタンが押されたときに呼ばれる。
+     *
+     * 防御できる状態(プレイヤーの手番・演出中でない・勝敗未決・選択状態がない)であれば、手番の味方を
+     * [defendUseCase]で防御状態にし、「〇〇は防御している!」のナレーションを表示してから手番を終える。
+     * それ以外の場合は何も行わない。
+     */
+    fun onDefendClick() {
+        val state = _uiState.value
+        val actorFpid = state.currentActorId ?: return
+        if (!state.isDefendEnabled || isBusy) return
+        val name = state.nameOf(actorFpid)
+        launchPlayerAction(actorFpid) {
+            if (defendUseCase(actorFpid)) listOf(BattleNarration.Defend(name)) else null
+        }
+    }
+
+    /**
      * 「キャンセル」ボタンが押されたときに呼ばれる。
      *
      * 攻撃の対象選択・スキル一覧・スキルの対象選択のいずれの状態からも、選択状態を解除して
@@ -282,7 +302,7 @@ class BattleViewModel @AssistedInject constructor(
     }
 
     /**
-     * 味方の行動(通常攻撃・スキル)の演出ジョブを開始する。
+     * 味方の行動(通常攻撃・スキル・防御)の演出ジョブを開始する。
      *
      * 流れは「演出中にして選択状態を解除 → 行動の実行 → 結果のナレーション → 間 → 手番終了 → 演出終了」。
      * 演出中の状態は同期的に設定するため、連打しても二重に開始されない。行動が実行できなかった場合
@@ -530,6 +550,7 @@ private fun BattleField.detailOf(pawn: BattleFieldPawn, displayName: String): Ba
         maxMp = ally?.maxMp ?: enemy?.enemy?.mana ?: 0,
         breakGauge = floor(pawn.breakGauge).toInt(),
         breakState = pawn.breakState,
+        isDefending = pawn.isDefending,
         position = position,
         attack = pawn.attack,
         defense = pawn.defense,

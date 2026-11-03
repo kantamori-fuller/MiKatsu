@@ -14,6 +14,7 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.repository.SkillRepository
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.AdvanceToNextBattleUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.ObserveMapProgressUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.AttackUseCase
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.DefendUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.DeleteCharacterUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.EndTurnUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.ExecuteEnemyTurnUseCase
@@ -160,6 +161,13 @@ object UseCaseModule {
     @Provides
     fun provideUseSkillUseCase(battleRepository: BattleRepository, random: Random): UseSkillUseCase =
         UseSkillUseCase(battleRepository, random)
+
+    /**
+     * @param battleRepository 注入される[BattleRepository]。
+     * @return 味方が防御する[DefendUseCase]。
+     */
+    @Provides
+    fun provideDefendUseCase(battleRepository: BattleRepository): DefendUseCase = DefendUseCase(battleRepository)
 
     /**
      * @param skillRepository 注入される[SkillRepository]。

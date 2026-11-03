@@ -54,6 +54,12 @@
     <string name="battle_narration_attack_result_bad_critical">%1$sが%2$sに攻撃! バッドクリティカル… %3$dダメージ</string>
     <string name="battle_narration_shot_critical">%1$d回目: クリティカル! %2$dダメージ</string>
     <string name="battle_narration_shot_bad_critical">%1$d回目: バッドクリティカル… %2$dダメージ</string>
+    <string name="action_defend">防御</string>
+    <string name="battle_narration_defend">%1$sは防御している!</string>
+    <string name="battle_narration_attack_result_critical_blocked">%1$sが%2$sに攻撃! 防御でクリティカルを防いだ! %3$dダメージ</string>
+    <string name="battle_narration_shot_critical_blocked">%1$d回目: 防御でクリティカルを防いだ! %2$dダメージ</string>
+    <string name="battle_narration_area_critical_blocked">%1$sは防御でクリティカルを防いだ!</string>
+    <string name="battle_detail_defending">防御中</string>
     <string name="battle_narration_area_critical">%1$sにクリティカル!</string>
     <string name="battle_narration_area_bad_critical">%1$sにバッドクリティカル…</string>
     <string name="battle_narration_shot_missed">%1$d回目: 外れた!</string>
