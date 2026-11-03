@@ -1,5 +1,6 @@
 package jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle
 
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.StatModifier
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleField
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleStat
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BreakState
@@ -74,10 +75,10 @@ class PerformSkillStatTest {
         assertEquals(listOf(StatChangeResult(BattleStat.AGILITY, -1), StatChangeResult(BattleStat.DEFENSE, -1)), targetResult.statChanges)
     }
 
-    /** 命中率100・命中補正の低下で外れた場合、どちらのデバフもかからず、コストは消費されること。 */
+    /** 命中率100・命中率の段階-3(100×6/9≒66.7%)で外れた場合、どちらのデバフもかからず、コストは消費されること。 */
     @Test
     fun haki_miss_appliesNothing_butConsumesMp() {
-        val f = field().let { it.copy(allies = it.allies.map { a -> if (a.fpid == 1) a.copy(accuracy = 50) else a }) }
+        val f = field().let { it.copy(allies = it.allies.map { a -> if (a.fpid == 1) a.copy(statModifiers = listOf(StatModifier(BattleStat.ACCURACY, -3, 5))) else a }) }
 
         val (after, result) = checkNotNull(f.performSkill(1, TEST_HAKI.id, 3, fixedRandom(0.9)))
 
@@ -89,7 +90,7 @@ class PerformSkillStatTest {
     /** 対象が回避率の高い場合も同じ判定式で外れること。 */
     @Test
     fun haki_usesTargetEvasion() {
-        val f = field().let { it.copy(enemies = it.enemies.map { e -> e.copy(evasion = 150) }) }
+        val f = field().let { it.copy(enemies = it.enemies.map { e -> e.copy(statModifiers = listOf(StatModifier(BattleStat.EVASION, 3, 5))) }) }
 
         val (_, result) = checkNotNull(f.performSkill(1, TEST_HAKI.id, 3, fixedRandom(0.7)))
 
@@ -100,7 +101,7 @@ class PerformSkillStatTest {
     @Test
     fun haki_brokenTarget_alwaysHits() {
         val f = field()
-            .let { it.copy(allies = it.allies.map { a -> if (a.fpid == 1) a.copy(accuracy = 0) else a }) }
+            .let { it.copy(allies = it.allies.map { a -> if (a.fpid == 1) a.copy(statModifiers = listOf(StatModifier(BattleStat.ACCURACY, -12, 5))) else a }) }
             .let { it.copy(enemies = it.enemies.map { e -> e.copy(breakState = BreakState.BROKEN) }) }
         val noDraw = object : Random() {
             override fun nextBits(bitCount: Int): Int = error("乱数を引いてはいけない")

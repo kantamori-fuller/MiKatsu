@@ -70,4 +70,25 @@ class SkillNarrationsTest {
 
         assertEquals(listOf(BattleNarration.SkillMissed("味方", "覇気")), result.toNarrations(nameOf))
     }
+
+    /** 命中率・回避率の変化も、他のステータスと同じ文(StatStageChanged)になること。 */
+    @Test
+    fun accuracyAndEvasion_changesUseSameSentence() {
+        val result = SkillResult(
+            1, 9, "テスト",
+            listOf(
+                SkillTargetResult(1, 0, true, listOf(StatChangeResult(BattleStat.ACCURACY, 1))),
+                SkillTargetResult(3, 0, true, listOf(StatChangeResult(BattleStat.EVASION, -1))),
+            ),
+        )
+
+        assertEquals(
+            listOf(
+                BattleNarration.SkillUsed("味方", "テスト"),
+                BattleNarration.StatStageChanged("味方", BattleStat.ACCURACY, 1),
+                BattleNarration.StatStageChanged("ゴブリン", BattleStat.EVASION, -1),
+            ),
+            result.toNarrations(nameOf),
+        )
+    }
 }

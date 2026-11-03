@@ -38,8 +38,8 @@ enum class BattleUnitPosition {
  * @property manaResistance ステータスD(マナ耐性)。
  * @property agility ステータスS(敏捷)。
  * @property luck ステータスL(幸運)。
- * @property accuracy 命中率(%なしの数値)。
- * @property evasion 回避率(%なしの数値)。
+ * @property accuracy 命中率の基本値(%なしの数値)。バフ・デバフの補正は反映せず常に基本値で、補正は[statChanges]に出す。
+ * @property evasion 回避率の基本値(%なしの数値)。性質は[accuracy]と同じ。
  * @property breakResistance ブレイク耐性。
  * @property breakPointRate ブレイクポイント倍率。
  * @property turnCount 行動した回数。

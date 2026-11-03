@@ -56,8 +56,8 @@ fun BattleField.performAttack(
             if (current.isDefeated) break
             val isHit = HitChanceFormula.isHit(
                 skillAccuracy = attackSkill.accuracy,
-                attackerAccuracy = attacker.accuracy,
-                targetEvasion = current.evasion,
+                accuracyStage = attacker.effectiveStage(BattleStat.ACCURACY),
+                evasionStage = current.effectiveStage(BattleStat.EVASION),
                 random = random,
                 isTargetGuaranteedHit = current.isBroken,
             )

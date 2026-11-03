@@ -2,6 +2,7 @@ package jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle
 
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleAlly
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleField
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleStat
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.SkillResult
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.SkillTargetResult
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.StatChangeResult
@@ -65,8 +66,8 @@ fun BattleField.performSkill(
         val current = checkNotNull(field.allPawns.firstOrNull { it.fpid == target.fpid })
         val isHit = HitChanceFormula.isHit(
             skillAccuracy = skill.accuracy,
-            attackerAccuracy = actor.accuracy,
-            targetEvasion = current.evasion,
+            accuracyStage = actor.effectiveStage(BattleStat.ACCURACY),
+            evasionStage = current.effectiveStage(BattleStat.EVASION),
             random = random,
             isTargetGuaranteedHit = current.isBroken,
         )

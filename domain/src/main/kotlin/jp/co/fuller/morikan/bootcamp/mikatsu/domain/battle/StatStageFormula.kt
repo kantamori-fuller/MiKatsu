@@ -11,6 +11,8 @@ import kotlin.math.abs
  *
  * 段階nの倍率は、n≥0なら`(4+n)/4`、n<0なら`4/(4+|n|)`。適用後の値は`floor(基礎値 × 分子 / 分母)`を
  * 整数演算で求め、浮動小数を使わない。段階は[MIN_STAGE]〜[MAX_STAGE]に収める。
+ * この倍率表は基礎ステータス6種用で、命中率・回避率は別の倍率表を持つ[HitChanceFormula]が扱う。
+ * 段階の合計の求め方([effectiveStage])は8種で共通。
  */
 object StatStageFormula {
 

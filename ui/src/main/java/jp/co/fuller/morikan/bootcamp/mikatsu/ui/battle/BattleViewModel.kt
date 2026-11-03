@@ -19,6 +19,7 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillRange
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.ActiveSkill
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillCostType
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.BreakFormula
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.HitChanceFormula
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.BattleRow
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.canAfford
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.effectiveRowOf
@@ -535,8 +536,8 @@ private fun BattleField.detailOf(pawn: BattleFieldPawn, displayName: String): Ba
         manaResistance = ally?.character?.manaResistance ?: enemy?.enemy?.manaResistance ?: 0,
         agility = pawn.agility,
         luck = pawn.luck,
-        accuracy = pawn.accuracy,
-        evasion = pawn.evasion,
+        accuracy = HitChanceFormula.BASE_RATE,
+        evasion = HitChanceFormula.BASE_RATE,
         breakResistance = pawn.breakResistance,
         breakPointRate = pawn.breakPointRate,
         turnCount = pawn.turnCount,

@@ -1,5 +1,7 @@
 package jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle
 
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.StatModifier
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleStat
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.AttackShot
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleField
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillArea
@@ -89,17 +91,17 @@ class PerformAttackHitTest {
         }
     }
 
-    /** 攻撃者の命中率・対象の回避率が最終命中率に反映されること(命中90・回避110なら81%)。 */
+    /** 対象の回避率の段階が最終命中率に反映されること(命中90・回避+1なら90×6/7≒77.14%)。 */
     @Test
     fun accuracyAndEvasion_affectChance() {
         val f = BattleField(
             allies = listOf(testAlly(1)),
-            enemies = listOf(testEnemy(2, hp = 1000).copy(evasion = 110)),
+            enemies = listOf(testEnemy(2, hp = 1000, statModifiers = listOf(StatModifier(BattleStat.EVASION, 1, 5)))),
             turnQueue = listOf(1),
         )
 
-        assertFalse(checkNotNull(f.performAttack(1, 2, skill, fixedRandom(0.80))).second.hits.single().isMissed)
-        assertTrue(checkNotNull(f.performAttack(1, 2, skill, fixedRandom(0.82))).second.hits.single().isMissed)
+        assertFalse(checkNotNull(f.performAttack(1, 2, skill, fixedRandom(0.77))).second.hits.single().isMissed)
+        assertTrue(checkNotNull(f.performAttack(1, 2, skill, fixedRandom(0.78))).second.hits.single().isMissed)
     }
 
     /** 命中率がnull(必中)のスキルは乱数にかかわらず当たること。 */

@@ -20,4 +20,6 @@ val BattleStat.labelRes: Int
         BattleStat.MANA_RESISTANCE -> R.string.battle_stat_mana_resistance
         BattleStat.AGILITY -> R.string.battle_stat_agility
         BattleStat.LUCK -> R.string.battle_stat_luck
+        BattleStat.ACCURACY -> R.string.battle_detail_accuracy
+        BattleStat.EVASION -> R.string.battle_detail_evasion
     }

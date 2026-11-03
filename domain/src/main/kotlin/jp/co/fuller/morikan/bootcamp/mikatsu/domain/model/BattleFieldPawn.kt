@@ -52,15 +52,6 @@ sealed interface BattleFieldPawn {
     val statModifiers: List<StatModifier>
 
     /**
-     * 命中率。基本値は[jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.HitChanceFormula.BASE_RATE]で、戦闘ごとにその値から始まる。
-     * 将来のバフ・デバフで加減算される戦闘中だけの値で、保存データやマスターデータには持たない。
-     */
-    val accuracy: Int
-
-    /** 回避率。基本値と性質は[accuracy]と同じ。 */
-    val evasion: Int
-
-    /**
      * ブレイクゲージ(0〜100)。攻撃でダメージを受けるたびに貯まり、100に達するとブレイク状態になって0に戻る。
      * 戦闘中だけの値で、戦闘開始時は0。小数のまま持ち、表示するときだけ切り捨てる。
      */
@@ -106,7 +97,7 @@ sealed interface BattleFieldPawn {
     /**
      * ステータスの基礎値(バフ・デバフを反映しない値)を返す。基礎ステータス6種と各プロパティの対応表。
      *
-     * @param stat 取得するステータス。
+     * @param stat 取得するステータス。命中率・回避率は基礎値を持たないため渡せない(例外)。
      * @return 基礎値。
      */
     fun baseStat(stat: BattleStat): Int = when (stat) {
@@ -116,6 +107,8 @@ sealed interface BattleFieldPawn {
         BattleStat.MANA_RESISTANCE -> manaResistance
         BattleStat.AGILITY -> agility
         BattleStat.LUCK -> luck
+        BattleStat.ACCURACY, BattleStat.EVASION ->
+            error("命中率・回避率は基礎値を持たない。段階はeffectiveStageで取得する: $stat")
     }
 
     /**
@@ -129,7 +122,7 @@ sealed interface BattleFieldPawn {
     /**
      * バフ・デバフを反映した、戦闘で実際に使うステータスの値を返す。ダメージ計算や行動順はこの値を使う。
      *
-     * @param stat 取得するステータス。
+     * @param stat 取得するステータス。命中率・回避率は6種用の倍率表で値を出すと誤りになるため渡せない(例外)。
      * @return `floor(基礎値 × 段階の倍率)`。
      */
     fun effectiveStat(stat: BattleStat): Int = StatStageFormula.apply(baseStat(stat), effectiveStage(stat))

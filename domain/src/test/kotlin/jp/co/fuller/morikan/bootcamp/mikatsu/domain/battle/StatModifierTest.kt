@@ -138,4 +138,41 @@ class StatModifierTest {
 
         assertEquals(listOf(2, 1), f.advanceToNextTurn(random).turnQueue)
     }
+
+    /** 命中率・回避率も同じ仕組み(別エントリ・持続・±12の頭打ち)で記録されること。 */
+    @Test
+    fun accuracyAndEvasion_useSameModifierMechanism() {
+        var f = field().addStatModifier(1, BattleStat.ACCURACY, 12, 2).addStatModifier(1, BattleStat.ACCURACY, 1, 5)
+            .addStatModifier(1, BattleStat.EVASION, -2, 3)
+        assertEquals(12, f.allies[0].effectiveStage(BattleStat.ACCURACY))
+        assertEquals(-2, f.allies[0].effectiveStage(BattleStat.EVASION))
+
+        f = f.endOwnTurn(1)
+        f = f.endOwnTurn(1)
+        f = f.endOwnTurn(1) // +12の分が切れる
+        assertEquals(1, f.allies[0].effectiveStage(BattleStat.ACCURACY))
+    }
+
+    /** 命中率・回避率は6種用の倍率表で値を出せず、effectiveStat / baseStat は例外になること(誤用防止)。 */
+    @Test
+    fun effectiveStat_rejectsAccuracyAndEvasion() {
+        val ally = testAlly(1)
+        for (stat in listOf(BattleStat.ACCURACY, BattleStat.EVASION)) {
+            assertTrue(runCatching { ally.effectiveStat(stat) }.isFailure)
+            assertTrue(runCatching { ally.baseStat(stat) }.isFailure)
+        }
+    }
+
+    /** 命中率の段階が、performAttackの命中判定に使われること(命中-3: 100×6/9≒66.7%)。 */
+    @Test
+    fun performAttack_usesAccuracyStages() {
+        val f = BattleField(
+            allies = listOf(testAlly(1, statModifiers = listOf(StatModifier(BattleStat.ACCURACY, -3, 5)))),
+            enemies = listOf(testEnemy(2, hp = 1000)),
+            turnQueue = listOf(1),
+        )
+
+        assertTrue(!checkNotNull(f.performAttack(1, 2, TEST_NORMAL_ATTACK, fixedRandom(0.66))).second.hits.single().isMissed)
+        assertTrue(checkNotNull(f.performAttack(1, 2, TEST_NORMAL_ATTACK, fixedRandom(0.67))).second.hits.single().isMissed)
+    }
 }

@@ -1,5 +1,7 @@
 package jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle
 
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.StatModifier
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleStat
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleEnemy
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleField
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BreakState
@@ -144,19 +146,19 @@ class BreakTest {
         assertEquals(11, checkNotNull(steel.performAttack(2, 3, skill.copy(accuracy = null), noRandom)).second.totalDamage)
     }
 
-    /** 被必中: 命中率0・回避率が高くても、乱数を引かずに必ず当たること。 */
+    /** 被必中: 命中率の段階が最低・回避率の段階が最高でも、乱数を引かずに必ず当たること。 */
     @Test
     fun brokenTarget_isAlwaysHit_withoutRandom() {
         val f = BattleField(
-            allies = listOf(testAlly(1).copy(accuracy = 0)),
-            enemies = listOf(testEnemy(2, hp = 1000).copy(breakState = BreakState.BROKEN, evasion = 500)),
+            allies = listOf(testAlly(1, statModifiers = listOf(StatModifier(BattleStat.ACCURACY, -12, 5)))),
+            enemies = listOf(testEnemy(2, hp = 1000, statModifiers = listOf(StatModifier(BattleStat.EVASION, 12, 5))).copy(breakState = BreakState.BROKEN)),
             turnQueue = listOf(1),
         )
 
         val (_, result) = checkNotNull(f.performAttack(1, 2, skill.copy(accuracy = 0), noRandom))
 
         assertTrue(result.hits.single().shots.single().isHit)
-        assertTrue(HitChanceFormula.isHit(0, 0, 500, noRandom, isTargetGuaranteedHit = true))
+        assertTrue(HitChanceFormula.isHit(0, -12, 12, noRandom, isTargetGuaranteedHit = true))
     }
 
     /** 多段攻撃の途中でブレイクしたら、残りのヒットから×1.3と被必中が効くこと。 */

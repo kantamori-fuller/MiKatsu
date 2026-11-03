@@ -950,6 +950,34 @@ class BattleViewModelTest {
         assertEquals(100, detail.attack)
     }
 
+    /** 命中率・回避率の段階は「ステータス変化」に出る一方、戦闘値の命中率・回避率は基本値100のままであること。 */
+    @Test
+    fun detail_accuracyEvasionStages_listedButBaseValuesStay100() = runTest(dispatcher) {
+        val (viewModel, repository) = createViewModel()
+        advanceUntilIdle()
+        val allyFpid = repository.current.allies[0].fpid
+        repository.updateBattleField { f ->
+            f.copy(
+                allies = f.allies.map {
+                    it.copy(statModifiers = listOf(StatModifier(BattleStat.ACCURACY, 2, 4), StatModifier(BattleStat.EVASION, -1, 6)))
+                },
+            )
+        }
+        runCurrent()
+
+        val detail = viewModel.uiState.value.unitDetails.getValue(allyFpid)
+
+        assertEquals(100, detail.accuracy)
+        assertEquals(100, detail.evasion)
+        assertEquals(
+            listOf(
+                StatChangeDetail(BattleStat.ACCURACY, 2, listOf(StatChangeEntry(2, 4))),
+                StatChangeDetail(BattleStat.EVASION, -1, listOf(StatChangeEntry(-1, 6))),
+            ),
+            detail.statChanges,
+        )
+    }
+
     /**
      * テスト用の、通常攻撃・ディア(MP10・50回復・レンジ3・エリア全体から一体選択)・近接技・全体回復を返す[SkillRepository]。
      *

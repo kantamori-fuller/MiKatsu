@@ -1,6 +1,5 @@
 package jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase
 
-import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.HitChanceFormula
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.testAlly
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.testEnemy
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleField
@@ -55,6 +54,6 @@ class StartBattleUseCaseTest {
         useCase(Formation(listOf(1, null, null, null, null, null)))
 
         assertEquals(1, progress.current)
-        assertTrue(repo.current.allPawns.all { it.accuracy == HitChanceFormula.BASE_RATE && it.evasion == HitChanceFormula.BASE_RATE })
+        assertTrue(repo.current.allPawns.all { it.statModifiers.isEmpty() })
     }
 }
