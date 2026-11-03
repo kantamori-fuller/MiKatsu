@@ -8,6 +8,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import kotlin.random.Random
 
 /** [UseSkillUseCase]が効果をRepositoryへ反映し、使えない場合は何も変更しないことを検証するテスト。 */
 class UseSkillUseCaseTest {
@@ -21,7 +22,7 @@ class UseSkillUseCaseTest {
         turnQueue = listOf(1),
     )
     private val repository = FakeBattleRepository(initial)
-    private val useCase = UseSkillUseCase(repository)
+    private val useCase = UseSkillUseCase(repository, Random(0))
 
     /** 回復とMP消費がRepositoryに反映され、結果が返ること。 */
     @Test

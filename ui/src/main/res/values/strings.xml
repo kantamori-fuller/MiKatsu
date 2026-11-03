@@ -92,4 +92,18 @@
     <string name="battle_detail_distance_format">%1$d / %2$d</string>
     <string name="battle_detail_skill_none">なし</string>
     <string name="battle_detail_skill_separator">、</string>
+    <string name="battle_stat_attack">破壊力</string>
+    <string name="battle_stat_defense">耐久力</string>
+    <string name="battle_stat_mana_output">マナ出力</string>
+    <string name="battle_stat_mana_resistance">マナ耐性</string>
+    <string name="battle_stat_agility">敏捷</string>
+    <string name="battle_stat_luck">幸運</string>
+    <string name="battle_narration_skill_used">%1$sの%2$s!</string>
+    <string name="battle_narration_skill_missed">%1$sの%2$s! しかし外れた!</string>
+    <string name="battle_narration_stat_up">%1$sの%2$sが%3$d段階上がった!</string>
+    <string name="battle_narration_stat_down">%1$sの%2$sが%3$d段階下がった!</string>
+    <string name="battle_detail_section_stat_changes">ステータス変化</string>
+    <string name="battle_detail_stat_change_row">%1$s %2$s (%3$s)</string>
+    <string name="battle_detail_stat_change_entry">%1$s 残り%2$d</string>
+    <string name="battle_detail_stat_change_entry_separator">" / "</string>
 </resources>

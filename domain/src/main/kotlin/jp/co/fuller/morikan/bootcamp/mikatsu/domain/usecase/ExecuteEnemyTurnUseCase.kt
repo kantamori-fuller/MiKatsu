@@ -15,7 +15,7 @@ import kotlin.random.Random
  * [EnemyTargetSelector]に委ねる。ダメージ処理は味方の攻撃([AttackUseCase])と同じ共通関数を使う。
  * 届く相手がいない場合や、敵がブレイク中で行動できない場合は何もしない。手番の終了は呼び出し側が[EndTurnUseCase]で行う。
  *
- * 威力・攻撃回数・命中率は通常攻撃のスキルデータ([SkillRepository.getNormalAttack])から読む。
+ * 威力・発動回数・命中率は通常攻撃のスキルデータ([SkillRepository.getNormalAttack])から読む。
  *
  * @property battleRepository 戦闘状態を保持するRepository。
  * @property skillRepository 通常攻撃のスキルデータを提供するRepository。

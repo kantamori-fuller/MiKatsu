@@ -1,5 +1,6 @@
 package jp.co.fuller.morikan.bootcamp.mikatsu.data.repository
 
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleStat
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.ActiveSkill
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.ActiveSkillEffect
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.PassiveSkill
@@ -20,7 +21,7 @@ import javax.inject.Inject
 /**
  * [SkillRepository]の暫定実装。スキル一覧(`data/スキル一覧.xlsx`)を書き写した固定のマスターデータを返す。
  *
- * スキルIDはアクティブ・パッシブで独立して採番する(Aスキル1=通常攻撃、Aスキル2=ディア、Pスキル1=鋼の体)。
+ * スキルIDはアクティブ・パッシブで独立して採番する(Aスキル1=通常攻撃、Aスキル2=ディア、Aスキル3=精神一到、Aスキル4=覇気、Pスキル1=鋼の体)。
  * 同じ数値でも種別が違えば別のスキルなので、IDは必ず種別とセットで扱う。
  * 通常攻撃(Aスキル1)は全キャラクター・全敵が標準で持つため、設定可能な一覧や設定済みスキルの解決には含めない。
  *
@@ -37,11 +38,11 @@ import javax.inject.Inject
  *     costs = listOf(SkillCost(SkillCostType.MP, 30), SkillCost(SkillCostType.HP, 10)), // コストタイプ+コスト消費(MP30&HP10。0なら emptyList())
  *     coolTime = 0,                                // CT(1tなら1)
  *     contactType = SkillContactType.CONTACT,      // 接触(接触/非接触)
- *     range = SkillRange.RANGE_1,                  // レンジ(1/2/3)
+ *     range = SkillRange.RANGE_1,                  // レンジ(0/1/2/3)
  *     area = SkillArea.SINGLE,                     // 範囲(単体/陣/列/エリア全体/フィールド全体)
  *     targetSelection = SkillTargetSelection.ONE,  // 対象選択(一体選択/全て対象)
  *     basePower = null,                            // 基礎威力(ダメージなしはnull)
- *     hitCount = 1,                                // 攻撃回数(2回なら2)
+ *     activationCount = 1,                                // 発動回数(2回なら2)
  *     accuracy = 100,                              // 命中率(0〜100。空欄=命中が関係しないスキルはnull)
  *     effects = emptyList(),                       // 効果(なしならemptyList())
  *     targetSide = SkillTargetSide.ENEMY,          // 対象の陣営(シートにまだない列。敵ならENEMY、味方ならALLY)
@@ -85,7 +86,7 @@ class SkillRepositoryImpl @Inject constructor() : SkillRepository {
             area = SkillArea.SINGLE,
             targetSelection = SkillTargetSelection.ONE,
             basePower = 100,
-            hitCount = 1,
+            activationCount = 1,
             accuracy = 100,
             effects = emptyList(),
             targetSide = SkillTargetSide.ENEMY,
@@ -107,10 +108,51 @@ class SkillRepositoryImpl @Inject constructor() : SkillRepository {
                 area = SkillArea.AREA,
                 targetSelection = SkillTargetSelection.ONE,
                 basePower = null,
-                hitCount = 1,
+                activationCount = 1,
                 accuracy = null,
                 effects = listOf(ActiveSkillEffect.Heal(amount = 50)),
                 targetSide = SkillTargetSide.ALLY,
+            ),
+            // 精神一到: 使用者自身の破壊力を上げるバフ(レンジ0)
+            ActiveSkill(
+                id = 3,
+                name = "精神一到",
+                element = SkillElement.NONE,
+                categories = setOf(SkillCategory.BUFF),
+                physicalAttribute = null,
+                costs = listOf(SkillCost(SkillCostType.MP, 20)),
+                coolTime = 0,
+                contactType = SkillContactType.NON_CONTACT,
+                range = SkillRange.RANGE_0,
+                area = SkillArea.SINGLE,
+                targetSelection = SkillTargetSelection.ONE,
+                basePower = null,
+                activationCount = 1,
+                accuracy = null,
+                effects = listOf(ActiveSkillEffect.StatChange(BattleStat.ATTACK, stages = 1, durationTurns = 10)),
+                targetSide = SkillTargetSide.ALLY,
+            ),
+            // 覇気: 敵の敏捷と耐久力を同時に下げるデバフ
+            ActiveSkill(
+                id = 4,
+                name = "覇気",
+                element = SkillElement.NONE,
+                categories = setOf(SkillCategory.DEBUFF),
+                physicalAttribute = null,
+                costs = listOf(SkillCost(SkillCostType.MP, 30)),
+                coolTime = 0,
+                contactType = SkillContactType.NON_CONTACT,
+                range = SkillRange.RANGE_3,
+                area = SkillArea.SINGLE,
+                targetSelection = SkillTargetSelection.ONE,
+                basePower = null,
+                activationCount = 1,
+                accuracy = 100,
+                effects = listOf(
+                    ActiveSkillEffect.StatChange(BattleStat.AGILITY, stages = -1, durationTurns = 8),
+                    ActiveSkillEffect.StatChange(BattleStat.DEFENSE, stages = -1, durationTurns = 8),
+                ),
+                targetSide = SkillTargetSide.ENEMY,
             ),
         )
 

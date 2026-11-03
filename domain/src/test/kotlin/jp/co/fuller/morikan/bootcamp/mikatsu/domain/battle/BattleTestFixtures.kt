@@ -3,7 +3,9 @@ package jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleAlly
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleEnemy
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.Character
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleStat
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.Enemy
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.StatModifier
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.ActiveSkill
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.ActiveSkillEffect
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.PassiveSkill
@@ -32,6 +34,7 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillCostType
  * @param slot 陣形上のスロット番号。省略時は`fpid - 1`(FPID1〜3が前衛、4〜6が後衛)。
  * @param activeSkills 使えるアクティブスキル。
  * @param passiveSkills 発揮しているパッシブスキル。
+ * @param statModifiers かけられているバフ・デバフ。
  * @return 生成した味方個体。
  */
 fun testAlly(
@@ -45,6 +48,7 @@ fun testAlly(
     slot: Int = fpid - 1,
     activeSkills: List<ActiveSkill> = emptyList(),
     passiveSkills: List<PassiveSkill> = emptyList(),
+    statModifiers: List<StatModifier> = emptyList(),
 ) = BattleAlly(
     fpid = fpid,
     character = Character(
@@ -58,6 +62,7 @@ fun testAlly(
     turnCount = 0,
     activeSkills = activeSkills,
     passiveSkills = passiveSkills,
+    statModifiers = statModifiers,
 )
 
 /**
@@ -70,6 +75,7 @@ fun testAlly(
  * @param attack 破壊力。
  * @param defense 耐久力。
  * @param slot 敵陣営のスロット番号。省略時は0(前衛の左端)。
+ * @param statModifiers かけられているバフ・デバフ。
  * @return 生成した敵個体。
  */
 fun testEnemy(
@@ -80,6 +86,7 @@ fun testEnemy(
     attack: Int = 100,
     defense: Int = 100,
     slot: Int = 0,
+    statModifiers: List<StatModifier> = emptyList(),
 ) = BattleEnemy(
     fpid = fpid,
     enemy = Enemy(
@@ -90,6 +97,7 @@ fun testEnemy(
     slot = slot,
     remainingDistance = ActionTimeline.BASE_DISTANCE,
     turnCount = 0,
+    statModifiers = statModifiers,
 )
 
 /**
@@ -103,7 +111,7 @@ fun testEnemy(
  * @param area 範囲。
  * @param targetSelection 対象選択。
  * @param basePower 基礎威力。
- * @param hitCount 攻撃回数。
+ * @param activationCount 発動回数。
  * @param accuracy 命中率。`null`は必中。
  * @param effects 効果。
  * @return 生成したアクティブスキル。
@@ -117,7 +125,7 @@ fun testActiveSkill(
     area: SkillArea = SkillArea.SINGLE,
     targetSelection: SkillTargetSelection = SkillTargetSelection.ONE,
     basePower: Int? = null,
-    hitCount: Int = 1,
+    activationCount: Int = 1,
     accuracy: Int? = null,
     effects: List<ActiveSkillEffect> = emptyList(),
 ) = ActiveSkill(
@@ -133,7 +141,7 @@ fun testActiveSkill(
     area = area,
     targetSelection = targetSelection,
     basePower = basePower,
-    hitCount = hitCount,
+    activationCount = activationCount,
     accuracy = accuracy,
     effects = effects,
     targetSide = targetSide,
@@ -172,4 +180,27 @@ val TEST_OTHER_PASSIVE = PassiveSkill(
     name = "別のPスキル",
     categories = emptySet(),
     effects = listOf(PassiveSkillEffect.DamageReduction(amount = 1)),
+)
+
+/** テスト用の「精神一到」(Aスキル3・MP20・レンジ0・自分の破壊力を+1段階10ターン・命中判定なし)。マスターデータと同じ内容。 */
+val TEST_SEISHIN = testActiveSkill(
+    id = 3,
+    name = "精神一到",
+    range = SkillRange.RANGE_0,
+    costs = listOf(SkillCost(SkillCostType.MP, 20)),
+    effects = listOf(ActiveSkillEffect.StatChange(BattleStat.ATTACK, stages = 1, durationTurns = 10)),
+)
+
+/** テスト用の「覇気」(Aスキル4・MP30・レンジ3・敵単体・命中率100・敏捷と耐久力を-1段階8ターン)。マスターデータと同じ内容。 */
+val TEST_HAKI = testActiveSkill(
+    id = 4,
+    name = "覇気",
+    targetSide = SkillTargetSide.ENEMY,
+    range = SkillRange.RANGE_3,
+    costs = listOf(SkillCost(SkillCostType.MP, 30)),
+    accuracy = 100,
+    effects = listOf(
+        ActiveSkillEffect.StatChange(BattleStat.AGILITY, stages = -1, durationTurns = 8),
+        ActiveSkillEffect.StatChange(BattleStat.DEFENSE, stages = -1, durationTurns = 8),
+    ),
 )

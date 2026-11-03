@@ -1,7 +1,6 @@
 package jp.co.fuller.morikan.bootcamp.mikatsu.domain.model
 
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.BreakFormula
-import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.HitChanceFormula
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.PassiveSkill
 
 /**
@@ -19,12 +18,11 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.PassiveSkill
  *   0〜2が前衛、3〜5が後衛となる。
  * @property remainingDistance 次の手番までに進む必要がある残り距離([BattleFieldPawn.remainingDistance])。
  * @property turnCount この個体が終えた自分の手番の回数([BattleFieldPawn.turnCount])。
- * @property accuracy 命中率([BattleFieldPawn.accuracy])。戦闘ごとに基本値から始まる。
- * @property evasion 回避率([BattleFieldPawn.evasion])。性質は[accuracy]と同じ。
  * @property breakGauge ブレイクゲージ([BattleFieldPawn.breakGauge])。戦闘開始時は0で、次の戦闘へは持ち越さない。
  * @property breakResistance ブレイク耐性([BattleFieldPawn.breakResistance])。性質は[breakGauge]と同じ。
  * @property breakPointRate ブレイクポイント倍率([BattleFieldPawn.breakPointRate])。性質は[breakGauge]と同じ。
  * @property breakState ブレイクの状態([BattleFieldPawn.breakState])。性質は[breakGauge]と同じ。
+ * @property statModifiers かけられているバフ・デバフ([BattleFieldPawn.statModifiers])。命中率・回避率の段階もここに含まれる。戦闘開始時は空。
  */
 data class BattleEnemy(
     override val fpid: Int,
@@ -33,16 +31,17 @@ data class BattleEnemy(
     override val slot: Int,
     override val remainingDistance: Double,
     override val turnCount: Int,
-    override val accuracy: Int = HitChanceFormula.BASE_RATE,
-    override val evasion: Int = HitChanceFormula.BASE_RATE,
     override val breakGauge: Double = 0.0,
     override val breakResistance: Int = BreakFormula.BASE_RESISTANCE,
     override val breakPointRate: Int = BreakFormula.BASE_BREAK_POINT_RATE,
     override val breakState: BreakState = BreakState.NONE,
+    override val statModifiers: List<StatModifier> = emptyList(),
 ) : BattleFieldPawn {
     override val maxHp: Int get() = enemy.hp
     override val attack: Int get() = enemy.attack
     override val defense: Int get() = enemy.defense
+    override val manaOutput: Int get() = enemy.manaOutput
+    override val manaResistance: Int get() = enemy.manaResistance
     override val agility: Int get() = enemy.agility
     override val luck: Int get() = enemy.luck
     override val passiveSkills: List<PassiveSkill> get() = emptyList()

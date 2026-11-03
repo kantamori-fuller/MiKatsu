@@ -66,13 +66,13 @@ class ExecuteEnemyTurnUseCaseTest {
         assertEquals(field, repo.current)
     }
 
-    /** 敵の攻撃が、通常攻撃のスキルデータ(基礎威力・攻撃回数)を使うこと。 */
+    /** 敵の攻撃が、通常攻撃のスキルデータ(基礎威力・発動回数)を使うこと。 */
     @Test
     fun invoke_usesNormalAttackData() = runBlocking {
         val repo = FakeBattleRepository(
             BattleField(allies = listOf(testAlly(1)), enemies = listOf(testEnemy(2)), turnQueue = listOf(2)),
         )
-        val skills = FakeSkillRepository(TEST_NORMAL_ATTACK.copy(basePower = 200, hitCount = 2))
+        val skills = FakeSkillRepository(TEST_NORMAL_ATTACK.copy(basePower = 200, activationCount = 2))
 
         val result = ExecuteEnemyTurnUseCase(repo, skills, RandomEnemyTargetSelector(Random(0)), Random(0))(actorFpid = 2)
 

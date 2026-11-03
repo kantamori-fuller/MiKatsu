@@ -1,5 +1,7 @@
 package jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle
 
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.StatModifier
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleStat
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleEnemy
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleField
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BreakState
@@ -144,19 +146,19 @@ class BreakTest {
         assertEquals(11, checkNotNull(steel.performAttack(2, 3, skill.copy(accuracy = null), noRandom)).second.totalDamage)
     }
 
-    /** 被必中: 命中率0・回避率が高くても、乱数を引かずに必ず当たること。 */
+    /** 被必中: 命中率の段階が最低・回避率の段階が最高でも、乱数を引かずに必ず当たること。 */
     @Test
     fun brokenTarget_isAlwaysHit_withoutRandom() {
         val f = BattleField(
-            allies = listOf(testAlly(1).copy(accuracy = 0)),
-            enemies = listOf(testEnemy(2, hp = 1000).copy(breakState = BreakState.BROKEN, evasion = 500)),
+            allies = listOf(testAlly(1, statModifiers = listOf(StatModifier(BattleStat.ACCURACY, -12, 5)))),
+            enemies = listOf(testEnemy(2, hp = 1000, statModifiers = listOf(StatModifier(BattleStat.EVASION, 12, 5))).copy(breakState = BreakState.BROKEN)),
             turnQueue = listOf(1),
         )
 
         val (_, result) = checkNotNull(f.performAttack(1, 2, skill.copy(accuracy = 0), noRandom))
 
         assertTrue(result.hits.single().shots.single().isHit)
-        assertTrue(HitChanceFormula.isHit(0, 0, 500, noRandom, isTargetGuaranteedHit = true))
+        assertTrue(HitChanceFormula.isHit(0, -12, 12, noRandom, isTargetGuaranteedHit = true))
     }
 
     /** 多段攻撃の途中でブレイクしたら、残りのヒットから×1.3と被必中が効くこと。 */
@@ -164,7 +166,7 @@ class BreakTest {
     fun midMultiHitBreak_affectsRemainingHits() {
         // 最大HP200・攻撃者の倍率450 → 1ヒットでゲージ +54。2ヒット目でブレイク。
         // 3・4ヒット目は乱数(0.95=外れる値)を引かずに必ず当たり、31ダメージ。
-        val multi = skill.copy(hitCount = 4, accuracy = 90)
+        val multi = skill.copy(activationCount = 4, accuracy = 90)
         val f = field(enemyHp = 200, attackerRate = 450)
 
         val (after, result) = checkNotNull(f.performAttack(1, 2, multi, fixedRandom(0.5, 0.5, 0.95)))
@@ -225,10 +227,10 @@ class BreakTest {
             turnQueue = listOf(1),
         )
         assertNull(f.performAttack(1, 2, skill, Random(0)))
-        assertNull(f.performSkill(1, TEST_DIA.id, 1))
+        assertNull(f.performSkill(1, TEST_DIA.id, 1, Random(0)))
 
         val ok = f.copy(allies = f.allies.map { it.copy(breakState = BreakState.RECOVERING) })
         assertNotNull(ok.performAttack(1, 2, skill, Random(0)))
-        assertNotNull(ok.performSkill(1, TEST_DIA.id, 1))
+        assertNotNull(ok.performSkill(1, TEST_DIA.id, 1, Random(0)))
     }
 }

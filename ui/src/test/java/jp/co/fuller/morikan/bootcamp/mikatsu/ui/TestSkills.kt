@@ -22,7 +22,7 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillTargetSide
  * @param area 範囲。
  * @param targetSelection 対象選択。
  * @param basePower 基礎威力。
- * @param hitCount 攻撃回数。
+ * @param activationCount 発動回数。
  * @param accuracy 命中率。`null`は必中。
  * @param effects 効果。
  * @return 生成したアクティブスキル。
@@ -36,7 +36,7 @@ fun testActiveSkill(
     area: SkillArea = SkillArea.SINGLE,
     targetSelection: SkillTargetSelection = SkillTargetSelection.ONE,
     basePower: Int? = null,
-    hitCount: Int = 1,
+    activationCount: Int = 1,
     accuracy: Int? = null,
     effects: List<ActiveSkillEffect> = emptyList(),
 ) = ActiveSkill(
@@ -52,7 +52,7 @@ fun testActiveSkill(
     area = area,
     targetSelection = targetSelection,
     basePower = basePower,
-    hitCount = hitCount,
+    activationCount = activationCount,
     accuracy = accuracy,
     effects = effects,
     targetSide = targetSide,

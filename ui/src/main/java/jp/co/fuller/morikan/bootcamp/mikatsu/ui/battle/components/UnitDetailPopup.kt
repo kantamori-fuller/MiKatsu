@@ -31,6 +31,8 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.BreakFormula
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BreakState
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.R
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleUnitDetailUiModel
+import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.StatChangeDetail
+import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.labelRes
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleUnitPosition
 
 /** 裏の戦闘画面にかける黒いフェードの不透明度。 */
@@ -139,6 +141,9 @@ private fun UnitDetailContent(detail: BattleUnitDetailUiModel) {
     ValueRow(R.string.label_agility, detail.agility.toString())
     ValueRow(R.string.label_luck, detail.luck.toString())
 
+    SectionTitle(R.string.battle_detail_section_stat_changes)
+    StatChanges(detail.statChanges)
+
     SectionTitle(R.string.battle_detail_section_battle_values)
     ValueRow(R.string.battle_detail_accuracy, detail.accuracy.toString())
     ValueRow(R.string.battle_detail_evasion, detail.evasion.toString())
@@ -219,3 +224,39 @@ private fun SkillNames(names: List<String>) {
         style = MaterialTheme.typography.bodyMedium,
     )
 }
+
+/**
+ * かかっているステータス変化を、ステータスごとに1行で表示する。1つもなければ「なし」を表示する。
+ * 例: 「破壊力 +2 (+1 残り10 / +1 残り3)」。合計は±12に収めた有効な段階、内訳は各エントリの段階と残りターン。
+ *
+ * @param changes 表示するステータス変化。
+ */
+@Composable
+private fun StatChanges(changes: List<StatChangeDetail>) {
+    if (changes.isEmpty()) {
+        Text(stringResource(R.string.battle_detail_skill_none), style = MaterialTheme.typography.bodyMedium)
+        return
+    }
+    val separator = stringResource(R.string.battle_detail_stat_change_entry_separator)
+    changes.forEach { change ->
+        Text(
+            text = stringResource(
+                R.string.battle_detail_stat_change_row,
+                stringResource(change.stat.labelRes),
+                signed(change.totalStage),
+                change.entries
+                    .map { stringResource(R.string.battle_detail_stat_change_entry, signed(it.stages), it.remainingTurns) }
+                    .joinToString(separator),
+            ),
+            style = MaterialTheme.typography.bodyMedium,
+        )
+    }
+}
+
+/**
+ * 段階を符号付きの文字列にする。0以上は「+」を付ける(0は「+0」)。
+ *
+ * @param stage 段階。
+ * @return 「+2」「-1」のような文字列。
+ */
+private fun signed(stage: Int): String = if (stage >= 0) "+$stage" else stage.toString()

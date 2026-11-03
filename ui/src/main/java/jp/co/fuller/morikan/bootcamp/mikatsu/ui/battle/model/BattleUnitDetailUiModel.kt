@@ -1,5 +1,6 @@
 package jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model
 
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleStat
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BreakState
 
 /**
@@ -37,14 +38,15 @@ enum class BattleUnitPosition {
  * @property manaResistance ステータスD(マナ耐性)。
  * @property agility ステータスS(敏捷)。
  * @property luck ステータスL(幸運)。
- * @property accuracy 命中率(%なしの数値)。
- * @property evasion 回避率(%なしの数値)。
+ * @property accuracy 命中率の基本値(%なしの数値)。バフ・デバフの補正は反映せず常に基本値で、補正は[statChanges]に出す。
+ * @property evasion 回避率の基本値(%なしの数値)。性質は[accuracy]と同じ。
  * @property breakResistance ブレイク耐性。
  * @property breakPointRate ブレイクポイント倍率。
  * @property turnCount 行動した回数。
  * @property remainingDistance 次の手番までの残り距離を切り捨てた整数。基準は`ActionTimeline.BASE_DISTANCE`。
  * @property activeSkillNames 設定しているAスキルの名前(通常攻撃は含まない)。
  * @property passiveSkillNames 設定しているPスキルの名前。
+ * @property statChanges かかっているステータス変化。変化のあるステータスだけを持ち、1つもなければ空。ステータス欄(基礎値)には反映しない。
  */
 data class BattleUnitDetailUiModel(
     val id: Int,
@@ -70,4 +72,29 @@ data class BattleUnitDetailUiModel(
     val remainingDistance: Int,
     val activeSkillNames: List<String>,
     val passiveSkillNames: List<String>,
+    val statChanges: List<StatChangeDetail> = emptyList(),
+)
+
+/**
+ * 詳細ポップアップに表示する、1つのステータスにかかっているバフ・デバフの内訳。
+ *
+ * @property stat 対象のステータス。
+ * @property totalStage 有効な段階(全エントリの合計を±12に収めた値)。+1と-1のように0になることもある。
+ * @property entries かけた分ごとの段階と残りターン。
+ */
+data class StatChangeDetail(
+    val stat: BattleStat,
+    val totalStage: Int,
+    val entries: List<StatChangeEntry>,
+)
+
+/**
+ * バフ・デバフ1回分の段階と残りターン。
+ *
+ * @property stages その分の段階の増減。
+ * @property remainingTurns 残りターン数。
+ */
+data class StatChangeEntry(
+    val stages: Int,
+    val remainingTurns: Int,
 )

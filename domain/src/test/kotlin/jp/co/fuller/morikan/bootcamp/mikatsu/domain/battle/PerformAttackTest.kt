@@ -9,7 +9,7 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 import kotlin.random.Random
 
-/** [performAttack]が攻撃スキルの基礎威力・攻撃回数を使い、ヒットごとにダメージ軽減を適用することを検証するテスト。 */
+/** [performAttack]が攻撃スキルの基礎威力・発動回数を使い、ヒットごとにダメージ軽減を適用することを検証するテスト。 */
 class PerformAttackTest {
 
     /** 味方1(手番・攻撃100)と敵2(耐久100)。攻撃100・耐久100の1ヒットは24ダメージ。 */
@@ -38,10 +38,10 @@ class PerformAttackTest {
         assertEquals(46, result.totalDamage)
     }
 
-    /** 攻撃回数だけ繰り返し、合計ダメージが返ること。 */
+    /** 発動回数だけ繰り返し、合計ダメージが返ること。 */
     @Test
-    fun hitCount_sumsDamage() {
-        val skill = TEST_NORMAL_ATTACK.copy(hitCount = 2)
+    fun activationCount_sumsDamage() {
+        val skill = TEST_NORMAL_ATTACK.copy(activationCount = 2)
 
         val (after, result) = checkNotNull(field().performAttack(1, 2, skill, Random(0)))
 
@@ -51,8 +51,8 @@ class PerformAttackTest {
 
     /** 対象が途中で戦闘不能になったら、残りのヒットは行わないこと。 */
     @Test
-    fun hitCount_stopsWhenTargetDefeated() {
-        val skill = TEST_NORMAL_ATTACK.copy(hitCount = 5)
+    fun activationCount_stopsWhenTargetDefeated() {
+        val skill = TEST_NORMAL_ATTACK.copy(activationCount = 5)
 
         // ブレイクの被ダメージ増加が混ざらないよう、攻撃者のブレイクポイント倍率は0にしておく。
         val f = field(enemyHp = 30).let { it.copy(allies = it.allies.map { a -> a.copy(breakPointRate = 0) }) }
@@ -72,7 +72,7 @@ class PerformAttackTest {
             turnQueue = listOf(2),
         )
 
-        val (_, result) = checkNotNull(f.performAttack(2, 1, TEST_NORMAL_ATTACK.copy(hitCount = 2), Random(0)))
+        val (_, result) = checkNotNull(f.performAttack(2, 1, TEST_NORMAL_ATTACK.copy(activationCount = 2), Random(0)))
 
         assertEquals(96, result.totalDamage)
     }
@@ -115,7 +115,7 @@ class PerformAttackTest {
             turnQueue = listOf(1),
         )
         val skill = TEST_NORMAL_ATTACK.copy(
-            area = SkillArea.AREA, targetSelection = SkillTargetSelection.ALL, hitCount = 5,
+            area = SkillArea.AREA, targetSelection = SkillTargetSelection.ALL, activationCount = 5,
         )
 
         val (after, result) = checkNotNull(f.performAttack(1, 2, skill, Random(0)))

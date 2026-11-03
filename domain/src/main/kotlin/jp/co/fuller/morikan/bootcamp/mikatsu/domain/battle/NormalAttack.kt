@@ -4,6 +4,7 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.AttackHit
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.AttackResult
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.AttackShot
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleField
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleStat
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.applyDamage
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.ActiveSkill
 import kotlin.random.Random
@@ -11,12 +12,13 @@ import kotlin.random.Random
 /**
  * 現在の行動者による通常攻撃を実行し、対象にダメージを与えた[BattleField]と結果を返す。
  *
- * 威力と攻撃回数は、通常攻撃のスキルデータ([attackSkill]の基礎威力・攻撃回数)から読む。
+ * 威力と発動回数は、通常攻撃のスキルデータ([attackSkill]の基礎威力・発動回数)から読む。
  * 対象は、選んだ対象([targetFpid])を[resolveTargets]で範囲・対象選択に従って展開して決める。
+ * ダメージ計算の破壊力・耐久力は、バフ・デバフを反映した値([jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleFieldPawn.effectiveStat])を使う。
  * 対象ごとに、1ヒットずつ[HitChanceFormula]で命中判定を行い、命中したヒットだけ[DamageFormula]の結果へ
  * ブレイク中の被ダメージ増加([BreakFormula.boostDamage])、続けて対象のパッシブスキルによるダメージ軽減
- * ([reduceDamage])を適用する。外れたヒットはダメージ0で軽減も適用せず、攻撃回数は1回消費する。
- * 攻撃回数だけ繰り返し、途中で対象が戦闘不能になったら、その対象への残りのヒットは行わない。
+ * ([reduceDamage])を適用する。外れたヒットはダメージ0で軽減も適用せず、発動回数は1回消費する。
+ * 発動回数だけ繰り返し、途中で対象が戦闘不能になったら、その対象への残りのヒットは行わない。
  * ダメージは1ヒットごとにフィールドへ適用してブレイクゲージを加算し([accumulateBreakGauge])、次のヒットは
  * 更新後の対象の状態で計算する。そのため多段攻撃の途中でブレイクすると、残りのヒットからすぐに被ダメージ増加と被必中が効く。
  * 味方・敵の攻撃が同じダメージ処理を共有し、重複させないために切り出している。
@@ -48,14 +50,14 @@ fun BattleField.performAttack(
     var field = this
     val hits = targets.map { target ->
         val shots = mutableListOf<AttackShot>()
-        while (shots.size < attackSkill.hitCount) {
+        while (shots.size < attackSkill.activationCount) {
             // 途中でブレイクした効果を残りのヒットに効かせるため、ヒットごとに最新の対象の状態を読む。
             val current = field.allPawns.firstOrNull { it.fpid == target.fpid } ?: break
             if (current.isDefeated) break
             val isHit = HitChanceFormula.isHit(
                 skillAccuracy = attackSkill.accuracy,
-                attackerAccuracy = attacker.accuracy,
-                targetEvasion = current.evasion,
+                accuracyStage = attacker.effectiveStage(BattleStat.ACCURACY),
+                evasionStage = current.effectiveStage(BattleStat.EVASION),
                 random = random,
                 isTargetGuaranteedHit = current.isBroken,
             )
@@ -63,7 +65,11 @@ fun BattleField.performAttack(
                 shots += AttackShot(isHit = false, damage = 0)
                 continue
             }
-            val base = DamageFormula.calculate(power, attacker.attack, current.defense)
+            val base = DamageFormula.calculate(
+                power,
+                attacker.effectiveStat(BattleStat.ATTACK),
+                current.effectiveStat(BattleStat.DEFENSE),
+            )
             val damage = current.reduceDamage(BreakFormula.boostDamage(base, current.isBroken))
             val hpLoss = minOf(damage, current.currentHp)
             val (broken, causedBreak) = field

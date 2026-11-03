@@ -6,6 +6,7 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleFieldPawn
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.Formation
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.ActiveSkill
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillArea
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillRange
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillTargetSelection
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillTargetSide
 import kotlin.math.abs
@@ -102,7 +103,8 @@ fun BattleField.distanceBetween(actor: BattleFieldPawn, target: BattleFieldPawn)
 /**
  * 使用者がそのスキルで選べる(タップできる)対象の一覧を求める。
  *
- * 次の条件をすべて満たす、戦闘不能でない個体が候補となる。
+ * レンジ0([SkillRange.RANGE_0])のスキルは、陣営・範囲に関係なく、生存している使用者自身だけが候補となる。
+ * それ以外は、次の条件をすべて満たす、戦闘不能でない個体が候補となる。
  * - 陣営: 範囲が[SkillArea.FIELD]なら両陣営。それ以外は[ActiveSkill.targetSide]に従い、
  *   [SkillTargetSide.ALLY]は使用者を含む自陣営、[SkillTargetSide.ENEMY]は反対の陣営。
  * - レンジ内: 使用者からの距離([distanceBetween])がスキルのレンジ以下。
@@ -118,6 +120,7 @@ fun BattleField.distanceBetween(actor: BattleFieldPawn, target: BattleFieldPawn)
 fun BattleField.selectableTargets(actorFpid: Int, skill: ActiveSkill): List<BattleFieldPawn> {
     val actor = allPawns.firstOrNull { it.fpid == actorFpid } ?: return emptyList()
     if (actor.isDefeated) return emptyList()
+    if (skill.range == SkillRange.RANGE_0) return listOf(actor)
     return allPawns.filter { pawn ->
         !pawn.isDefeated &&
             isInTargetSide(actor, pawn, skill) &&
@@ -144,7 +147,8 @@ private fun isInTargetSide(actor: BattleFieldPawn, pawn: BattleFieldPawn, skill:
  * プレイヤー(または敵のAI)が選んだ対象(アンカー)から、スキルが実際に効く個体の一覧を求める。
  *
  * アンカーは[selectableTargets]の候補に含まれている必要があり、含まれなければ`null`(不成立)とする。
- * そのうえで、スキルの対象選択と範囲によって対象が決まる。
+ * レンジ0のスキルは、範囲・対象選択に関係なく使用者自身のみが対象になる。
+ * それ以外は、スキルの対象選択と範囲によって対象が決まる。
  * - 対象選択が[SkillTargetSelection.ONE](一体選択)、または範囲が[SkillArea.SINGLE]: アンカー1体のみ。
  * - 対象選択が[SkillTargetSelection.ALL](全て対象)のとき、アンカーが属する「まとまり」の生存個体全員。
  *   [SkillArea.FORMATION]=アンカーと同じ陣営・同じ有効な段、[SkillArea.COLUMN]=アンカーと同じ陣営・同じ列(前衛+後衛)、
@@ -161,6 +165,7 @@ private fun isInTargetSide(actor: BattleFieldPawn, pawn: BattleFieldPawn, skill:
  */
 fun BattleField.resolveTargets(actorFpid: Int, skill: ActiveSkill, anchorFpid: Int): List<BattleFieldPawn>? {
     val anchor = selectableTargets(actorFpid, skill).firstOrNull { it.fpid == anchorFpid } ?: return null
+    if (skill.range == SkillRange.RANGE_0) return listOf(anchor)
     if (skill.targetSelection == SkillTargetSelection.ONE || skill.area == SkillArea.SINGLE) return listOf(anchor)
     val living = allPawns.filterNot { it.isDefeated }
     return when (skill.area) {

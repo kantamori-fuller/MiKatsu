@@ -307,4 +307,30 @@ class SkillTargetingTest {
         assertNull(f.resolveTargets(1, skill, 99)) // 存在しない
         assertEquals(listOf(11), f.resolvedFpids(1, skill, 11))
     }
+
+    /** レンジ0は、陣営・範囲・対象選択に関係なく、生存している使用者自身だけが選べて対象になること。 */
+    @Test
+    fun range0_targetsOnlyTheActor() {
+        val f = field(
+            allies = listOf(ally(1, slot = 0), ally(2, slot = 1), ally(3, slot = 3, hp = 0)),
+            enemies = listOf(enemy(11, slot = 0)),
+        )
+        for (side in SkillTargetSide.entries) {
+            for (area in SkillArea.entries) {
+                val skill = attackSkill(SkillRange.RANGE_0, area, SkillTargetSelection.ALL, side)
+                assertEquals(listOf(1), f.selectableFpids(1, skill))
+                assertEquals(listOf(1), f.resolvedFpids(1, skill, 1))
+                assertNull(f.resolvedFpids(1, skill, 2))
+                assertNull(f.resolvedFpids(1, skill, 11))
+            }
+        }
+    }
+
+    /** レンジ0でも、戦闘不能の使用者は選べる相手がいないこと。 */
+    @Test
+    fun range0_defeatedActor_hasNoTargets() {
+        val f = field(allies = listOf(ally(1, slot = 0, hp = 0), ally(2, slot = 1)), enemies = listOf(enemy(11, slot = 0)))
+
+        assertEquals(emptyList<Int>(), f.selectableFpids(1, attackSkill(SkillRange.RANGE_0)))
+    }
 }

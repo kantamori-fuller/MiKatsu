@@ -1,5 +1,7 @@
 package jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle
 
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.StatModifier
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleStat
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.AttackShot
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleField
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillArea
@@ -42,17 +44,17 @@ class PerformAttackHitTest {
             turnQueue = listOf(3),
         )
         // 敵3が味方2(鋼の体)へ2回攻撃: 1回目は外れ(0)、2回目は当たり(24-20=4)。外れたヒットは軽減後の最低1も適用されず0のまま。
-        val enemySkill = skill.copy(hitCount = 2)
+        val enemySkill = skill.copy(activationCount = 2)
         val (_, result) = checkNotNull(allyTarget.performAttack(3, 2, enemySkill, fixedRandom(0.95, 0.5)))
 
         assertEquals(listOf(0, 4), result.hits.single().shots.map { it.damage })
         assertEquals(24 - 20, result.hits.single().damage)
     }
 
-    /** 外れも攻撃回数を1回消費し、ヒットごとに当たり外れが分かれること。 */
+    /** 外れも発動回数を1回消費し、ヒットごとに当たり外れが分かれること。 */
     @Test
     fun miss_consumesHitCount_andShotsAreIndependent() {
-        val twoHits = skill.copy(hitCount = 2)
+        val twoHits = skill.copy(activationCount = 2)
 
         val (after, result) = checkNotNull(field().performAttack(1, 2, twoHits, fixedRandom(0.95, 0.5)))
 
@@ -89,17 +91,17 @@ class PerformAttackHitTest {
         }
     }
 
-    /** 攻撃者の命中率・対象の回避率が最終命中率に反映されること(命中90・回避110なら81%)。 */
+    /** 対象の回避率の段階が最終命中率に反映されること(命中90・回避+1なら90×6/7≒77.14%)。 */
     @Test
     fun accuracyAndEvasion_affectChance() {
         val f = BattleField(
             allies = listOf(testAlly(1)),
-            enemies = listOf(testEnemy(2, hp = 1000).copy(evasion = 110)),
+            enemies = listOf(testEnemy(2, hp = 1000, statModifiers = listOf(StatModifier(BattleStat.EVASION, 1, 5)))),
             turnQueue = listOf(1),
         )
 
-        assertFalse(checkNotNull(f.performAttack(1, 2, skill, fixedRandom(0.80))).second.hits.single().isMissed)
-        assertTrue(checkNotNull(f.performAttack(1, 2, skill, fixedRandom(0.82))).second.hits.single().isMissed)
+        assertFalse(checkNotNull(f.performAttack(1, 2, skill, fixedRandom(0.77))).second.hits.single().isMissed)
+        assertTrue(checkNotNull(f.performAttack(1, 2, skill, fixedRandom(0.78))).second.hits.single().isMissed)
     }
 
     /** 命中率がnull(必中)のスキルは乱数にかかわらず当たること。 */
@@ -115,7 +117,7 @@ class PerformAttackHitTest {
     fun cutoff_afterDefeat_evenWithMissesBefore() {
         val f = field(enemyHp = 20)
 
-        val (after, result) = checkNotNull(f.performAttack(1, 2, skill.copy(hitCount = 5), fixedRandom(0.95, 0.5, 0.5)))
+        val (after, result) = checkNotNull(f.performAttack(1, 2, skill.copy(activationCount = 5), fixedRandom(0.95, 0.5, 0.5)))
 
         assertEquals(listOf(false, true), result.hits.single().shots.map { it.isHit })
         assertEquals(0, after.enemies.single().currentHp)

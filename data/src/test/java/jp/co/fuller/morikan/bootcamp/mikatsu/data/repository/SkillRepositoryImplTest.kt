@@ -1,5 +1,15 @@
 package jp.co.fuller.morikan.bootcamp.mikatsu.data.repository
 
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleStat
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.ActiveSkillEffect
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillArea
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillCategory
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillContactType
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillCost
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillCostType
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillElement
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillRange
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillTargetSelection
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillTargetSide
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -19,7 +29,7 @@ class SkillRepositoryImplTest {
 
         assertEquals(1, normal.id)
         assertEquals(100, normal.basePower)
-        assertEquals(1, normal.hitCount)
+        assertEquals(1, normal.activationCount)
         assertTrue(normal.costs.isEmpty())
         assertEquals(SkillTargetSide.ENEMY, normal.targetSide)
     }
@@ -37,5 +47,53 @@ class SkillRepositoryImplTest {
     fun passiveAndActiveIds_areIndependent() = runBlocking {
         assertEquals("鋼の体", repository.getPassiveSkill(1)?.name)
         assertNull(repository.getPassiveSkill(2))
+    }
+
+    /** 精神一到(Aスキル3)が仕様どおりのデータで、設定可能な一覧に出ること。 */
+    @Test
+    fun seishinIttou_matchesSpec() = runBlocking {
+        val skill = checkNotNull(repository.getActiveSkill(3))
+
+        assertEquals("精神一到", skill.name)
+        assertEquals(SkillElement.NONE, skill.element)
+        assertEquals(setOf(SkillCategory.BUFF), skill.categories)
+        assertNull(skill.physicalAttribute)
+        assertEquals(listOf(SkillCost(SkillCostType.MP, 20)), skill.costs)
+        assertEquals(0, skill.coolTime)
+        assertEquals(SkillContactType.NON_CONTACT, skill.contactType)
+        assertEquals(SkillRange.RANGE_0, skill.range)
+        assertEquals(SkillArea.SINGLE, skill.area)
+        assertEquals(SkillTargetSelection.ONE, skill.targetSelection)
+        assertNull(skill.basePower)
+        assertEquals(1, skill.activationCount)
+        assertNull(skill.accuracy)
+        assertEquals(listOf(ActiveSkillEffect.StatChange(BattleStat.ATTACK, 1, 10)), skill.effects)
+        assertEquals(SkillTargetSide.ALLY, skill.targetSide)
+        assertTrue(repository.getActiveSkills().any { it.id == 3 })
+    }
+
+    /** 覇気(Aスキル4)が仕様どおりのデータで、設定可能な一覧に出ること。 */
+    @Test
+    fun haki_matchesSpec() = runBlocking {
+        val skill = checkNotNull(repository.getActiveSkill(4))
+
+        assertEquals("覇気", skill.name)
+        assertEquals(setOf(SkillCategory.DEBUFF), skill.categories)
+        assertEquals(listOf(SkillCost(SkillCostType.MP, 30)), skill.costs)
+        assertEquals(SkillRange.RANGE_3, skill.range)
+        assertEquals(SkillArea.SINGLE, skill.area)
+        assertEquals(SkillTargetSelection.ONE, skill.targetSelection)
+        assertNull(skill.basePower)
+        assertEquals(1, skill.activationCount)
+        assertEquals(100, skill.accuracy)
+        assertEquals(
+            listOf(
+                ActiveSkillEffect.StatChange(BattleStat.AGILITY, -1, 8),
+                ActiveSkillEffect.StatChange(BattleStat.DEFENSE, -1, 8),
+            ),
+            skill.effects,
+        )
+        assertEquals(SkillTargetSide.ENEMY, skill.targetSide)
+        assertTrue(repository.getActiveSkills().any { it.id == 4 })
     }
 }

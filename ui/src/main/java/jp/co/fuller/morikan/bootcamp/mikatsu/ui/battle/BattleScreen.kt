@@ -39,6 +39,8 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.ui.components.FormationSlotFrame
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.components.UnitDetailPopup
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.components.UnitStatCard
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleNarration
+import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.labelRes
+import kotlin.math.abs
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleSelection
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleSkillUiModel
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleUnitUiModel
@@ -378,6 +380,14 @@ private fun BattleNarration.toText(): String = when (this) {
     is BattleNarration.Broke -> stringResource(R.string.battle_narration_broke, targetName)
     is BattleNarration.BreakStunned -> stringResource(R.string.battle_narration_break_stunned, actorName)
     is BattleNarration.BreakRecovered -> stringResource(R.string.battle_narration_break_recovered, actorName)
+    is BattleNarration.SkillUsed -> stringResource(R.string.battle_narration_skill_used, actorName, skillName)
+    is BattleNarration.SkillMissed -> stringResource(R.string.battle_narration_skill_missed, actorName, skillName)
+    is BattleNarration.StatStageChanged -> stringResource(
+        if (stages >= 0) R.string.battle_narration_stat_up else R.string.battle_narration_stat_down,
+        targetName,
+        stringResource(stat.labelRes),
+        abs(stages),
+    )
     is BattleNarration.MultiSkillResult ->
         stringResource(R.string.battle_narration_multi_skill_result, actorName, skillName, targetCount, totalHealed)
 }

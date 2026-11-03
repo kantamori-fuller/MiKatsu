@@ -1,37 +1,66 @@
 package jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle
 
+import kotlin.math.abs
 import kotlin.random.Random
 
 /**
- * 攻撃が当たるかどうかを決める命中判定の計算式。
+ * 攻撃・スキルが当たるかどうかを決める命中判定の計算式。
  *
- * スキルの命中率に、攻撃者の命中率と対象の回避率による補正を掛けて最終的な命中率(%)を求め、
- * 乱数で当たり外れを決める。補正は「差し引きしてから掛ける」ため、命中+10と回避+10は打ち消し合う。
+ * スキルの命中率に、攻撃者の命中率の段階と対象の回避率の段階の差から決まる倍率を掛けて最終的な命中率(%)を求め、
+ * 乱数で当たり外れを決める。命中+1と回避+1のように、同じ段階どうしは打ち消し合う。
+ * 倍率表は基礎ステータス6種([StatStageFormula])とは別で、段階nの倍率は n≥0 なら `(6+n)/6`、n<0 なら `6/(6+|n|)`。
  * 計算を1箇所に集約し、攻撃処理から切り離してテストできるようにすることを目的とする。
  */
 object HitChanceFormula {
 
-    /** 命中率・回避率の基本値。全個体が戦闘開始時にこの値から始まる。 */
+    /** 詳細ポップアップに表示する、命中率・回避率の基本値。計算には使わない(段階だけが計算に使われる)。 */
     const val BASE_RATE = 100
 
     /** 最終的な命中率(%)の上限。 */
     private const val MAX_CHANCE = 100.0
 
+    /** 倍率の基準となる値(段階0で分子・分母がともにこの値になる)。 */
+    private const val BASE = 6
+
+    /**
+     * 段階の倍率の分子を返す。
+     *
+     * @param stage 段階。範囲外は[StatStageFormula.MIN_STAGE]〜[StatStageFormula.MAX_STAGE]に収める。
+     * @return 倍率の分子。
+     */
+    fun numerator(stage: Int): Int = clampStage(stage).let { if (it >= 0) BASE + it else BASE }
+
+    /**
+     * 段階の倍率の分母を返す。
+     *
+     * @param stage 段階。範囲外は[StatStageFormula.MIN_STAGE]〜[StatStageFormula.MAX_STAGE]に収める。
+     * @return 倍率の分母。
+     */
+    fun denominator(stage: Int): Int = clampStage(stage).let { if (it >= 0) BASE else BASE + abs(it) }
+
+    /**
+     * 攻撃者の命中率の段階と対象の回避率の段階から、命中判定に使う段階を求める。
+     *
+     * @param accuracyStage 攻撃者の命中率の有効段階。
+     * @param evasionStage 対象の回避率の有効段階。
+     * @return `命中率の段階 − 回避率の段階`を±12に収めた値。
+     */
+    fun hitStage(accuracyStage: Int, evasionStage: Int): Int = clampStage(accuracyStage - evasionStage)
+
     /**
      * 最終的な命中率(%)を計算する。
      *
-     * `スキルの命中率 × (攻撃者の命中率 − (対象の回避率 − 100)) / 100`を、0〜100に収めた値。
-     * 端数は丸めず小数のまま返す。
+     * `スキルの命中率 × 倍率(hitStage)`を、0〜100に収めた値。端数は丸めず小数のまま返す。
      *
      * @param skillAccuracy スキルの命中率(0〜100)。`null`は必中を表し、判定しない。
-     * @param attackerAccuracy 攻撃者の命中率。
-     * @param targetEvasion 対象の回避率。
+     * @param accuracyStage 攻撃者の命中率の有効段階。
+     * @param evasionStage 対象の回避率の有効段階。
      * @return 最終的な命中率(0.0〜100.0)。スキルの命中率が`null`なら100.0。
      */
-    fun finalChance(skillAccuracy: Int?, attackerAccuracy: Int, targetEvasion: Int): Double {
+    fun finalChance(skillAccuracy: Int?, accuracyStage: Int, evasionStage: Int): Double {
         if (skillAccuracy == null) return MAX_CHANCE
-        val modifier = attackerAccuracy - (targetEvasion - BASE_RATE)
-        return (skillAccuracy.toDouble() * modifier / 100.0).coerceIn(0.0, MAX_CHANCE)
+        val stage = hitStage(accuracyStage, evasionStage)
+        return (skillAccuracy.toDouble() * numerator(stage) / denominator(stage)).coerceIn(0.0, MAX_CHANCE)
     }
 
     /**
@@ -39,23 +68,26 @@ object HitChanceFormula {
      *
      * スキルの命中率が`null`(必中)のときは乱数を引かずに命中とする。それ以外は`[0, 100)`の乱数が
      * 最終的な命中率より小さければ命中なので、0%は必ず外れ、100%は必ず当たる。
-     * 対象がブレイク中([isTargetGuaranteedHit])のときは、命中率・回避率に関係なく乱数を引かずに必ず命中する(被必中)。
+     * 対象がブレイク中([isTargetGuaranteedHit])のときは、段階に関係なく乱数を引かずに必ず命中する(被必中)。
      *
      * @param skillAccuracy スキルの命中率。`null`は必中。
-     * @param attackerAccuracy 攻撃者の命中率。
-     * @param targetEvasion 対象の回避率。
+     * @param accuracyStage 攻撃者の命中率の有効段階。
+     * @param evasionStage 対象の回避率の有効段階。
      * @param random 当たり外れを決める乱数。テストで結果を固定できるよう外から受け取る。
      * @param isTargetGuaranteedHit 対象が被必中(ブレイク中)か。`true`なら必ず命中する。
      * @return 命中したら`true`。
      */
     fun isHit(
         skillAccuracy: Int?,
-        attackerAccuracy: Int,
-        targetEvasion: Int,
+        accuracyStage: Int,
+        evasionStage: Int,
         random: Random,
         isTargetGuaranteedHit: Boolean = false,
     ): Boolean {
         if (isTargetGuaranteedHit || skillAccuracy == null) return true
-        return random.nextDouble() * MAX_CHANCE < finalChance(skillAccuracy, attackerAccuracy, targetEvasion)
+        return random.nextDouble() * MAX_CHANCE < finalChance(skillAccuracy, accuracyStage, evasionStage)
     }
+
+    /** 段階を±12に収める。 */
+    private fun clampStage(stage: Int): Int = stage.coerceIn(StatStageFormula.MIN_STAGE, StatStageFormula.MAX_STAGE)
 }
