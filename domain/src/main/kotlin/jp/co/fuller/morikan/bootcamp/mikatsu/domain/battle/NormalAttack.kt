@@ -14,10 +14,13 @@ import kotlin.random.Random
  * 威力と攻撃回数は、通常攻撃のスキルデータ([attackSkill]の基礎威力・攻撃回数)から読む。
  * 対象は、選んだ対象([targetFpid])を[resolveTargets]で範囲・対象選択に従って展開して決める。
  * 対象ごとに、1ヒットずつ[HitChanceFormula]で命中判定を行い、命中したヒットだけ[DamageFormula]の結果へ
- * 対象のパッシブスキルによるダメージ軽減([reduceDamage])を適用する。外れたヒットはダメージ0で軽減も適用せず、
- * 攻撃回数は1回消費する。攻撃回数だけ繰り返し、途中で対象が戦闘不能になったら、その対象への残りのヒットは行わない。
+ * ブレイク中の被ダメージ増加([BreakFormula.boostDamage])、続けて対象のパッシブスキルによるダメージ軽減
+ * ([reduceDamage])を適用する。外れたヒットはダメージ0で軽減も適用せず、攻撃回数は1回消費する。
+ * 攻撃回数だけ繰り返し、途中で対象が戦闘不能になったら、その対象への残りのヒットは行わない。
+ * ダメージは1ヒットごとにフィールドへ適用してブレイクゲージを加算し([accumulateBreakGauge])、次のヒットは
+ * 更新後の対象の状態で計算する。そのため多段攻撃の途中でブレイクすると、残りのヒットからすぐに被ダメージ増加と被必中が効く。
  * 味方・敵の攻撃が同じダメージ処理を共有し、重複させないために切り出している。
- * 攻撃者が現在の行動者ではない場合、攻撃者が見つからない・戦闘不能の場合、[attackSkill]に基礎威力がない場合、
+ * 攻撃者が現在の行動者ではない場合、攻撃者が見つからない・戦闘不能・ブレイク中(行動できない)の場合、[attackSkill]に基礎威力がない場合、
  * 選んだ対象が選べない個体(レンジ外・陣営違い・戦闘不能・存在しない)の場合は攻撃できないため`null`を返す。
  * 手番の終了はここでは行わない。
  *
@@ -39,22 +42,37 @@ fun BattleField.performAttack(
     if (attackerFpid != currentActorFpid) return null
     val power = attackSkill.basePower ?: return null
     val attacker = allPawns.firstOrNull { it.fpid == attackerFpid } ?: return null
-    if (attacker.isDefeated) return null
+    if (attacker.isDefeated || attacker.isBroken) return null
     val targets = resolveTargets(attackerFpid, attackSkill, targetFpid) ?: return null
 
     var field = this
     val hits = targets.map { target ->
-        var remainingHp = target.currentHp
         val shots = mutableListOf<AttackShot>()
-        while (shots.size < attackSkill.hitCount && remainingHp > 0) {
-            val isHit = HitChanceFormula.isHit(attackSkill.accuracy, attacker.accuracy, target.evasion, random)
-            val damage = if (isHit) target.reduceDamage(DamageFormula.calculate(power, attacker.attack, target.defense)) else 0
-            shots += AttackShot(isHit = isHit, damage = damage)
-            remainingHp -= damage
+        while (shots.size < attackSkill.hitCount) {
+            // 途中でブレイクした効果を残りのヒットに効かせるため、ヒットごとに最新の対象の状態を読む。
+            val current = field.allPawns.firstOrNull { it.fpid == target.fpid } ?: break
+            if (current.isDefeated) break
+            val isHit = HitChanceFormula.isHit(
+                skillAccuracy = attackSkill.accuracy,
+                attackerAccuracy = attacker.accuracy,
+                targetEvasion = current.evasion,
+                random = random,
+                isTargetGuaranteedHit = current.isBroken,
+            )
+            if (!isHit) {
+                shots += AttackShot(isHit = false, damage = 0)
+                continue
+            }
+            val base = DamageFormula.calculate(power, attacker.attack, current.defense)
+            val damage = current.reduceDamage(BreakFormula.boostDamage(base, current.isBroken))
+            val hpLoss = minOf(damage, current.currentHp)
+            val (broken, causedBreak) = field
+                .applyDamage(targetFpid = target.fpid, damage = damage)
+                .accumulateBreakGauge(attacker.breakPointRate, target.fpid, hpLoss)
+            field = broken
+            shots += AttackShot(isHit = true, damage = damage, causedBreak = causedBreak)
         }
-        val hit = AttackHit(targetFpid = target.fpid, shots = shots)
-        field = field.applyDamage(targetFpid = target.fpid, damage = hit.damage)
-        hit
+        AttackHit(targetFpid = target.fpid, shots = shots)
     }
     return field to AttackResult(attackerFpid = attackerFpid, hits = hits)
 }

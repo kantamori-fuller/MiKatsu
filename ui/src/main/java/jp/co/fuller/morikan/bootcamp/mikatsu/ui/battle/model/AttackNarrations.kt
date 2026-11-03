@@ -8,13 +8,24 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.AttackResult
  * 対象が1体で実際に行ったヒットが1回なら1文、2回以上なら1発ごとの文とまとめの文になる。
  * 全発が外れた場合は1発ごとの表示をせず「外れた」の1文だけにする。範囲攻撃(対象が2体以上)では
  * 1ヒットごとの表示はせず、開始・外れた相手のまとめ・命中した相手のまとめの順に表示する。
+ * 攻撃の文の後に、そのヒットでブレイクした対象ごとに「ブレイクした」の文を、ブレイクした順に1文ずつ足す。
  * 文の組み立てをViewModelの演出の進行から切り離し、単体でテストできるようにすることを目的とする。
  *
  * @receiver 攻撃の結果。
  * @param nameOf FPIDから表示名を引く関数。
  * @return 順に表示するナレーション。
  */
-fun AttackResult.toNarrations(nameOf: (Int) -> String): List<BattleNarration> {
+fun AttackResult.toNarrations(nameOf: (Int) -> String): List<BattleNarration> =
+    attackNarrations(nameOf) + hits.filter { it.causedBreak }.map { BattleNarration.Broke(nameOf(it.targetFpid)) }
+
+/**
+ * 攻撃そのもの(当たり外れとダメージ)のナレーションの列を作る。ブレイクの文は[toNarrations]が後ろに足す。
+ *
+ * @receiver 攻撃の結果。
+ * @param nameOf FPIDから表示名を引く関数。
+ * @return 順に表示するナレーション。
+ */
+private fun AttackResult.attackNarrations(nameOf: (Int) -> String): List<BattleNarration> {
     val attackerName = nameOf(attackerFpid)
     val single = hits.singleOrNull()
     if (single != null) {

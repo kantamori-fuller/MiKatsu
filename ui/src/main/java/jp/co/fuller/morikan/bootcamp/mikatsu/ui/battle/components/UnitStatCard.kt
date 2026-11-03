@@ -21,6 +21,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import jp.co.fuller.morikan.bootcamp.mikatsu.core.theme.BreakGaugeYellow
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BreakState
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.R
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleUnitUiModel
 
@@ -43,7 +45,7 @@ private const val SELECTABLE_BLINK_MIN_ALPHA = 0.35f
 private const val SELECTABLE_BLINK_DURATION_MS = 700
 
 /**
- * バトル画面で敵・味方1体分の状態(名前・HP・MP)を表示するカード。
+ * バトル画面で敵・味方1体分の状態(名前・HP・MP・ブレイクゲージ)を表示するカード。
  *
  * 敵陣営・味方陣営の双方から共通で利用され、この画面における
  * 「四角いカード」という見た目を1箇所にまとめることを目的とする。
@@ -104,7 +106,9 @@ private fun rememberBlinkAlpha(): Float {
 }
 
 /**
- * [UnitStatCard]の中身となる、名前・HP・MPの表示部分。
+ * [UnitStatCard]の中身となる、名前・HP・MP・ブレイクゲージの表示部分。
+ *
+ * ブレイクゲージは数値を表示せず黄色のバーだけで示し、ブレイク中・立ち上がり中は状態のラベルを添える。
  *
  * タップ可能なカードと表示専用のカードで同じ中身を共有するために切り出している。
  *
@@ -136,5 +140,21 @@ private fun UnitStatContent(unit: BattleUnitUiModel) {
             modifier = Modifier.fillMaxWidth(),
             color = MaterialTheme.colorScheme.tertiary,
         )
+        LinearProgressIndicator(
+            progress = { unit.breakGaugeFraction.coerceIn(0f, 1f) },
+            modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+            color = BreakGaugeYellow,
+        )
+        when (unit.breakState) {
+            BreakState.BROKEN -> Text(
+                stringResource(R.string.battle_break_state_broken),
+                style = MaterialTheme.typography.labelSmall,
+            )
+            BreakState.RECOVERING -> Text(
+                stringResource(R.string.battle_break_state_recovering),
+                style = MaterialTheme.typography.labelSmall,
+            )
+            BreakState.NONE -> Unit
+        }
     }
 }

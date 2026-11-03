@@ -39,15 +39,23 @@ object HitChanceFormula {
      *
      * スキルの命中率が`null`(必中)のときは乱数を引かずに命中とする。それ以外は`[0, 100)`の乱数が
      * 最終的な命中率より小さければ命中なので、0%は必ず外れ、100%は必ず当たる。
+     * 対象がブレイク中([isTargetGuaranteedHit])のときは、命中率・回避率に関係なく乱数を引かずに必ず命中する(被必中)。
      *
      * @param skillAccuracy スキルの命中率。`null`は必中。
      * @param attackerAccuracy 攻撃者の命中率。
      * @param targetEvasion 対象の回避率。
      * @param random 当たり外れを決める乱数。テストで結果を固定できるよう外から受け取る。
+     * @param isTargetGuaranteedHit 対象が被必中(ブレイク中)か。`true`なら必ず命中する。
      * @return 命中したら`true`。
      */
-    fun isHit(skillAccuracy: Int?, attackerAccuracy: Int, targetEvasion: Int, random: Random): Boolean {
-        if (skillAccuracy == null) return true
+    fun isHit(
+        skillAccuracy: Int?,
+        attackerAccuracy: Int,
+        targetEvasion: Int,
+        random: Random,
+        isTargetGuaranteedHit: Boolean = false,
+    ): Boolean {
+        if (isTargetGuaranteedHit || skillAccuracy == null) return true
         return random.nextDouble() * MAX_CHANCE < finalChance(skillAccuracy, attackerAccuracy, targetEvasion)
     }
 }

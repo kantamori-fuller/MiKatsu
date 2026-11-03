@@ -48,6 +48,27 @@ sealed interface BattleFieldPawn {
     val evasion: Int
 
     /**
+     * ブレイクゲージ(0〜100)。攻撃でダメージを受けるたびに貯まり、100に達するとブレイク状態になって0に戻る。
+     * 戦闘中だけの値で、戦闘開始時は0。小数のまま持ち、表示するときだけ切り捨てる。
+     */
+    val breakGauge: Double
+
+    /**
+     * ブレイク耐性。基本は100で、範囲は0〜999。数値は「被ゲージの倍率(%)」であり、耐性が上がると数値は下がる
+     * (耐性が20上がる=100→80)。戦闘中だけの値。
+     */
+    val breakResistance: Int
+
+    /**
+     * ブレイクポイント倍率。基本は150。**攻撃する側**のステータスで、与えるゲージの量に掛かる(%)。
+     * 将来のバフ・デバフで変わる戦闘中だけの値。
+     */
+    val breakPointRate: Int
+
+    /** ブレイクの状態。[BreakState.BROKEN]の間は行動できず、被ダメージ増加と被必中の効果を受ける。 */
+    val breakState: BreakState
+
+    /**
      * 次の手番までに進む必要がある残り距離。開始時と行動後は
      * [jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.ActionTimeline.BASE_DISTANCE]に戻る。
      *
@@ -68,6 +89,12 @@ sealed interface BattleFieldPawn {
      * 同じ仕組みで適用するために共通で持つ。持たない個体は空。
      */
     val passiveSkills: List<PassiveSkill>
+
+    /** ブレイク状態([BreakState.BROKEN])かどうか。 */
+    val isBroken: Boolean get() = breakState == BreakState.BROKEN
+
+    /** 立ち上がり状態([BreakState.RECOVERING])かどうか。 */
+    val isRecovering: Boolean get() = breakState == BreakState.RECOVERING
 
     /** 戦闘不能(現在HPが0以下)かどうか。戦闘不能の個体は行動順から外れ、攻撃対象にも選べない。 */
     val isDefeated: Boolean get() = currentHp <= 0

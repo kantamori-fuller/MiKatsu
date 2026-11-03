@@ -1,6 +1,7 @@
 package jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model
 
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleOutcome
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BreakState
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.Formation
 
 /**
@@ -23,6 +24,8 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.Formation
  * @property maxMana 最大MP。
  * @property isDefeated 戦闘不能(HPが0)かどうか。カードはグレーアウトされる。
  * @property isActive 現在の手番の個体かどうか。
+ * @property breakGaugeFraction ブレイクゲージの表示割合(0〜1)。ゲージを切り捨てた整数値を100で割った値で、数値は表示しない。
+ * @property breakState ブレイクの状態。ブレイク中・立ち上がり中はカードにラベルを表示する。
  */
 data class BattleUnitUiModel(
     val id: Int,
@@ -33,6 +36,8 @@ data class BattleUnitUiModel(
     val maxMana: Int,
     val isDefeated: Boolean,
     val isActive: Boolean,
+    val breakGaugeFraction: Float = 0f,
+    val breakState: BreakState = BreakState.NONE,
 )
 
 /**

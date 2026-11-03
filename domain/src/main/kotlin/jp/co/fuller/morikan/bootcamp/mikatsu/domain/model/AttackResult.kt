@@ -33,6 +33,10 @@ data class AttackHit(
     val damage: Int
         get() = shots.sumOf { it.damage }
 
+    /** 対象がこの攻撃のどこかのヒットでブレイクしたか。 */
+    val causedBreak: Boolean
+        get() = shots.any { it.causedBreak }
+
     /** 実際に行った全てのヒットが外れたか。 */
     val isMissed: Boolean
         get() = shots.none { it.isHit }
@@ -43,8 +47,10 @@ data class AttackHit(
  *
  * @property isHit 命中したか。
  * @property damage そのヒットのダメージ。外れたヒットは0。
+ * @property causedBreak このヒットで対象がブレイクしたか。
  */
 data class AttackShot(
     val isHit: Boolean,
     val damage: Int,
+    val causedBreak: Boolean = false,
 )

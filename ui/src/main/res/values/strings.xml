@@ -70,6 +70,11 @@
     <string name="skill_picker_title_active">Aスキルを追加</string>
     <string name="skill_picker_title_passive">Pスキルを追加</string>
     <string name="skill_picker_empty">追加できるスキルがありません</string>
+    <string name="battle_narration_broke">%1$sはブレイクした!</string>
+    <string name="battle_narration_break_stunned">%1$sはブレイクしていて動けない!</string>
+    <string name="battle_narration_break_recovered">%1$sは立ち上がった!</string>
+    <string name="battle_break_state_broken">ブレイク</string>
+    <string name="battle_break_state_recovering">立ち上がり</string>
     <string name="battle_hp_format">HP %1$d/%2$d</string>
     <string name="battle_mp_format">MP %1$d/%2$d</string>
 </resources>
