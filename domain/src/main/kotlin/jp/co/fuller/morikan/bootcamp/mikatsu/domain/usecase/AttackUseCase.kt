@@ -13,7 +13,7 @@ import kotlin.random.Random
  * 必ずFPID(フィールドポーンID)で指定する。手番の終了は本UseCaseでは行わず、
  * 呼び出し側が[EndTurnUseCase]で行う。
  *
- * 威力・攻撃回数・レンジ・範囲・対象選択は通常攻撃のスキルデータ([SkillRepository.getNormalAttack])から読む。
+ * 威力・発動回数・レンジ・範囲・対象選択は通常攻撃のスキルデータ([SkillRepository.getNormalAttack])から読む。
  *
  * @property battleRepository 戦闘状態を保持するRepository。
  * @property skillRepository 通常攻撃のスキルデータを提供するRepository。

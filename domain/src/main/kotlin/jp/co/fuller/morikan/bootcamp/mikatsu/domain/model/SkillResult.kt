@@ -27,9 +27,24 @@ data class SkillResult(
  * スキルの効果を受けた1体分の結果。
  *
  * @property targetFpid スキルの対象となった個体のFPID。
- * @property healedAmount 実際に回復したHP量。最大HPで頭打ちになるため、スキルの回復量より小さくなり得る。
+ * @property healedAmount 実際に回復したHP量。最大HPで頭打ちになるため、スキルの回復量より小さくなり得る。外れた対象は0。
+ * @property isHit スキルが対象に命中したか。外れた対象には効果が一切かからない。命中率のないスキルは常に`true`。
+ * @property statChanges かかったステータス変化(外れたときは空)。段階の上限で頭打ちになる場合も、記録はされるため「かかった」扱い。
  */
 data class SkillTargetResult(
     val targetFpid: Int,
     val healedAmount: Int,
+    val isHit: Boolean = true,
+    val statChanges: List<StatChangeResult> = emptyList(),
+)
+
+/**
+ * 対象にかかったステータス変化1つ分。ナレーションの「Bの敏捷が1段階下がった!」に用いる。
+ *
+ * @property stat 補正されたステータス。
+ * @property stages 段階の増減(バフは正、デバフは負)。
+ */
+data class StatChangeResult(
+    val stat: BattleStat,
+    val stages: Int,
 )

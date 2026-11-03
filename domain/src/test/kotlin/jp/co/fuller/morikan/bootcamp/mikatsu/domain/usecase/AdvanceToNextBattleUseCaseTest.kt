@@ -8,10 +8,12 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.TEST_STEEL_BODY
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.testAlly
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.testEnemy
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleField
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleStat
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BreakState
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.Character
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.CharacterDraft
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.Enemy
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.StatModifier
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.repository.CharacterRepository
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.repository.EnemyRepository
 import kotlinx.coroutines.flow.Flow
@@ -105,6 +107,20 @@ class AdvanceToNextBattleUseCaseTest {
                     it.breakPointRate == BreakFormula.BASE_BREAK_POINT_RATE && it.breakState == BreakState.NONE
             },
         )
+    }
+
+    /** バフ・デバフは持ち越さず、次の戦闘では空から始まること(HP・MPのみ持ち越す)。 */
+    @Test
+    fun victory_doesNotCarryOverStatModifiers() = runBlocking {
+        val buffed = victoryField().let { f ->
+            f.copy(allies = f.allies.map { it.copy(statModifiers = listOf(StatModifier(BattleStat.ATTACK, 3, 7))) })
+        }
+        val repo = FakeBattleRepository(buffed)
+
+        assertTrue(createUseCase(buffed, FakeMapProgressRepository(), repo)())
+
+        assertTrue(repo.current.allPawns.all { it.statModifiers.isEmpty() })
+        assertEquals(listOf(40, 0), repo.current.allies.map { it.currentHp })
     }
 
     /** 未決着・敗北時は何も変わらないこと。 */

@@ -25,6 +25,7 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.PassiveSkill
  * @property breakResistance ブレイク耐性([BattleFieldPawn.breakResistance])。性質は[breakGauge]と同じ。
  * @property breakPointRate ブレイクポイント倍率([BattleFieldPawn.breakPointRate])。性質は[breakGauge]と同じ。
  * @property breakState ブレイクの状態([BattleFieldPawn.breakState])。性質は[breakGauge]と同じ。
+ * @property statModifiers かけられているバフ・デバフ([BattleFieldPawn.statModifiers])。戦闘開始時は空。
  */
 data class BattleEnemy(
     override val fpid: Int,
@@ -39,10 +40,13 @@ data class BattleEnemy(
     override val breakResistance: Int = BreakFormula.BASE_RESISTANCE,
     override val breakPointRate: Int = BreakFormula.BASE_BREAK_POINT_RATE,
     override val breakState: BreakState = BreakState.NONE,
+    override val statModifiers: List<StatModifier> = emptyList(),
 ) : BattleFieldPawn {
     override val maxHp: Int get() = enemy.hp
     override val attack: Int get() = enemy.attack
     override val defense: Int get() = enemy.defense
+    override val manaOutput: Int get() = enemy.manaOutput
+    override val manaResistance: Int get() = enemy.manaResistance
     override val agility: Int get() = enemy.agility
     override val luck: Int get() = enemy.luck
     override val passiveSkills: List<PassiveSkill> get() = emptyList()

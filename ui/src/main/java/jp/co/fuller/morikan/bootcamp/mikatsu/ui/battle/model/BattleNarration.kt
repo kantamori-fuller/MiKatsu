@@ -1,5 +1,7 @@
 package jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model
 
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleStat
+
 /**
  * バトル画面で、プレイヤーに表示するテキスト(バトルナレーター)の種類。
  *
@@ -172,6 +174,31 @@ sealed interface BattleNarration {
         val targetCount: Int,
         val totalHealed: Int,
     ) : BattleNarration
+
+    /**
+     * ステータス変化スキルの使用を伝える(「Aの覇気!」)。
+     *
+     * @property actorName スキルを使った味方の表示名。
+     * @property skillName 使ったスキルの名前。
+     */
+    data class SkillUsed(val actorName: String, val skillName: String) : BattleNarration
+
+    /**
+     * ステータス変化スキルが対象に外れたことを伝える(「Aの覇気! しかし外れた!」)。
+     *
+     * @property actorName スキルを使った味方の表示名。
+     * @property skillName 使ったスキルの名前。
+     */
+    data class SkillMissed(val actorName: String, val skillName: String) : BattleNarration
+
+    /**
+     * 対象のステータスが段階的に上がった/下がったことを伝える。
+     *
+     * @property targetName 対象の表示名。
+     * @property stat 変化したステータス。
+     * @property stages 段階の増減(正なら上がった、負なら下がった)。表示には絶対値を使う。
+     */
+    data class StatStageChanged(val targetName: String, val stat: BattleStat, val stages: Int) : BattleNarration
 }
 
 /**

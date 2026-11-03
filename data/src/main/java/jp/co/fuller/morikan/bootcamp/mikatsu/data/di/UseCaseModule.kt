@@ -154,11 +154,12 @@ object UseCaseModule {
 
     /**
      * @param battleRepository 注入される[BattleRepository]。
+     * @param random 注入される[Random]。
      * @return アクティブスキルを使う[UseSkillUseCase]。
      */
     @Provides
-    fun provideUseSkillUseCase(battleRepository: BattleRepository): UseSkillUseCase =
-        UseSkillUseCase(battleRepository)
+    fun provideUseSkillUseCase(battleRepository: BattleRepository, random: Random): UseSkillUseCase =
+        UseSkillUseCase(battleRepository, random)
 
     /**
      * @param skillRepository 注入される[SkillRepository]。

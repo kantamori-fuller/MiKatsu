@@ -6,7 +6,9 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleOutcome
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BreakState
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.Character
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.CharacterDraft
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleStat
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.Enemy
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.StatModifier
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.Formation
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.repository.BattleRepository
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.repository.CharacterRepository
@@ -27,6 +29,8 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.UseSkillUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleSelection
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleSkillUiModel
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleUnitPosition
+import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.StatChangeDetail
+import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.StatChangeEntry
 import kotlinx.coroutines.test.runCurrent
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.AdvanceToNextBattleUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.ObserveMapProgressUseCase
@@ -122,7 +126,7 @@ class BattleViewModelTest {
             observeBattleFieldUseCase = ObserveBattleFieldUseCase(battleRepository),
             attackUseCase = AttackUseCase(battleRepository, FakeSkillRepository(normalAttack), hitRandom),
             getNormalAttackUseCase = GetNormalAttackUseCase(FakeSkillRepository(normalAttack)),
-            useSkillUseCase = UseSkillUseCase(battleRepository),
+            useSkillUseCase = UseSkillUseCase(battleRepository, random),
             executeEnemyTurnUseCase = ExecuteEnemyTurnUseCase(battleRepository, FakeSkillRepository(normalAttack), RandomEnemyTargetSelector(random), hitRandom),
             endTurnUseCase = EndTurnUseCase(battleRepository, random),
             observeMapProgressUseCase = ObserveMapProgressUseCase(mapProgressRepository),
@@ -469,7 +473,7 @@ class BattleViewModelTest {
     fun singleTarget_twoShots_hitThenMiss_showsEachShotAndTotal() = runTest(dispatcher) {
         val rolls = ScriptedRandom()
         val (viewModel, repository) = createViewModel(
-            normalAttack = DEFAULT_NORMAL_ATTACK.copy(accuracy = 90, hitCount = 2),
+            normalAttack = DEFAULT_NORMAL_ATTACK.copy(accuracy = 90, activationCount = 2),
             hitRandom = rolls,
         )
         advanceUntilIdle()
@@ -494,7 +498,7 @@ class BattleViewModelTest {
     fun singleTarget_twoShots_allMiss_isSingleMissSentence() = runTest(dispatcher) {
         val rolls = ScriptedRandom()
         val (viewModel, repository) = createViewModel(
-            normalAttack = DEFAULT_NORMAL_ATTACK.copy(accuracy = 90, hitCount = 2),
+            normalAttack = DEFAULT_NORMAL_ATTACK.copy(accuracy = 90, activationCount = 2),
             hitRandom = rolls,
         )
         advanceUntilIdle()
@@ -567,7 +571,7 @@ class BattleViewModelTest {
     fun narrationTap_advancesToNextSentence_andEndsTurnAfterLast() = runTest(dispatcher) {
         val rolls = ScriptedRandom()
         val (viewModel, repository) = createViewModel(
-            normalAttack = DEFAULT_NORMAL_ATTACK.copy(accuracy = 90, hitCount = 2),
+            normalAttack = DEFAULT_NORMAL_ATTACK.copy(accuracy = 90, activationCount = 2),
             hitRandom = rolls,
         )
         advanceUntilIdle()
@@ -595,7 +599,7 @@ class BattleViewModelTest {
     fun narrationTap_whenNotWaiting_isDiscarded_andOneTapAdvancesOneSentence() = runTest(dispatcher) {
         val rolls = ScriptedRandom()
         val (viewModel, repository) = createViewModel(
-            normalAttack = DEFAULT_NORMAL_ATTACK.copy(accuracy = 90, hitCount = 2),
+            normalAttack = DEFAULT_NORMAL_ATTACK.copy(accuracy = 90, activationCount = 2),
             hitRandom = rolls,
         )
         advanceUntilIdle()
@@ -879,6 +883,73 @@ class BattleViewModelTest {
         assertTrue(enemy.passiveSkillNames.isEmpty())
     }
 
+    /** レンジ0のスキルは、一覧で選んだ瞬間に対象選択を挟まず自分へ発動し、ナレーションが1文ずつ流れて手番が終わること。 */
+    @Test
+    fun selfTargetingSkill_castsImmediately_withStatNarrations() = runTest(dispatcher) {
+        val (viewModel, repository) = createViewModel(allyMana = 100, activeSkillIds = listOf(SEISHIN_ID))
+        advanceUntilIdle()
+        val allyFpid = repository.current.allies[0].fpid
+        assertTrue(viewModel.uiState.value.skills.single().isSelfTargeting)
+
+        viewModel.onSkillClick()
+        viewModel.onSkillSelected(SEISHIN_ID)
+        viewModel.onSkillSelected(SEISHIN_ID) // 連打しても二重に発動しない
+        runCurrent()
+
+        assertEquals(BattleSelection.None, viewModel.uiState.value.selection)
+        assertTrue(viewModel.uiState.value.isProcessing)
+        assertEquals(BattleNarration.SkillUsed("味方", "精神一到"), viewModel.uiState.value.narration)
+        assertEquals(allyFpid, repository.current.allies[0].fpid)
+        assertEquals(1, repository.current.allies[0].statModifiers.size)
+
+        viewModel.onNarrationClick()
+        runCurrent()
+        assertEquals(BattleNarration.StatStageChanged("味方", BattleStat.ATTACK, 1), viewModel.uiState.value.narration)
+
+        advanceUntilIdle()
+
+        val ally = repository.current.allies[0]
+        assertEquals(80, ally.currentMp)
+        assertEquals(1, ally.turnCount)
+        // かけた手番は数えないので、残りは10のまま。
+        assertEquals(10, ally.statModifiers.single().remainingTurns)
+    }
+
+    /** 詳細ポップアップ用に、ステータス変化が合計と内訳で組み立てられ、基礎のステータス値は変わらないこと。 */
+    @Test
+    fun detail_statChanges_totalAndEntries_baseStatUnchanged() = runTest(dispatcher) {
+        val (viewModel, repository) = createViewModel(allyMana = 100, activeSkillIds = listOf(SEISHIN_ID))
+        advanceUntilIdle()
+        val allyFpid = repository.current.allies[0].fpid
+        assertTrue(viewModel.uiState.value.unitDetails.getValue(allyFpid).statChanges.isEmpty())
+        repository.updateBattleField { f ->
+            f.copy(
+                allies = f.allies.map {
+                    it.copy(
+                        statModifiers = listOf(
+                            StatModifier(BattleStat.ATTACK, 1, 10),
+                            StatModifier(BattleStat.ATTACK, 1, 3),
+                            StatModifier(BattleStat.DEFENSE, 1, 2),
+                            StatModifier(BattleStat.DEFENSE, -1, 5),
+                        ),
+                    )
+                },
+            )
+        }
+        runCurrent()
+
+        val detail = viewModel.uiState.value.unitDetails.getValue(allyFpid)
+
+        assertEquals(
+            listOf(
+                StatChangeDetail(BattleStat.ATTACK, 2, listOf(StatChangeEntry(1, 10), StatChangeEntry(1, 3))),
+                StatChangeDetail(BattleStat.DEFENSE, 0, listOf(StatChangeEntry(1, 2), StatChangeEntry(-1, 5))),
+            ),
+            detail.statChanges,
+        )
+        assertEquals(100, detail.attack)
+    }
+
     /**
      * テスト用の、通常攻撃・ディア(MP10・50回復・レンジ3・エリア全体から一体選択)・近接技・全体回復を返す[SkillRepository]。
      *
@@ -896,8 +967,13 @@ class BattleViewModelTest {
             range = SkillRange.RANGE_3, area = SkillArea.AREA,
             effects = listOf(ActiveSkillEffect.Heal(50)),
         )
+        private val seishin = testActiveSkill(
+            id = SEISHIN_ID, name = "精神一到", costs = listOf(SkillCost(SkillCostType.MP, 20)),
+            range = SkillRange.RANGE_0,
+            effects = listOf(ActiveSkillEffect.StatChange(BattleStat.ATTACK, stages = 1, durationTurns = 10)),
+        )
         override suspend fun getNormalAttack(): ActiveSkill = normalAttack
-        private val all = listOf(dia, farStrike, healAll)
+        private val all = listOf(dia, farStrike, healAll, seishin)
         override suspend fun getActiveSkills(): List<ActiveSkill> = all
         override suspend fun getPassiveSkills(): List<PassiveSkill> = emptyList()
         override suspend fun getActiveSkill(id: Int): ActiveSkill? = all.firstOrNull { it.id == id }
@@ -914,6 +990,9 @@ class BattleViewModelTest {
 
         /** レンジ3・味方エリア全体・全て対象の回復スキルのID。 */
         const val HEAL_ALL_ID = 4
+
+        /** レンジ0・自分の破壊力を+1段階10ターンにするスキル(精神一到)のID。 */
+        const val SEISHIN_ID = 5
 
         /** 通常攻撃(基礎威力100・レンジ1・単体・一体選択・敵対象)。 */
         val DEFAULT_NORMAL_ATTACK = testActiveSkill(

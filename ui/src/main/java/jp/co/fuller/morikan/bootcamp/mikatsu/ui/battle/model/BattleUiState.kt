@@ -49,6 +49,7 @@ data class BattleUnitUiModel(
  * @property hpCost 使用に必要なHP。消費しない場合は0。
  * @property targetIds このスキルで選べる対象のFPID([BattleUnitUiModel.id])。レンジ・陣営の条件を満たす相手で、
  *   手番の味方から見たもの。
+ * @property isSelfTargeting レンジ0(使用者自身だけが対象)のスキルか。`true`なら一覧で選んだ瞬間に対象選択を挟まず発動する。
  * @property isUsable 現在のMP・HPですべてのコストを支払え、かつ選べる相手([targetIds])が1体以上いるかどうか。
  *   `false`のとき一覧で選択できない。
  */
@@ -59,6 +60,7 @@ data class BattleSkillUiModel(
     val hpCost: Int,
     val targetIds: Set<Int>,
     val isUsable: Boolean,
+    val isSelfTargeting: Boolean = false,
 )
 
 /**

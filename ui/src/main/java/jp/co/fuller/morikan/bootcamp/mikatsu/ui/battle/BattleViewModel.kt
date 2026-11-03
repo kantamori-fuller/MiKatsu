@@ -13,7 +13,9 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleFieldPawn
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.AttackResult
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleOutcome
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.Formation
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleStat
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.SkillResult
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillRange
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.ActiveSkill
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillCostType
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.BreakFormula
@@ -38,6 +40,8 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleUnitDetailUiM
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleUnitPosition
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleUnitUiModel
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.resolveDisplayNames
+import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.StatChangeDetail
+import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.StatChangeEntry
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.toNarrations
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Job
@@ -197,18 +201,27 @@ class BattleViewModel @AssistedInject constructor(
      * スキル一覧でスキルが選ばれたときに呼ばれる。
      *
      * スキル一覧の選択中で、選ばれたスキルが手番の味方のもので、現在のMPで使え、選べる相手がいるときだけ、
-     * 対象を選ぶ状態へ移行する。それ以外の場合は何も行わない。
+     * 対象を選ぶ状態へ移行する。ただしレンジ0のスキル([BattleSkillUiModel.isSelfTargeting])は、対象選択を挟まず
+     * 使用者自身を対象(FPID)として、その場で発動する。それ以外の場合は何も行わない。
      *
      * @param skillId 選ばれたスキルのID([BattleSkillUiModel.id])。
      */
     fun onSkillSelected(skillId: Int) {
-        _uiState.update { state ->
-            val skill = state.skills.firstOrNull { it.id == skillId }
-            if (state.selection != BattleSelection.SkillList || !state.isSkillEnabled || skill?.isUsable != true) {
-                state
-            } else {
-                state.copy(selection = BattleSelection.SkillTarget(skillId))
+        val state = _uiState.value
+        val skill = state.skills.firstOrNull { it.id == skillId }
+        val actorFpid = state.currentActorId
+        if (state.selection != BattleSelection.SkillList || !state.isSkillEnabled || isBusy ||
+            skill?.isUsable != true || actorFpid == null
+        ) {
+            return
+        }
+        if (skill.isSelfTargeting) {
+            launchPlayerAction(actorFpid) {
+                useSkillUseCase(actorFpid = actorFpid, skillId = skillId, targetFpid = actorFpid)
+                    ?.let(::skillNarrations)
             }
+        } else {
+            _uiState.update { it.copy(selection = BattleSelection.SkillTarget(skillId)) }
         }
     }
 
@@ -260,7 +273,7 @@ class BattleViewModel @AssistedInject constructor(
             }
             is BattleSelection.SkillTarget -> launchPlayerAction(actorFpid) {
                 useSkillUseCase(actorFpid = actorFpid, skillId = selection.skillId, targetFpid = fpid)
-                    ?.let { listOf(skillNarration(it)) }
+                    ?.let(::skillNarrations)
             }
             else -> Unit
         }
@@ -405,29 +418,16 @@ class BattleViewModel @AssistedInject constructor(
     }
 
     /**
-     * スキルの結果から、表示するナレーションを作る。
+     * スキルの結果から、表示するナレーションの列を作る。
+     *
+     * 文の組み立て自体は[toNarrations]に委ね、ここでは表示名の解決だけを行う。
      *
      * @param result スキルの結果。
-     * @return 対象が1体なら誰が誰にどのスキルを使いHPがどれだけ回復したか、複数なら何体のHPを合計どれだけ回復したかを伝えるナレーション。
+     * @return 順に1文ずつ表示するナレーション。
      */
-    private fun skillNarration(result: SkillResult): BattleNarration {
+    private fun skillNarrations(result: SkillResult): List<BattleNarration> {
         val state = _uiState.value
-        val single = result.targets.singleOrNull()
-        return if (single != null) {
-            BattleNarration.SkillResult(
-                actorName = state.nameOf(result.actorFpid),
-                targetName = state.nameOf(single.targetFpid),
-                skillName = result.skillName,
-                healedAmount = single.healedAmount,
-            )
-        } else {
-            BattleNarration.MultiSkillResult(
-                actorName = state.nameOf(result.actorFpid),
-                skillName = result.skillName,
-                targetCount = result.targets.size,
-                totalHealed = result.totalHealed,
-            )
-        }
+        return result.toNarrations(state::nameOf)
     }
 
     /**
@@ -489,6 +489,7 @@ private fun BattleField.reflectedIn(current: BattleUiState, normalAttack: Active
                     hpCost = skill.costOf(SkillCostType.HP),
                     targetIds = targetIds,
                     isUsable = ally.canAfford(skill) && targetIds.isNotEmpty(),
+                    isSelfTargeting = skill.range == SkillRange.RANGE_0,
                 )
             }
         }.orEmpty(),
@@ -502,8 +503,8 @@ private fun BattleField.reflectedIn(current: BattleUiState, normalAttack: Active
 /**
  * 個体1体分の詳細ポップアップ用UIモデルを組み立てる。
  *
- * 値は[BattleFieldPawn]に該当プロパティがあればそれを、無ければ味方は[BattleAlly.character]、
- * 敵は[BattleEnemy.enemy]から取る。位置は配置上の段と[effectiveRowOf]の有効な段から決める。
+ * 値は[BattleFieldPawn]に該当プロパティがあればそれを(ステータスは基礎値のまま。補正後の値は出さない)、無ければ味方は[BattleAlly.character]、
+ * 敵は[BattleEnemy.enemy]から取る。位置は配置上の段と[effectiveRowOf]の有効な段から決める。ステータス変化は[BattleFieldPawn.statModifiers]をステータスごとにまとめて組み立てる。
  *
  * @receiver 判定の基になる戦闘フィールド。
  * @param pawn 対象の個体。
@@ -542,6 +543,18 @@ private fun BattleField.detailOf(pawn: BattleFieldPawn, displayName: String): Ba
         remainingDistance = floor(pawn.remainingDistance).toInt(),
         activeSkillNames = ally?.activeSkills?.map { it.name }.orEmpty(),
         passiveSkillNames = pawn.passiveSkills.map { it.name },
+        statChanges = BattleStat.entries.mapNotNull { stat ->
+            val entries = pawn.statModifiers.filter { it.stat == stat }
+            if (entries.isEmpty()) {
+                null
+            } else {
+                StatChangeDetail(
+                    stat = stat,
+                    totalStage = pawn.effectiveStage(stat),
+                    entries = entries.map { StatChangeEntry(it.stages, it.remainingTurns) },
+                )
+            }
+        },
     )
 }
 

@@ -164,7 +164,7 @@ class BreakTest {
     fun midMultiHitBreak_affectsRemainingHits() {
         // 最大HP200・攻撃者の倍率450 → 1ヒットでゲージ +54。2ヒット目でブレイク。
         // 3・4ヒット目は乱数(0.95=外れる値)を引かずに必ず当たり、31ダメージ。
-        val multi = skill.copy(hitCount = 4, accuracy = 90)
+        val multi = skill.copy(activationCount = 4, accuracy = 90)
         val f = field(enemyHp = 200, attackerRate = 450)
 
         val (after, result) = checkNotNull(f.performAttack(1, 2, multi, fixedRandom(0.5, 0.5, 0.95)))
@@ -225,10 +225,10 @@ class BreakTest {
             turnQueue = listOf(1),
         )
         assertNull(f.performAttack(1, 2, skill, Random(0)))
-        assertNull(f.performSkill(1, TEST_DIA.id, 1))
+        assertNull(f.performSkill(1, TEST_DIA.id, 1, Random(0)))
 
         val ok = f.copy(allies = f.allies.map { it.copy(breakState = BreakState.RECOVERING) })
         assertNotNull(ok.performAttack(1, 2, skill, Random(0)))
-        assertNotNull(ok.performSkill(1, TEST_DIA.id, 1))
+        assertNotNull(ok.performSkill(1, TEST_DIA.id, 1, Random(0)))
     }
 }

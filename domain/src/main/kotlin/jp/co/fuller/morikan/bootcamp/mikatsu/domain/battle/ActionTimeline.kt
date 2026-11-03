@@ -2,6 +2,7 @@ package jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle
 
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleField
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleFieldPawn
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleStat
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.updatePawn
 import kotlin.math.max
 import kotlin.random.Random
@@ -31,7 +32,7 @@ object ActionTimeline {
  * @receiver 時間を求める個体。
  * @return 次の手番までの時間。
  */
-private fun BattleFieldPawn.timeToTurn(): Double = remainingDistance / ActionSpeedFormula.speedOf(agility)
+private fun BattleFieldPawn.timeToTurn(): Double = remainingDistance / ActionSpeedFormula.speedOf(effectiveStat(BattleStat.AGILITY))
 
 /**
  * 次に行動する個体が決まるまで時間を進め、手番が来た個体を[BattleField.turnQueue]に確定させる。
@@ -62,7 +63,7 @@ fun BattleField.advanceToNextTurn(random: Random): BattleField {
         .toSet()
 
     val advanced = alive.fold(this) { field, pawn ->
-        val distance = (pawn.remainingDistance - minTime * ActionSpeedFormula.speedOf(pawn.agility))
+        val distance = (pawn.remainingDistance - minTime * ActionSpeedFormula.speedOf(pawn.effectiveStat(BattleStat.AGILITY)))
             .coerceAtLeast(0.0)
             .let { if (pawn.fpid in arrivals) 0.0 else it }
         field.updatePawn(
@@ -74,7 +75,7 @@ fun BattleField.advanceToNextTurn(random: Random): BattleField {
 
     val queue = alive
         .filter { it.fpid in arrivals }
-        .groupBy { it.luck }
+        .groupBy { it.effectiveStat(BattleStat.LUCK) }
         .toSortedMap(compareByDescending { it })
         .values
         .flatMap { group -> group.map { it.fpid }.shuffled(random) }
@@ -85,8 +86,8 @@ fun BattleField.advanceToNextTurn(random: Random): BattleField {
  * 現在の行動者の手番を終え、次の手番が来る個体を決める。
  *
  * [fpid]が現在の行動者でなければ何もしない。一致すれば、その個体を手番待ちから外し、
- * 残り距離を[ActionTimeline.BASE_DISTANCE]に戻して自身の手番の回数を1増やし、ブレイクの状態を1段階進めたうえで
- * ([progressBreakState])、[advanceToNextTurn]で次の手番を決める。
+ * 残り距離を[ActionTimeline.BASE_DISTANCE]に戻して自身の手番の回数を1増やし、ブレイクの状態を1段階進め
+ * ([progressBreakState])、バフ・デバフを1手番分進めたうえで([progressStatModifiers])、[advanceToNextTurn]で次の手番を決める。
  *
  * @receiver 更新前の戦闘フィールド。
  * @param fpid 手番を終える個体のFPID。
@@ -99,7 +100,7 @@ fun BattleField.endTurn(fpid: Int, random: Random): BattleField {
         fpid = fpid,
         transformAlly = { it.copy(remainingDistance = ActionTimeline.BASE_DISTANCE, turnCount = it.turnCount + 1) },
         transformEnemy = { it.copy(remainingDistance = ActionTimeline.BASE_DISTANCE, turnCount = it.turnCount + 1) },
-    ).copy(turnQueue = turnQueue.drop(1)).progressBreakState(fpid)
+    ).copy(turnQueue = turnQueue.drop(1)).progressBreakState(fpid).progressStatModifiers(fpid)
     return ended.advanceToNextTurn(random)
 }
 

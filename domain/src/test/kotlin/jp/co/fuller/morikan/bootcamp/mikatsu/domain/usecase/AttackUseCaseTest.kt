@@ -84,10 +84,10 @@ class AttackUseCaseTest {
         assertEquals(field, repo.current)
     }
 
-    /** 味方の攻撃が、通常攻撃のスキルデータの攻撃回数を使うこと。 */
+    /** 味方の攻撃が、通常攻撃のスキルデータの発動回数を使うこと。 */
     @Test
     fun invoke_usesNormalAttackHitCount() = runBlocking {
-        val skills = FakeSkillRepository(TEST_NORMAL_ATTACK.copy(hitCount = 2))
+        val skills = FakeSkillRepository(TEST_NORMAL_ATTACK.copy(activationCount = 2))
 
         val result = AttackUseCase(repository, skills, Random(0))(attackerFpid = 1, targetFpid = 2)
 

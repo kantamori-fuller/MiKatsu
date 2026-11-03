@@ -4,10 +4,12 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleAlly
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleField
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.SkillResult
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.SkillTargetResult
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.StatChangeResult
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.ActiveSkill
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.ActiveSkillEffect
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillCostType
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.updatePawn
+import kotlin.random.Random
 
 /**
  * 現在の行動者によるアクティブスキルの使用を実行し、効果を適用した[BattleField]と結果を返す。
@@ -21,7 +23,12 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.updatePawn
  *   通常攻撃は[performAttack]で行う(将来、攻撃スキルもここへ統合する)。
  *
  * 使えた場合は、すべてのコストを消費したうえで、対象([resolveTargets]で範囲・対象選択に従って展開した個体)
- * 全員に効果を順に適用する。回復は最大HPで頭打ちになり、戦闘不能の個体は対象に含まれないため蘇生しない。
+ * 全員に効果を順に適用する。スキルの命中率が`null`でないときは、対象ごとに1回だけ[HitChanceFormula]で命中判定を行い
+ * (使用者の命中率・対象の回避率を使い、対象がブレイク中なら必中)、外れた対象にはそのスキルの効果が一切かからない。
+ * 命中率が`null`のスキルは乱数を引かず必ず成功する。コストは外れても消費する。
+ * 回復は最大HPで頭打ちになり、戦闘不能の個体は対象に含まれないため蘇生しない。
+ * ステータス変化は対象に新しいエントリとして記録し、段階の上限で頭打ちでも記録する。
+ * 発動回数が2以上でも効果の適用は1回のままである。
  * 手番の終了はここでは行わない。使用者・対象はいずれもFPIDで指定し、スキルはアクティブスキルのID
  * (アクティブ採番のマスターデータのID)で指定する。
  *
@@ -29,9 +36,15 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.updatePawn
  * @param actorFpid スキルを使う個体のFPID。
  * @param skillId 使うスキルのID。
  * @param targetFpid 選んだ対象(アンカー)のFPID。範囲スキルでは、この個体を基準に対象が広がる。
+ * @param random 命中判定の乱数。テストで結果を固定できるよう外から受け取る。
  * @return 効果適用後の戦闘フィールドとスキルの結果の組。使えない場合は`null`。
  */
-fun BattleField.performSkill(actorFpid: Int, skillId: Int, targetFpid: Int): Pair<BattleField, SkillResult>? {
+fun BattleField.performSkill(
+    actorFpid: Int,
+    skillId: Int,
+    targetFpid: Int,
+    random: Random,
+): Pair<BattleField, SkillResult>? {
     if (actorFpid != currentActorFpid) return null
     val actor = allies.firstOrNull { it.fpid == actorFpid } ?: return null
     if (actor.isDefeated || actor.isBroken) return null
@@ -48,13 +61,24 @@ fun BattleField.performSkill(actorFpid: Int, skillId: Int, targetFpid: Int): Pai
         transformEnemy = { it },
     )
     val results = targets.map { target ->
+        // 途中の効果で状態が変わり得るため、命中判定には対象の最新の状態を使う。
+        val current = checkNotNull(field.allPawns.firstOrNull { it.fpid == target.fpid })
+        val isHit = HitChanceFormula.isHit(
+            skillAccuracy = skill.accuracy,
+            attackerAccuracy = actor.accuracy,
+            targetEvasion = current.evasion,
+            random = random,
+            isTargetGuaranteedHit = current.isBroken,
+        )
+        if (!isHit) return@map SkillTargetResult(targetFpid = target.fpid, healedAmount = 0, isHit = false)
         var healedTotal = 0
+        val statChanges = mutableListOf<StatChangeResult>()
         skill.effects.forEach { effect ->
             when (effect) {
                 is ActiveSkillEffect.Heal -> {
                     // 使用者自身が対象のとき、HPコスト消費後のHPを基準に回復量を求める。
-                    val current = checkNotNull(field.allPawns.firstOrNull { it.fpid == target.fpid })
-                    val healed = effect.amount.coerceAtLeast(0).coerceAtMost(current.maxHp - current.currentHp)
+                    val latest = checkNotNull(field.allPawns.firstOrNull { it.fpid == target.fpid })
+                    val healed = effect.amount.coerceAtLeast(0).coerceAtMost(latest.maxHp - latest.currentHp)
                     healedTotal += healed
                     field = field.updatePawn(
                         fpid = target.fpid,
@@ -62,9 +86,13 @@ fun BattleField.performSkill(actorFpid: Int, skillId: Int, targetFpid: Int): Pai
                         transformEnemy = { it.copy(currentHp = it.currentHp + healed) },
                     )
                 }
+                is ActiveSkillEffect.StatChange -> {
+                    field = field.addStatModifier(target.fpid, effect.stat, effect.stages, effect.durationTurns)
+                    statChanges += StatChangeResult(stat = effect.stat, stages = effect.stages)
+                }
             }
         }
-        SkillTargetResult(targetFpid = target.fpid, healedAmount = healedTotal)
+        SkillTargetResult(targetFpid = target.fpid, healedAmount = healedTotal, statChanges = statChanges)
     }
     return field to SkillResult(
         actorFpid = actorFpid,

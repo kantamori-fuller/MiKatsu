@@ -13,6 +13,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Test
+import kotlin.random.Random
 
 /** [performSkill]の成立条件(手番・所持・MP・対象)と、回復・MP消費の効果を検証するテスト。 */
 class PerformSkillTest {
@@ -31,7 +32,7 @@ class PerformSkillTest {
     /** 味方単体を50回復し、使用者のMPが10減り、結果が返ること。 */
     @Test
     fun heal_restoresHpAndDeductsMp() {
-        val (after, result) = checkNotNull(field().performSkill(1, TEST_DIA.id, 2))
+        val (after, result) = checkNotNull(field().performSkill(1, TEST_DIA.id, 2, Random(0)))
 
         assertEquals(100, after.allies[1].currentHp)
         assertEquals(20, after.allies[0].currentMp)
@@ -43,7 +44,7 @@ class PerformSkillTest {
     fun heal_isCappedAtMaxHp() {
         val f = field().let { it.copy(allies = it.allies.map { a -> if (a.fpid == 2) a.copy(currentHp = 80) else a }) }
 
-        val (after, result) = checkNotNull(f.performSkill(1, TEST_DIA.id, 2))
+        val (after, result) = checkNotNull(f.performSkill(1, TEST_DIA.id, 2, Random(0)))
 
         assertEquals(100, after.allies[1].currentHp)
         assertEquals(20, result.totalHealed)
@@ -54,7 +55,7 @@ class PerformSkillTest {
     fun heal_canTargetSelf() {
         val f = field().let { it.copy(allies = it.allies.map { a -> if (a.fpid == 1) a.copy(currentHp = 10) else a }) }
 
-        val (after, result) = checkNotNull(f.performSkill(1, TEST_DIA.id, 1))
+        val (after, result) = checkNotNull(f.performSkill(1, TEST_DIA.id, 1, Random(0)))
 
         assertEquals(60, after.allies[0].currentHp)
         assertEquals(20, after.allies[0].currentMp)
@@ -66,7 +67,7 @@ class PerformSkillTest {
     fun exactMp_isUsable() {
         val f = field().let { it.copy(allies = it.allies.map { a -> if (a.fpid == 1) a.copy(currentMp = 10) else a }) }
 
-        val (after, _) = checkNotNull(f.performSkill(1, TEST_DIA.id, 2))
+        val (after, _) = checkNotNull(f.performSkill(1, TEST_DIA.id, 2, Random(0)))
 
         assertEquals(0, after.allies[0].currentMp)
     }
@@ -76,25 +77,25 @@ class PerformSkillTest {
     fun insufficientMp_returnsNull() {
         val f = field().let { it.copy(allies = it.allies.map { a -> if (a.fpid == 1) a.copy(currentMp = 9) else a }) }
 
-        assertNull(f.performSkill(1, TEST_DIA.id, 2))
+        assertNull(f.performSkill(1, TEST_DIA.id, 2, Random(0)))
     }
 
     /** 戦闘不能の味方は対象にできない(蘇生しない)こと。 */
     @Test
     fun defeatedTarget_returnsNull() {
-        assertNull(field().performSkill(1, TEST_DIA.id, 3))
+        assertNull(field().performSkill(1, TEST_DIA.id, 3, Random(0)))
     }
 
     /** 敵は味方単体スキルの対象にできないこと。 */
     @Test
     fun enemyTarget_returnsNull() {
-        assertNull(field().performSkill(1, TEST_DIA.id, 4))
+        assertNull(field().performSkill(1, TEST_DIA.id, 4, Random(0)))
     }
 
     /** 存在しないFPIDは対象にできないこと。 */
     @Test
     fun unknownTarget_returnsNull() {
-        assertNull(field().performSkill(1, TEST_DIA.id, 99))
+        assertNull(field().performSkill(1, TEST_DIA.id, 99, Random(0)))
     }
 
     /** 現在の行動者でない味方は使えないこと。 */
@@ -103,8 +104,8 @@ class PerformSkillTest {
         val f = field().copy(turnQueue = listOf(2, 1))
             .let { it.copy(allies = it.allies.map { a -> if (a.fpid == 2) a.copy(activeSkills = listOf(TEST_DIA), currentMp = 30) else a }) }
 
-        assertNull(f.performSkill(1, TEST_DIA.id, 2))
-        assertNotNull(f.performSkill(2, TEST_DIA.id, 1))
+        assertNull(f.performSkill(1, TEST_DIA.id, 2, Random(0)))
+        assertNotNull(f.performSkill(2, TEST_DIA.id, 1, Random(0)))
     }
 
     /** 設定していないスキルは使えないこと。 */
@@ -112,14 +113,14 @@ class PerformSkillTest {
     fun skillNotSet_returnsNull() {
         val f = field().let { it.copy(allies = it.allies.map { a -> if (a.fpid == 1) a.copy(activeSkills = emptyList()) else a }) }
 
-        assertNull(f.performSkill(1, TEST_DIA.id, 2))
-        assertNull(field().performSkill(1, 999, 2))
+        assertNull(f.performSkill(1, TEST_DIA.id, 2, Random(0)))
+        assertNull(field().performSkill(1, 999, 2, Random(0)))
     }
 
     /** 敵は味方のスキルを使えないこと。 */
     @Test
     fun enemyActor_returnsNull() {
-        assertNull(field().copy(turnQueue = listOf(4)).performSkill(4, TEST_DIA.id, 1))
+        assertNull(field().copy(turnQueue = listOf(4)).performSkill(4, TEST_DIA.id, 1, Random(0)))
     }
 
     /** 使用者が戦闘不能なら使えないこと。 */
@@ -127,7 +128,7 @@ class PerformSkillTest {
     fun defeatedActor_returnsNull() {
         val f = field().let { it.copy(allies = it.allies.map { a -> if (a.fpid == 1) a.copy(currentHp = 0) else a }) }
 
-        assertNull(f.performSkill(1, TEST_DIA.id, 2))
+        assertNull(f.performSkill(1, TEST_DIA.id, 2, Random(0)))
     }
 
     /** HPコストとMPコストの両方が消費され、すべて払えるときだけ使えること。 */
@@ -136,7 +137,7 @@ class PerformSkillTest {
         val skill = TEST_DIA.copy(costs = listOf(SkillCost(SkillCostType.MP, 30), SkillCost(SkillCostType.HP, 10)))
         val f = field().let { it.copy(allies = it.allies.map { a -> if (a.fpid == 1) a.copy(activeSkills = listOf(skill)) else a }) }
 
-        val (after, _) = checkNotNull(f.performSkill(1, skill.id, 2))
+        val (after, _) = checkNotNull(f.performSkill(1, skill.id, 2, Random(0)))
 
         assertEquals(0, after.allies[0].currentMp)
         assertEquals(90, after.allies[0].currentHp)
@@ -147,14 +148,14 @@ class PerformSkillTest {
     fun hpAndMpCosts_allMustBeAffordable() {
         val skill = TEST_DIA.copy(costs = listOf(SkillCost(SkillCostType.MP, 31), SkillCost(SkillCostType.HP, 10)))
         val f = field().let { it.copy(allies = it.allies.map { a -> if (a.fpid == 1) a.copy(activeSkills = listOf(skill)) else a }) }
-        assertNull(f.performSkill(1, skill.id, 2))
+        assertNull(f.performSkill(1, skill.id, 2, Random(0)))
 
         val hpHeavy = TEST_DIA.copy(costs = listOf(SkillCost(SkillCostType.HP, 100)))
         val g = field().let { it.copy(allies = it.allies.map { a -> if (a.fpid == 1) a.copy(activeSkills = listOf(hpHeavy)) else a }) }
-        assertNull(g.performSkill(1, hpHeavy.id, 2)) // 払うとHPが0になる
+        assertNull(g.performSkill(1, hpHeavy.id, 2, Random(0))) // 払うとHPが0になる
         val ok = TEST_DIA.copy(costs = listOf(SkillCost(SkillCostType.HP, 99)))
         val h = field().let { it.copy(allies = it.allies.map { a -> if (a.fpid == 1) a.copy(activeSkills = listOf(ok)) else a }) }
-        assertEquals(1, checkNotNull(h.performSkill(1, ok.id, 2)).first.allies[0].currentHp)
+        assertEquals(1, checkNotNull(h.performSkill(1, ok.id, 2, Random(0))).first.allies[0].currentHp)
     }
 
     /** 自分に回復スキルを使うとき、HPコスト消費後のHPを基準に回復すること。 */
@@ -163,7 +164,7 @@ class PerformSkillTest {
         val skill = TEST_DIA.copy(costs = listOf(SkillCost(SkillCostType.HP, 10)))
         val f = field().let { it.copy(allies = it.allies.map { a -> if (a.fpid == 1) a.copy(activeSkills = listOf(skill)) else a }) }
 
-        val (after, result) = checkNotNull(f.performSkill(1, skill.id, 1))
+        val (after, result) = checkNotNull(f.performSkill(1, skill.id, 1, Random(0)))
 
         assertEquals(10, result.totalHealed)
         assertEquals(100, after.allies[0].currentHp)
@@ -176,8 +177,8 @@ class PerformSkillTest {
         val damaging = TEST_DIA.copy(basePower = 100)
         val f = field().let { it.copy(allies = it.allies.map { a -> if (a.fpid == 1) a.copy(activeSkills = listOf(enemySide, damaging.copy(id = 9))) else a }) }
 
-        assertNull(f.performSkill(1, enemySide.id, 2))
-        assertNull(f.performSkill(1, 9, 2))
+        assertNull(f.performSkill(1, enemySide.id, 2, Random(0)))
+        assertNull(f.performSkill(1, 9, 2, Random(0)))
     }
 
     /** エリア全体の全て対象スキルが、味方の生存個体全員を回復し(最大HPで頭打ち)、戦闘不能者は蘇生しないこと。 */
@@ -186,7 +187,7 @@ class PerformSkillTest {
         val skill = TEST_DIA.copy(targetSelection = SkillTargetSelection.ALL)
         val f = field().let { it.copy(allies = it.allies.map { a -> if (a.fpid == 1) a.copy(activeSkills = listOf(skill), currentHp = 90) else a }) }
 
-        val (after, result) = checkNotNull(f.performSkill(1, skill.id, 2))
+        val (after, result) = checkNotNull(f.performSkill(1, skill.id, 2, Random(0)))
 
         assertEquals(listOf(100, 100, 0), after.allies.map { it.currentHp })
         assertEquals(
@@ -202,7 +203,7 @@ class PerformSkillTest {
     fun oneSelection_healsOnlyAnchor() {
         val f = field().let { it.copy(allies = it.allies.map { a -> if (a.fpid == 1) a.copy(currentHp = 10) else a }) }
 
-        val (after, result) = checkNotNull(f.performSkill(1, TEST_DIA.id, 2))
+        val (after, result) = checkNotNull(f.performSkill(1, TEST_DIA.id, 2, Random(0)))
 
         assertEquals(listOf(10, 100, 0), after.allies.map { it.currentHp })
         assertEquals(listOf(2), result.targets.map { it.targetFpid })
@@ -218,7 +219,7 @@ class PerformSkillTest {
             turnQueue = listOf(1),
         )
 
-        assertNotNull(f.performSkill(1, skill.id, 2))
-        assertNull(f.performSkill(1, skill.id, 3))
+        assertNotNull(f.performSkill(1, skill.id, 2, Random(0)))
+        assertNull(f.performSkill(1, skill.id, 3, Random(0)))
     }
 }
