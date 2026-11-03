@@ -85,8 +85,8 @@ fun BattleField.advanceToNextTurn(random: Random): BattleField {
  * 現在の行動者の手番を終え、次の手番が来る個体を決める。
  *
  * [fpid]が現在の行動者でなければ何もしない。一致すれば、その個体を手番待ちから外し、
- * 残り距離を[ActionTimeline.BASE_DISTANCE]に戻して自身の手番の回数を1増やしたうえで、
- * [advanceToNextTurn]で次の手番を決める。
+ * 残り距離を[ActionTimeline.BASE_DISTANCE]に戻して自身の手番の回数を1増やし、ブレイクの状態を1段階進めたうえで
+ * ([progressBreakState])、[advanceToNextTurn]で次の手番を決める。
  *
  * @receiver 更新前の戦闘フィールド。
  * @param fpid 手番を終える個体のFPID。
@@ -99,7 +99,7 @@ fun BattleField.endTurn(fpid: Int, random: Random): BattleField {
         fpid = fpid,
         transformAlly = { it.copy(remainingDistance = ActionTimeline.BASE_DISTANCE, turnCount = it.turnCount + 1) },
         transformEnemy = { it.copy(remainingDistance = ActionTimeline.BASE_DISTANCE, turnCount = it.turnCount + 1) },
-    ).copy(turnQueue = turnQueue.drop(1))
+    ).copy(turnQueue = turnQueue.drop(1)).progressBreakState(fpid)
     return ended.advanceToNextTurn(random)
 }
 

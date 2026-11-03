@@ -20,5 +20,8 @@ val PurpleGrey40 = Color(0xFF625b71)
 /** ライトテーマの第三カラー。 */
 val Pink40 = Color(0xFF7D5260)
 
+/** ブレイクゲージのバーに用いる黄色。バトル画面のカードで、HP・MPのバーと並べて表示する。 */
+val BreakGaugeYellow = Color(0xFFFFD600)
+
 /** 選択済み状態を表す共通カラー。編成画面の選択アイコンなどに用いる。 */
 val SelectionGreen = Color(0xFF4CAF50)

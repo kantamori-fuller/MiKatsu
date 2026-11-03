@@ -3,6 +3,7 @@ package jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.RandomEnemyTargetSelector
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleField
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleOutcome
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BreakState
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.Character
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.CharacterDraft
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.Enemy
@@ -649,6 +650,61 @@ class BattleViewModelTest {
 
         assertEquals(1000 - 24, repository.current.allies[0].currentHp)
         assertEquals(BattleNarration.AttackResult("ゴブリンA", "味方", 24), viewModel.uiState.value.narration)
+    }
+
+    /** ブレイク中の味方の手番は操作を受け付けず、ナレーションを順に表示して自動で終わり、立ち上がり状態になること。 */
+    @Test
+    fun brokenAlly_turnIsSkippedAutomatically() = runTest(dispatcher) {
+        val (viewModel, repository) = createViewModel()
+        advanceUntilIdle()
+        assertTrue(viewModel.uiState.value.isAttackEnabled)
+
+        repository.updateBattleField { f -> f.copy(allies = f.allies.map { it.copy(breakState = BreakState.BROKEN) }) }
+        runCurrent()
+
+        assertTrue(viewModel.uiState.value.isProcessing)
+        assertFalse(viewModel.uiState.value.isAttackEnabled)
+        assertEquals(BattleNarration.BreakStunned("味方"), viewModel.uiState.value.narration)
+        viewModel.onAttackClick()
+        assertEquals(BattleSelection.None, viewModel.uiState.value.selection)
+
+        advanceTimeBy(1_200)
+        runCurrent()
+        assertEquals(BattleNarration.BreakRecovered("味方"), viewModel.uiState.value.narration)
+        assertEquals(0, repository.current.allies[0].turnCount)
+
+        advanceUntilIdle()
+
+        val ally = repository.current.allies[0]
+        assertEquals(1, ally.turnCount)
+        assertEquals(BreakState.RECOVERING, ally.breakState)
+        assertTrue(viewModel.uiState.value.isPlayerTurn)
+        assertTrue(viewModel.uiState.value.isAttackEnabled)
+    }
+
+    /** ブレイク中の敵は攻撃せず、動けない旨のナレーションのあと手番を飛ばされ、立ち上がり状態になること。 */
+    @Test
+    fun brokenEnemy_doesNotAttack_andTurnIsSkipped() = runTest(dispatcher) {
+        val (viewModel, repository) = createViewModel()
+        advanceUntilIdle()
+        val allyHp = repository.current.allies[0].currentHp
+        repository.updateBattleField { f -> f.copy(enemies = f.enemies.map { it.copy(breakState = BreakState.BROKEN) }) }
+
+        viewModel.onAttackClick()
+        viewModel.onEnemyClick(repository.current.enemies[0].fpid)
+        runCurrent()
+        advanceTimeBy(1_200)
+        runCurrent()
+
+        assertEquals(BattleNarration.BreakStunned("ゴブリンA"), viewModel.uiState.value.narration)
+        assertEquals(allyHp, repository.current.allies[0].currentHp)
+        advanceTimeBy(1_200)
+        runCurrent()
+        assertEquals(BattleNarration.BreakRecovered("ゴブリンA"), viewModel.uiState.value.narration)
+        advanceTimeBy(1_200)
+        runCurrent()
+        assertEquals(BreakState.RECOVERING, repository.current.enemies[0].breakState)
+        assertEquals(2, repository.current.enemies[0].turnCount) // 味方の手番の前に1回行動済み
     }
 
     /** 全て対象の回復スキルは、味方全員に効き、複数対象のナレーションになること。 */

@@ -1,5 +1,6 @@
 package jp.co.fuller.morikan.bootcamp.mikatsu.domain.model
 
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.BreakFormula
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.HitChanceFormula
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.ActiveSkill
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.PassiveSkill
@@ -22,6 +23,10 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.PassiveSkill
  * @property turnCount この個体が終えた自分の手番の回数([BattleFieldPawn.turnCount])。
  * @property accuracy 命中率([BattleFieldPawn.accuracy])。戦闘ごとに基本値から始まり、次の戦闘へは持ち越さない。
  * @property evasion 回避率([BattleFieldPawn.evasion])。性質は[accuracy]と同じ。
+ * @property breakGauge ブレイクゲージ([BattleFieldPawn.breakGauge])。戦闘開始時は0で、次の戦闘へは持ち越さない。
+ * @property breakResistance ブレイク耐性([BattleFieldPawn.breakResistance])。性質は[breakGauge]と同じ。
+ * @property breakPointRate ブレイクポイント倍率([BattleFieldPawn.breakPointRate])。性質は[breakGauge]と同じ。
+ * @property breakState ブレイクの状態([BattleFieldPawn.breakState])。性質は[breakGauge]と同じ。
  * @property activeSkills [Character.activeSkillIds]から解決した、使えるアクティブスキル。
  * @property passiveSkills [Character.passiveSkillIds]から解決した、発揮しているパッシブスキル。
  */
@@ -35,6 +40,10 @@ data class BattleAlly(
     override val turnCount: Int,
     override val accuracy: Int = HitChanceFormula.BASE_RATE,
     override val evasion: Int = HitChanceFormula.BASE_RATE,
+    override val breakGauge: Double = 0.0,
+    override val breakResistance: Int = BreakFormula.BASE_RESISTANCE,
+    override val breakPointRate: Int = BreakFormula.BASE_BREAK_POINT_RATE,
+    override val breakState: BreakState = BreakState.NONE,
     val activeSkills: List<ActiveSkill> = emptyList(),
     override val passiveSkills: List<PassiveSkill> = emptyList(),
 ) : BattleFieldPawn {

@@ -365,6 +365,9 @@ private fun BattleNarration.toText(): String = when (this) {
             .map { stringResource(R.string.battle_narration_area_hit_entry, it.targetName, it.damage) }
             .joinToString(stringResource(R.string.battle_narration_area_hit_separator)),
     )
+    is BattleNarration.Broke -> stringResource(R.string.battle_narration_broke, targetName)
+    is BattleNarration.BreakStunned -> stringResource(R.string.battle_narration_break_stunned, actorName)
+    is BattleNarration.BreakRecovered -> stringResource(R.string.battle_narration_break_recovered, actorName)
     is BattleNarration.MultiSkillResult ->
         stringResource(R.string.battle_narration_multi_skill_result, actorName, skillName, targetCount, totalHealed)
 }

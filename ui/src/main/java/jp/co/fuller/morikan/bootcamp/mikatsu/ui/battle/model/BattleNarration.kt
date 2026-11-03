@@ -123,6 +123,27 @@ sealed interface BattleNarration {
     data class AreaHit(val entries: List<AreaHitEntry>) : BattleNarration
 
     /**
+     * 攻撃を受けた個体がブレイクしたことを伝える。
+     *
+     * @property targetName ブレイクした個体の表示名。
+     */
+    data class Broke(val targetName: String) : BattleNarration
+
+    /**
+     * ブレイク中の個体が、手番が来ても動けないことを伝える。
+     *
+     * @property actorName 動けない個体の表示名。
+     */
+    data class BreakStunned(val actorName: String) : BattleNarration
+
+    /**
+     * ブレイク中の個体が、動けないまま手番を終えて立ち上がったことを伝える。
+     *
+     * @property actorName 立ち上がった個体の表示名。
+     */
+    data class BreakRecovered(val actorName: String) : BattleNarration
+
+    /**
      * 回復スキルの結果(誰が誰にどのスキルを使い、HPがどれだけ回復したか)を伝える。
      *
      * @property actorName スキルを使った味方の表示名。

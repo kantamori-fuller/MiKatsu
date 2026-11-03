@@ -13,7 +13,7 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.updatePawn
  * 現在の行動者によるアクティブスキルの使用を実行し、効果を適用した[BattleField]と結果を返す。
  *
  * 次のいずれかに当てはまる場合はスキルを使えないため`null`を返す。
- * - 使用者が現在の行動者ではない、味方ではない、または戦闘不能である。
+ * - 使用者が現在の行動者ではない、味方ではない、戦闘不能である、またはブレイク中で行動できない。
  * - 使用者がそのスキルを設定していない。
  * - コストを支払えない([canAfford])。
  * - 選んだ対象が選べない個体である(レンジ外・陣営違い・戦闘不能・存在しない。[selectableTargets]を参照)。
@@ -34,7 +34,7 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.updatePawn
 fun BattleField.performSkill(actorFpid: Int, skillId: Int, targetFpid: Int): Pair<BattleField, SkillResult>? {
     if (actorFpid != currentActorFpid) return null
     val actor = allies.firstOrNull { it.fpid == actorFpid } ?: return null
-    if (actor.isDefeated) return null
+    if (actor.isDefeated || actor.isBroken) return null
     val skill = actor.activeSkills.firstOrNull { it.id == skillId } ?: return null
     if (skill.basePower != null) return null
     if (!actor.canAfford(skill)) return null

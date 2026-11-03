@@ -54,7 +54,10 @@ class PerformAttackTest {
     fun hitCount_stopsWhenTargetDefeated() {
         val skill = TEST_NORMAL_ATTACK.copy(hitCount = 5)
 
-        val (after, result) = checkNotNull(field(enemyHp = 30).performAttack(1, 2, skill, Random(0)))
+        // ブレイクの被ダメージ増加が混ざらないよう、攻撃者のブレイクポイント倍率は0にしておく。
+        val f = field(enemyHp = 30).let { it.copy(allies = it.allies.map { a -> a.copy(breakPointRate = 0) }) }
+
+        val (after, result) = checkNotNull(f.performAttack(1, 2, skill, Random(0)))
 
         assertEquals(48, result.totalDamage) // 24 + 24 で30を超えたので3回目は行わない
         assertEquals(0, after.enemies[0].currentHp)
@@ -107,7 +110,7 @@ class PerformAttackTest {
     @Test
     fun areaAll_reductionAndCutoffPerTarget() {
         val f = BattleField(
-            allies = listOf(testAlly(1)),
+            allies = listOf(testAlly(1).copy(breakPointRate = 0)), // ブレイクの被ダメージ増加が混ざらないようにする。
             enemies = listOf(testEnemy(2, hp = 30), testEnemy(3, hp = 1000)),
             turnQueue = listOf(1),
         )

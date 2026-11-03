@@ -1,12 +1,14 @@
 package jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase
 
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.ActionTimeline
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.BreakFormula
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.HitChanceFormula
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.TEST_DIA
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.TEST_STEEL_BODY
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.testAlly
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.testEnemy
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleField
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BreakState
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.Character
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.CharacterDraft
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.Enemy
@@ -81,6 +83,28 @@ class AdvanceToNextBattleUseCaseTest {
         assertTrue(field.allPawns.all { it.accuracy == HitChanceFormula.BASE_RATE && it.evasion == HitChanceFormula.BASE_RATE })
         assertEquals(2, progress.current)
         assertTrue(field.currentActorFpid != null)
+    }
+
+    /** ブレイクゲージ・ブレイク耐性・ブレイクポイント倍率・ブレイク状態は持ち越さず、初期値に戻ること。 */
+    @Test
+    fun victory_resetsBreakValues() = runBlocking {
+        val broken = victoryField().let { f ->
+            f.copy(
+                allies = f.allies.map {
+                    it.copy(breakGauge = 55.5, breakResistance = 40, breakPointRate = 200, breakState = BreakState.BROKEN)
+                },
+            )
+        }
+        val repo = FakeBattleRepository(broken)
+
+        assertTrue(createUseCase(broken, FakeMapProgressRepository(), repo)())
+
+        assertTrue(
+            repo.current.allPawns.all {
+                it.breakGauge == 0.0 && it.breakResistance == BreakFormula.BASE_RESISTANCE &&
+                    it.breakPointRate == BreakFormula.BASE_BREAK_POINT_RATE && it.breakState == BreakState.NONE
+            },
+        )
     }
 
     /** 未決着・敗北時は何も変わらないこと。 */

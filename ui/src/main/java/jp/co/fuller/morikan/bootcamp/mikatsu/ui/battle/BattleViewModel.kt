@@ -15,6 +15,7 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.Formation
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.SkillResult
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.ActiveSkill
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillCostType
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.BreakFormula
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.canAfford
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.selectableTargets
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.AdvanceToNextBattleUseCase
@@ -42,6 +43,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.math.floor
 
 /** 敵の行動を開始してから攻撃を実行するまでの間(ミリ秒)。 */
 private const val ENEMY_TURN_DELAY_MS = 800L
@@ -96,8 +98,8 @@ class BattleViewModel @AssistedInject constructor(
     /** Screenが購読する画面状態。 */
     val uiState = _uiState.asStateFlow()
 
-    /** 敵の手番の演出ジョブ。二重に開始しないための目印として保持する。 */
-    private var enemyTurnJob: Job? = null
+    /** 敵の手番、またはブレイク中の個体の手番飛ばしの演出ジョブ。二重に開始しないための目印として保持する。 */
+    private var autoTurnJob: Job? = null
 
     /** 味方の攻撃・スキルの演出ジョブ。二重に開始しないための目印として保持する。 */
     private var playerActionJob: Job? = null
@@ -112,9 +114,9 @@ class BattleViewModel @AssistedInject constructor(
      */
     private var narrationSkipSignal: CompletableDeferred<Unit>? = null
 
-    /** 演出中(敵の手番または味方の攻撃・スキルのジョブが動いている間)かどうか。 */
+    /** 演出中(敵の手番・ブレイク中の手番飛ばしまたは味方の攻撃・スキルのジョブが動いている間)かどうか。 */
     private val isBusy: Boolean
-        get() = enemyTurnJob?.isActive == true || playerActionJob?.isActive == true
+        get() = autoTurnJob?.isActive == true || playerActionJob?.isActive == true
 
     init {
         viewModelScope.launch {
@@ -128,7 +130,7 @@ class BattleViewModel @AssistedInject constructor(
             val normalAttack = getNormalAttackUseCase()
             observeBattleFieldUseCase().collect { battleField ->
                 _uiState.update { battleField.reflectedIn(it, normalAttack) }
-                startEnemyTurnIfNeeded(battleField)
+                startAutoTurnIfNeeded(battleField)
             }
         }
     }
@@ -260,7 +262,7 @@ class BattleViewModel @AssistedInject constructor(
             }
             _uiState.update { it.copy(isProcessing = false, processingNarration = null) }
             playerActionJob = null
-            startEnemyTurnIfNeeded(observeBattleFieldUseCase().first())
+            startAutoTurnIfNeeded(observeBattleFieldUseCase().first())
         }
     }
 
@@ -279,10 +281,13 @@ class BattleViewModel @AssistedInject constructor(
     }
 
     /**
-     * 現在の手番が敵で、演出中でなく、勝敗も決まっていなければ、敵の手番の演出ジョブを開始する。
+     * 現在の手番が自動で進む個体(ブレイク中の個体、または敵)で、演出中でなく、勝敗も決まっていなければ、
+     * 手番の演出ジョブを開始する。
      *
      * 判断には、古くなり得るUiStateではなく、Repositoryから流れてきた最新の[field]を用いる。
-     * 流れは「演出中にする → 敵の行動のナレーション → 間 → 攻撃 → 攻撃結果のナレーションの列(1文ずつ、間を置く) →
+     * ブレイク中の個体(味方・敵とも)は行動できないため、「動けない」→「立ち上がった」のナレーションを
+     * 1文ずつ表示してから[endTurnUseCase]で手番を終える(ブレイクの状態遷移は手番の終了で`domain`が行う)。
+     * 敵の流れは「演出中にする → 敵の行動のナレーション → 間 → 攻撃 → 攻撃結果のナレーションの列(1文ずつ、間を置く) →
      * 手番終了 → 演出終了」。届く相手がいなくて攻撃できなかったときは、攻撃結果の代わりに
      * 「届かない」ナレーション([BattleNarration.EnemyCannotReach])を同じ間だけ表示してから手番を終える。
      * 各ナレーションの間は、ナレーション欄のタップ([onNarrationClick])で打ち切れる。
@@ -290,14 +295,19 @@ class BattleViewModel @AssistedInject constructor(
      *
      * @param field 判断に用いる、最新の戦闘フィールド。
      */
-    private fun startEnemyTurnIfNeeded(field: BattleField) {
+    private fun startAutoTurnIfNeeded(field: BattleField) {
         if (isBusy || field.outcome != null) return
         val actorFpid = field.currentActorFpid ?: return
+        val actor = field.allPawns.firstOrNull { it.fpid == actorFpid } ?: return
+        if (actor.isBroken) {
+            startBrokenTurnSkip(actorFpid)
+            return
+        }
         if (field.enemies.none { it.fpid == actorFpid }) return
         _uiState.update {
             it.copy(isProcessing = true, processingNarration = BattleNarration.EnemyTurn(it.nameOf(actorFpid)))
         }
-        enemyTurnJob = viewModelScope.launch {
+        autoTurnJob = viewModelScope.launch {
             waitForNarration(ENEMY_TURN_DELAY_MS)
             val result = executeEnemyTurnUseCase(actorFpid)
             val narrations = result?.let(::attackNarrations)
@@ -305,8 +315,29 @@ class BattleViewModel @AssistedInject constructor(
             narrations.forEach { showNarration(it, RESULT_DISPLAY_MS) }
             endTurnUseCase(actorFpid)
             _uiState.update { it.copy(isProcessing = false, processingNarration = null) }
-            enemyTurnJob = null
-            startEnemyTurnIfNeeded(observeBattleFieldUseCase().first())
+            autoTurnJob = null
+            startAutoTurnIfNeeded(observeBattleFieldUseCase().first())
+        }
+    }
+
+    /**
+     * ブレイク中の個体の手番を飛ばす演出ジョブを開始する。
+     *
+     * プレイヤーの操作を受け付けないよう演出中にし、「動けない」「立ち上がった」のナレーションを順に表示して
+     * から手番を終える。ブレイクの状態を進める処理は手番の終了([endTurnUseCase])の中で行われる。
+     *
+     * @param actorFpid 手番を飛ばす個体のFPID。
+     */
+    private fun startBrokenTurnSkip(actorFpid: Int) {
+        val name = _uiState.value.nameOf(actorFpid)
+        _uiState.update { it.copy(isProcessing = true, selection = BattleSelection.None) }
+        autoTurnJob = viewModelScope.launch {
+            showNarration(BattleNarration.BreakStunned(name), RESULT_DISPLAY_MS)
+            showNarration(BattleNarration.BreakRecovered(name), RESULT_DISPLAY_MS)
+            endTurnUseCase(actorFpid)
+            _uiState.update { it.copy(isProcessing = false, processingNarration = null) }
+            autoTurnJob = null
+            startAutoTurnIfNeeded(observeBattleFieldUseCase().first())
         }
     }
 
@@ -461,6 +492,8 @@ private fun BattleEnemy.toUiModel(displayName: String, isActive: Boolean) = Batt
     maxMana = enemy.mana,
     isDefeated = isDefeated,
     isActive = isActive,
+    breakGaugeFraction = floor(breakGauge).toFloat() / BreakFormula.MAX_GAUGE.toFloat(),
+    breakState = breakState,
 )
 
 /**
@@ -485,6 +518,8 @@ private fun BattleAlly.toUiModel(displayName: String, isActive: Boolean) = Battl
     maxMana = maxMp,
     isDefeated = isDefeated,
     isActive = isActive,
+    breakGaugeFraction = floor(breakGauge).toFloat() / BreakFormula.MAX_GAUGE.toFloat(),
+    breakState = breakState,
 )
 
 /**
