@@ -6,6 +6,8 @@ import kotlin.random.Random
 /**
  * クリティカルヒット(バッドクリティカルを含む)の発生判定と、ダメージ倍率の計算式を集約した唯一の実装箇所。
  *
+ * 発生判定([judge])でクリティカルかバッドクリティカルのどちらかが出たヒットだけ、倍率を求めてダメージに掛ける。
+ * ヒットの最終的な種別([CriticalType])は、どちらの判定が出たかではなく、最終的な倍率で決まる([classify])。
  * 発生率は段階([MIN_RATE_STAGE]〜[MAX_RATE_STAGE])から、分母[RATE_DENOMINATOR]に対する分子[rateNumerator]を求めて乱数で判定する。
  * 分子が正ならクリティカル、負ならバッドクリティカル(通常のクリティカルは起きない)になる。
  * 倍率は段階([MIN_DAMAGE_STAGE]〜[MAX_DAMAGE_STAGE])から求め、整数演算で切り捨てる。
@@ -40,6 +42,9 @@ object CriticalFormula {
     /** バッドクリティカルのとき倍率から差し引く値(%)。 */
     private const val BAD_CRITICAL_PENALTY = 75
 
+    /** この倍率(%)未満はバッドクリティカル、以上はクリティカルとして扱う境界。 */
+    const val CRITICAL_THRESHOLD_RATE = 100
+
     /** 倍率(%)を割合へ直すための値。 */
     private const val PERCENT = 100
 
@@ -61,14 +66,16 @@ object CriticalFormula {
     }
 
     /**
-     * 命中したヒット1つについて、クリティカルかバッドクリティカルかを判定する。
+     * 命中したヒット1つについて、クリティカルの発生判定を行う。
+     *
+     * ここで返す[CriticalType]は「どちらの判定が出たか」で、ヒットの最終的な種別ではない(最終的な種別は[classify]が倍率で決める)。
      *
      * 分子が正なら`random.nextInt(24) < 分子`でクリティカル、負なら`random.nextInt(24) < |分子|`でバッドクリティカルとする。
      * 乱数は必ず1回引く。
      *
      * @param rateStage 攻撃者のクリティカル発生率の有効段階。
      * @param random 判定の乱数。テストで結果を固定できるよう外から受け取る。
-     * @return 判定結果。
+     * @return 判定結果。クリティカルの判定、バッドクリティカルの判定、発生しない([CriticalType.NONE])のいずれか。
      */
     fun judge(rateStage: Int, random: Random): CriticalType {
         val numerator = rateNumerator(rateStage)
@@ -97,12 +104,39 @@ object CriticalFormula {
     }
 
     /**
+     * 最終的な倍率(%)から、ヒットの種別を決める。
+     *
+     * 倍率が[CRITICAL_THRESHOLD_RATE]未満なら[CriticalType.BAD_CRITICAL]、以上(ちょうど100も含む)なら[CriticalType.CRITICAL]。
+     * どちらの発生判定が出たかは問わない。
+     *
+     * @param damageRate [damageRate]で求めた最終的な倍率(%)。
+     * @return ヒットの種別。[CriticalType.NONE]にはならない。
+     */
+    fun classify(damageRate: Int): CriticalType =
+        if (damageRate < CRITICAL_THRESHOLD_RATE) CriticalType.BAD_CRITICAL else CriticalType.CRITICAL
+
+    /**
+     * 発生判定の結果と段階から、ヒットの最終的な種別を決める。
+     *
+     * 判定が出なかった(NONE)ならNONE。出ていれば[damageRate]で最終的な倍率を求め、[classify]で分類する。
+     *
+     * @param judged [judge]の判定結果。
+     * @param baseRate 基本倍率(%)。
+     * @param damageStage 攻撃者のクリティカル倍率の有効段階。
+     * @return ヒットの最終的な種別。
+     */
+    fun finalType(judged: CriticalType, baseRate: Int, damageStage: Int): CriticalType {
+        if (judged == CriticalType.NONE) return CriticalType.NONE
+        return classify(damageRate(baseRate, damageStage, isBad = judged == CriticalType.BAD_CRITICAL))
+    }
+
+    /**
      * ダメージにクリティカルの倍率を適用する。
      *
      * クリティカル・バッドクリティカルなら`max(floor(ダメージ × 倍率% / 100), 1)`(最低1)。通常ヒットはそのまま返す。
      *
      * @param damage [DamageFormula]の最終結果。
-     * @param type 判定結果。
+     * @param type [judge]の判定結果(倍率の計算にバッドクリティカルの-75を含めるかを決める)。
      * @param baseRate 基本倍率(%)。
      * @param damageStage 攻撃者のクリティカル倍率の有効段階。
      * @return 倍率適用後のダメージ。
