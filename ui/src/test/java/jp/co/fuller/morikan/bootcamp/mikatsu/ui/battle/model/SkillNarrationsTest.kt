@@ -91,4 +91,32 @@ class SkillNarrationsTest {
             result.toNarrations(nameOf),
         )
     }
+
+    /** 研ぎ澄ましは、命中率・クリティカル発生率・クリティカル倍率の3つの段階上昇の文になること。 */
+    @Test
+    fun togisumasu_threeStatChanges() {
+        val result = SkillResult(
+            1, 6, "研ぎ澄ます",
+            listOf(
+                SkillTargetResult(
+                    1, 0, true,
+                    listOf(
+                        StatChangeResult(BattleStat.ACCURACY, 1),
+                        StatChangeResult(BattleStat.CRITICAL_RATE, 1),
+                        StatChangeResult(BattleStat.CRITICAL_DAMAGE, 1),
+                    ),
+                ),
+            ),
+        )
+
+        assertEquals(
+            listOf(
+                BattleNarration.SkillUsed("味方", "研ぎ澄ます"),
+                BattleNarration.StatStageChanged("味方", BattleStat.ACCURACY, 1),
+                BattleNarration.StatStageChanged("味方", BattleStat.CRITICAL_RATE, 1),
+                BattleNarration.StatStageChanged("味方", BattleStat.CRITICAL_DAMAGE, 1),
+            ),
+            result.toNarrations(nameOf),
+        )
+    }
 }

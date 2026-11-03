@@ -204,3 +204,16 @@ val TEST_HAKI = testActiveSkill(
         ActiveSkillEffect.StatChange(BattleStat.DEFENSE, stages = -1, durationTurns = 8),
     ),
 )
+
+/** テスト用の「研ぎ澄ます」(Aスキル6・HP30とMP50・レンジ0・自分の命中率・クリティカル発生率・クリティカル倍率を+1段階ずつ永続)。マスターデータと同じ内容。 */
+val TEST_TOGISUMASU = testActiveSkill(
+    id = 6,
+    name = "研ぎ澄ます",
+    range = SkillRange.RANGE_0,
+    costs = listOf(SkillCost(SkillCostType.HP, 30), SkillCost(SkillCostType.MP, 50)),
+    effects = listOf(
+        ActiveSkillEffect.StatChange(BattleStat.ACCURACY, stages = 1, durationTurns = null),
+        ActiveSkillEffect.StatChange(BattleStat.CRITICAL_RATE, stages = 1, durationTurns = null),
+        ActiveSkillEffect.StatChange(BattleStat.CRITICAL_DAMAGE, stages = 1, durationTurns = null),
+    ),
+)

@@ -105,7 +105,7 @@ class BattleViewModelTest {
         enemyKindCount: Int = 1,
         allySlots: List<Int> = listOf(0),
         normalAttack: ActiveSkill = DEFAULT_NORMAL_ATTACK,
-        hitRandom: Random = Random(0),
+        hitRandom: Random = ScriptedRandom(),
     ): Pair<BattleViewModel, FakeBattleRepository> {
         val battleRepository = FakeBattleRepository()
         val character = Character(
@@ -979,6 +979,42 @@ class BattleViewModelTest {
     }
 
     /**
+     * 戦闘値のクリティカル発生率・倍率は常に基本値(4%・150)で、段階の変化は「ステータス変化」に出ること。
+     * 永続のバフは残りターンがnullのエントリになる。
+     */
+    @Test
+    fun detail_criticalBaseValues_andPermanentEntry() = runTest(dispatcher) {
+        val (viewModel, repository) = createViewModel()
+        advanceUntilIdle()
+        val allyFpid = repository.current.allies[0].fpid
+        repository.updateBattleField { f ->
+            f.copy(
+                allies = f.allies.map {
+                    it.copy(
+                        statModifiers = listOf(
+                            StatModifier(BattleStat.CRITICAL_RATE, 1, null),
+                            StatModifier(BattleStat.CRITICAL_DAMAGE, 2, 5),
+                        ),
+                    )
+                },
+            )
+        }
+        runCurrent()
+
+        val detail = viewModel.uiState.value.unitDetails.getValue(allyFpid)
+
+        assertEquals(4, detail.criticalRate)
+        assertEquals(150, detail.criticalDamage)
+        assertEquals(
+            listOf(
+                StatChangeDetail(BattleStat.CRITICAL_RATE, 1, listOf(StatChangeEntry(1, null))),
+                StatChangeDetail(BattleStat.CRITICAL_DAMAGE, 2, listOf(StatChangeEntry(2, 5))),
+            ),
+            detail.statChanges,
+        )
+    }
+
+    /**
      * テスト用の、通常攻撃・ディア(MP10・50回復・レンジ3・エリア全体から一体選択)・近接技・全体回復を返す[SkillRepository]。
      *
      * @property normalAttack 通常攻撃として返すスキル。
@@ -1044,7 +1080,10 @@ class BattleViewModelTest {
             rolls.addAll(values.toList())
         }
 
-        override fun nextBits(bitCount: Int): Int = error("nextDouble以外は使わない")
+        override fun nextBits(bitCount: Int): Int = error("nextDouble・nextInt(until)以外は使わない")
+
+        /** クリティカル判定。基本の発生率ではクリティカルにならない`until - 1`を返す。 */
+        override fun nextInt(until: Int): Int = until - 1
 
         override fun nextDouble(): Double = rolls.removeFirstOrNull() ?: 0.0
     }

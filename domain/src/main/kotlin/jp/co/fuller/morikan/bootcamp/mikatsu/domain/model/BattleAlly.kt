@@ -1,6 +1,7 @@
 package jp.co.fuller.morikan.bootcamp.mikatsu.domain.model
 
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.BreakFormula
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.CriticalFormula
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.ActiveSkill
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.PassiveSkill
 
@@ -23,6 +24,7 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.PassiveSkill
  * @property breakGauge ブレイクゲージ([BattleFieldPawn.breakGauge])。戦闘開始時は0で、次の戦闘へは持ち越さない。
  * @property breakResistance ブレイク耐性([BattleFieldPawn.breakResistance])。性質は[breakGauge]と同じ。
  * @property breakPointRate ブレイクポイント倍率([BattleFieldPawn.breakPointRate])。性質は[breakGauge]と同じ。
+ * @property criticalDamageRate クリティカル倍率の基本値([BattleFieldPawn.criticalDamageRate])。性質は[breakGauge]と同じ。
  * @property breakState ブレイクの状態([BattleFieldPawn.breakState])。性質は[breakGauge]と同じ。
  * @property statModifiers かけられているバフ・デバフ([BattleFieldPawn.statModifiers])。命中率・回避率の段階もここに含まれる。戦闘開始時は空で、次の戦闘へは持ち越さない。
  * @property activeSkills [Character.activeSkillIds]から解決した、使えるアクティブスキル。
@@ -39,6 +41,7 @@ data class BattleAlly(
     override val breakGauge: Double = 0.0,
     override val breakResistance: Int = BreakFormula.BASE_RESISTANCE,
     override val breakPointRate: Int = BreakFormula.BASE_BREAK_POINT_RATE,
+    override val criticalDamageRate: Int = CriticalFormula.BASE_DAMAGE_RATE,
     override val breakState: BreakState = BreakState.NONE,
     override val statModifiers: List<StatModifier> = emptyList(),
     val activeSkills: List<ActiveSkill> = emptyList(),

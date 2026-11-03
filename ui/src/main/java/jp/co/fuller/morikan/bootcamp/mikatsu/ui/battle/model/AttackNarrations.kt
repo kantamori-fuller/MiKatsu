@@ -1,6 +1,7 @@
 package jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model
 
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.AttackResult
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.CriticalType
 
 /**
  * 攻撃結果を、1文ずつ順に表示するナレーションの列へ変換する。
@@ -8,6 +9,7 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.AttackResult
  * 対象が1体で実際に行ったヒットが1回なら1文、2回以上なら1発ごとの文とまとめの文になる。
  * 全発が外れた場合は1発ごとの表示をせず「外れた」の1文だけにする。範囲攻撃(対象が2体以上)では
  * 1ヒットごとの表示はせず、開始・外れた相手のまとめ・命中した相手のまとめの順に表示する。
+ * 範囲攻撃では、ダメージの文の後に、クリティカル・バッドクリティカルが出たヒットごとに1文ずつ足す。
  * 攻撃の文の後に、そのヒットでブレイクした対象ごとに「ブレイクした」の文を、ブレイクした順に1文ずつ足す。
  * 文の組み立てをViewModelの演出の進行から切り離し、単体でテストできるようにすることを目的とする。
  *
@@ -33,10 +35,10 @@ private fun AttackResult.attackNarrations(nameOf: (Int) -> String): List<BattleN
         val shots = single.shots
         return when {
             single.isMissed -> listOf(BattleNarration.AttackMissed(attackerName, targetName))
-            shots.size == 1 -> listOf(BattleNarration.AttackResult(attackerName, targetName, single.damage))
+            shots.size == 1 -> listOf(BattleNarration.AttackResult(attackerName, targetName, single.damage, shots.single().critical))
             else -> shots.mapIndexed { index, shot ->
                 if (shot.isHit) {
-                    BattleNarration.ShotHit(shotNumber = index + 1, damage = shot.damage)
+                    BattleNarration.ShotHit(shotNumber = index + 1, damage = shot.damage, critical = shot.critical)
                 } else {
                     BattleNarration.ShotMissed(shotNumber = index + 1)
                 }
@@ -55,5 +57,14 @@ private fun AttackResult.attackNarrations(nameOf: (Int) -> String): List<BattleN
         add(BattleNarration.AreaAttackStart(attackerName))
         if (missed.isNotEmpty()) add(BattleNarration.AreaMissed(missed.map { nameOf(it.targetFpid) }))
         add(BattleNarration.AreaHit(landed.map { AreaHitEntry(nameOf(it.targetFpid), it.damage) }))
+        landed.forEach { hit ->
+            hit.shots.forEach { shot ->
+                when (shot.critical) {
+                    CriticalType.CRITICAL -> add(BattleNarration.AreaCritical(nameOf(hit.targetFpid)))
+                    CriticalType.BAD_CRITICAL -> add(BattleNarration.AreaBadCritical(nameOf(hit.targetFpid)))
+                    CriticalType.NONE -> Unit
+                }
+            }
+        }
     }
 }

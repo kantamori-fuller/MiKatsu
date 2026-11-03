@@ -3,6 +3,7 @@ package jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.AttackHit
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.AttackResult
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.AttackShot
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.CriticalType
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -49,5 +50,81 @@ class AttackNarrationsTest {
             narrations.takeLast(2),
         )
         assertEquals(BattleNarration.AreaAttackStart("味方"), narrations.first())
+    }
+
+    /** 対象1体・1ヒットのクリティカル・バッドクリティカルは、種別を持った1文になること。 */
+    @Test
+    fun single_oneShot_carriesCriticalType() {
+        val critical = AttackResult(1, listOf(AttackHit(2, listOf(AttackShot(true, 45, critical = CriticalType.CRITICAL)))))
+        val bad = AttackResult(1, listOf(AttackHit(2, listOf(AttackShot(true, 30, critical = CriticalType.BAD_CRITICAL)))))
+
+        assertEquals(
+            listOf(BattleNarration.AttackResult("味方", "ゴブリンA", 45, CriticalType.CRITICAL)),
+            critical.toNarrations(nameOf),
+        )
+        assertEquals(
+            listOf(BattleNarration.AttackResult("味方", "ゴブリンA", 30, CriticalType.BAD_CRITICAL)),
+            bad.toNarrations(nameOf),
+        )
+    }
+
+    /** 対象1体・2ヒット以上は、1発ごとの行に種別が入り、合計の行は今までどおりであること。 */
+    @Test
+    fun single_multiShot_perShotCriticalType_totalUnchanged() {
+        val result = AttackResult(
+            1,
+            listOf(
+                AttackHit(
+                    2,
+                    listOf(
+                        AttackShot(true, 45, critical = CriticalType.CRITICAL),
+                        AttackShot(true, 30, critical = CriticalType.BAD_CRITICAL),
+                        AttackShot(false, 0),
+                        AttackShot(true, 30),
+                    ),
+                ),
+            ),
+        )
+
+        assertEquals(
+            listOf(
+                BattleNarration.ShotHit(1, 45, CriticalType.CRITICAL),
+                BattleNarration.ShotHit(2, 30, CriticalType.BAD_CRITICAL),
+                BattleNarration.ShotMissed(3),
+                BattleNarration.ShotHit(4, 30),
+                BattleNarration.AttackTotal("味方", "ゴブリンA", 105, 4, 3),
+            ),
+            result.toNarrations(nameOf),
+        )
+    }
+
+    /** 範囲攻撃は、ダメージの行 → クリティカルの文(ヒットごと) → ブレイクの文の順になること。外れたヒットは出さない。 */
+    @Test
+    fun area_criticalSentences_afterDamage_beforeBroke() {
+        val result = AttackResult(
+            1,
+            listOf(
+                AttackHit(
+                    2,
+                    listOf(
+                        AttackShot(true, 45, critical = CriticalType.CRITICAL),
+                        AttackShot(true, 45, causedBreak = true, critical = CriticalType.CRITICAL),
+                    ),
+                ),
+                AttackHit(3, listOf(AttackShot(true, 18, critical = CriticalType.BAD_CRITICAL))),
+            ),
+        )
+
+        assertEquals(
+            listOf(
+                BattleNarration.AreaAttackStart("味方"),
+                BattleNarration.AreaHit(listOf(AreaHitEntry("ゴブリンA", 90), AreaHitEntry("ゴブリンB", 18))),
+                BattleNarration.AreaCritical("ゴブリンA"),
+                BattleNarration.AreaCritical("ゴブリンA"),
+                BattleNarration.AreaBadCritical("ゴブリンB"),
+                BattleNarration.Broke("ゴブリンA"),
+            ),
+            result.toNarrations(nameOf),
+        )
     }
 }

@@ -1,10 +1,10 @@
 package jp.co.fuller.morikan.bootcamp.mikatsu.domain.model
 
 /**
- * 戦闘中のバフ・デバフ(段階式の補正)の対象。基礎ステータス6種と、命中率・回避率。
+ * 戦闘中のバフ・デバフ(段階式の補正)の対象。基礎ステータス6種と、命中率・回避率・クリティカル発生率・クリティカル倍率。
  *
  * HP・MPは補正の対象にしない。基礎ステータス6種は[BattleFieldPawn.baseStat]が基礎値の対応表で、
- * [BattleFieldPawn.effectiveStat]で補正後の値を求められる。命中率・回避率は基礎値を持たず、
+ * [BattleFieldPawn.effectiveStat]で補正後の値を求められる。命中率・回避率・クリティカル関連は基礎値を持たず、
  * 段階([BattleFieldPawn.effectiveStage])だけを命中判定([jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.HitChanceFormula])が使う。
  * 倍率表も6種とは別なので、[BattleFieldPawn.effectiveStat]に渡すと例外になる。
  */
@@ -32,4 +32,10 @@ enum class BattleStat {
 
     /** 回避率。性質は[ACCURACY]と同じ。 */
     EVASION,
+
+    /** クリティカル発生率。段階は±6。値には変換せず、段階だけを[jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.CriticalFormula]が使う。 */
+    CRITICAL_RATE,
+
+    /** クリティカル倍率。段階は±12。性質は[CRITICAL_RATE]と同じ。 */
+    CRITICAL_DAMAGE,
 }

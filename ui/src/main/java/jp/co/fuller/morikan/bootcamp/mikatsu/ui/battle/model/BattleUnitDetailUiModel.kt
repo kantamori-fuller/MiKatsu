@@ -40,6 +40,8 @@ enum class BattleUnitPosition {
  * @property luck ステータスL(幸運)。
  * @property accuracy 命中率の基本値(%なしの数値)。バフ・デバフの補正は反映せず常に基本値で、補正は[statChanges]に出す。
  * @property evasion 回避率の基本値(%なしの数値)。性質は[accuracy]と同じ。
+ * @property criticalRate クリティカル発生率の基本値(%)を小数点以下切り捨てた整数。段階の補正は反映せず常に基本値。
+ * @property criticalDamage クリティカル倍率の基本値(%なしの数値)。性質は[accuracy]と同じ。
  * @property breakResistance ブレイク耐性。
  * @property breakPointRate ブレイクポイント倍率。
  * @property turnCount 行動した回数。
@@ -66,6 +68,8 @@ data class BattleUnitDetailUiModel(
     val luck: Int,
     val accuracy: Int,
     val evasion: Int,
+    val criticalRate: Int,
+    val criticalDamage: Int,
     val breakResistance: Int,
     val breakPointRate: Int,
     val turnCount: Int,
@@ -79,7 +83,7 @@ data class BattleUnitDetailUiModel(
  * 詳細ポップアップに表示する、1つのステータスにかかっているバフ・デバフの内訳。
  *
  * @property stat 対象のステータス。
- * @property totalStage 有効な段階(全エントリの合計を±12に収めた値)。+1と-1のように0になることもある。
+ * @property totalStage 有効な段階(全エントリの合計を、ステータスごとの上限(通常±12、クリティカル発生率は±6)に収めた値)。+1と-1のように0になることもある。
  * @property entries かけた分ごとの段階と残りターン。
  */
 data class StatChangeDetail(
@@ -92,9 +96,9 @@ data class StatChangeDetail(
  * バフ・デバフ1回分の段階と残りターン。
  *
  * @property stages その分の段階の増減。
- * @property remainingTurns 残りターン数。
+ * @property remainingTurns 残りターン数。`null`は永続。
  */
 data class StatChangeEntry(
     val stages: Int,
-    val remainingTurns: Int,
+    val remainingTurns: Int?,
 )

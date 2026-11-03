@@ -147,6 +147,11 @@ private fun UnitDetailContent(detail: BattleUnitDetailUiModel) {
     SectionTitle(R.string.battle_detail_section_battle_values)
     ValueRow(R.string.battle_detail_accuracy, detail.accuracy.toString())
     ValueRow(R.string.battle_detail_evasion, detail.evasion.toString())
+    ValueRow(
+        R.string.battle_detail_critical_rate,
+        stringResource(R.string.battle_detail_percent_format, detail.criticalRate),
+    )
+    ValueRow(R.string.battle_detail_critical_damage, detail.criticalDamage.toString())
     ValueRow(R.string.battle_detail_break_resistance, detail.breakResistance.toString())
     ValueRow(R.string.battle_detail_break_point_rate, detail.breakPointRate.toString())
     ValueRow(R.string.battle_detail_turn_count, detail.turnCount.toString())
@@ -245,7 +250,14 @@ private fun StatChanges(changes: List<StatChangeDetail>) {
                 stringResource(change.stat.labelRes),
                 signed(change.totalStage),
                 change.entries
-                    .map { stringResource(R.string.battle_detail_stat_change_entry, signed(it.stages), it.remainingTurns) }
+                    .map {
+                        val turns = it.remainingTurns
+                        if (turns == null) {
+                            stringResource(R.string.battle_detail_stat_change_entry_permanent, signed(it.stages))
+                        } else {
+                            stringResource(R.string.battle_detail_stat_change_entry, signed(it.stages), turns)
+                        }
+                    }
                     .joinToString(separator),
             ),
             style = MaterialTheme.typography.bodyMedium,

@@ -21,7 +21,7 @@ import javax.inject.Inject
 /**
  * [SkillRepository]の暫定実装。スキル一覧(`data/スキル一覧.xlsx`)を書き写した固定のマスターデータを返す。
  *
- * スキルIDはアクティブ・パッシブで独立して採番する(Aスキル1=通常攻撃、Aスキル2=ディア、Aスキル3=精神一到、Aスキル4=覇気、Pスキル1=鋼の体)。
+ * スキルIDはアクティブ・パッシブで独立して採番する(Aスキル1=通常攻撃、Aスキル2=ディア、Aスキル3=精神一到、Aスキル4=覇気、Aスキル6=研ぎ澄ます、Pスキル1=鋼の体。Aスキル5は欠番)。
  * 同じ数値でも種別が違えば別のスキルなので、IDは必ず種別とセットで扱う。
  * 通常攻撃(Aスキル1)は全キャラクター・全敵が標準で持つため、設定可能な一覧や設定済みスキルの解決には含めない。
  *
@@ -153,6 +153,29 @@ class SkillRepositoryImpl @Inject constructor() : SkillRepository {
                     ActiveSkillEffect.StatChange(BattleStat.DEFENSE, stages = -1, durationTurns = 8),
                 ),
                 targetSide = SkillTargetSide.ENEMY,
+            ),
+            // 研ぎ澄ます: 使用者自身の命中率・クリティカル発生率・クリティカル倍率を永続で上げるバフ(レンジ0)。HPも消費する
+            ActiveSkill(
+                id = 6,
+                name = "研ぎ澄ます",
+                element = SkillElement.NONE,
+                categories = setOf(SkillCategory.BUFF),
+                physicalAttribute = null,
+                costs = listOf(SkillCost(SkillCostType.HP, 30), SkillCost(SkillCostType.MP, 50)),
+                coolTime = 0,
+                contactType = SkillContactType.NON_CONTACT,
+                range = SkillRange.RANGE_0,
+                area = SkillArea.SINGLE,
+                targetSelection = SkillTargetSelection.ONE,
+                basePower = null,
+                activationCount = 1,
+                accuracy = null,
+                effects = listOf(
+                    ActiveSkillEffect.StatChange(BattleStat.ACCURACY, stages = 1, durationTurns = null),
+                    ActiveSkillEffect.StatChange(BattleStat.CRITICAL_RATE, stages = 1, durationTurns = null),
+                    ActiveSkillEffect.StatChange(BattleStat.CRITICAL_DAMAGE, stages = 1, durationTurns = null),
+                ),
+                targetSide = SkillTargetSide.ALLY,
             ),
         )
 
