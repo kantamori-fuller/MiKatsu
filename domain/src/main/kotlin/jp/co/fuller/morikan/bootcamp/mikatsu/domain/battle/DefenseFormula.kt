@@ -53,6 +53,7 @@ object DefenseFormula {
  *
  * 使用者が現在の行動者ではない、味方ではない、戦闘不能である、ブレイク中で行動できない、
  * または勝敗が決まっている場合は防御できないため`null`を返す。
+ * 成立した瞬間に、使用者はTP([TacticalPointFormula.DEFEND_TP])を得る。
  * 手番の終了はここでは行わず、呼び出し側が[endTurn]で行う。使用者はFPIDで指定する。
  *
  * @receiver 防御前の戦闘フィールド。
@@ -68,7 +69,7 @@ fun BattleField.defend(actorFpid: Int): BattleField? {
         fpid = actorFpid,
         transformAlly = { it.copy(isDefending = true) },
         transformEnemy = { it.copy(isDefending = true) },
-    )
+    ).gainTp(actorFpid, TacticalPointFormula.DEFEND_TP)
 }
 
 /**

@@ -1,6 +1,7 @@
 package jp.co.fuller.morikan.bootcamp.mikatsu.domain.model
 
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.StatStageFormula
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.TacticalPointFormula
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.PassiveSkill
 
 /**
@@ -81,6 +82,16 @@ sealed interface BattleFieldPawn {
      * 戦闘中だけの値で、戦闘ごとに`false`から始まり、次の戦闘へは持ち越さない。
      */
     val isDefending: Boolean
+
+    /**
+     * 現在のTP(タクティカルポイント)。0〜[maxTp]の整数で、攻撃・手番の開始・防御などで増え、
+     * 100を超えた分は捨てる([jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.TacticalPointFormula])。
+     * 味方・敵のどちらも持つ。味方は次の戦闘へ持ち越し、敵は戦闘ごとに0から始まる。
+     */
+    val currentTp: Int
+
+    /** 最大TP。全個体共通の固定値([jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.TacticalPointFormula.MAX_TP])。 */
+    val maxTp: Int get() = TacticalPointFormula.MAX_TP
 
     /** ブレイクの状態。[BreakState.BROKEN]の間は行動できず、被ダメージ増加と被必中の効果を受ける。 */
     val breakState: BreakState

@@ -49,6 +49,7 @@ sealed interface BattleNarration {
      * @property damage 与えたダメージ量。
      * @property critical そのヒットのクリティカルの種別。通常は[CriticalType.NONE]。
      * @property isCriticalBlocked 対象の防御でクリティカルを防いだか。`true`のとき[critical]は[CriticalType.NONE]。
+     * @property skillName 通常攻撃以外の技名。`null`なら「攻撃」と表示する。
      */
     data class AttackResult(
         val attackerName: String,
@@ -56,6 +57,7 @@ sealed interface BattleNarration {
         val damage: Int,
         val critical: CriticalType = CriticalType.NONE,
         val isCriticalBlocked: Boolean = false,
+        val skillName: String? = null,
     ) : BattleNarration
 
     /**
@@ -63,10 +65,12 @@ sealed interface BattleNarration {
      *
      * @property attackerName 攻撃した個体の表示名。
      * @property targetName 攻撃を外した相手の表示名。
+     * @property skillName 通常攻撃以外の技名。`null`なら「攻撃」と表示する。
      */
     data class AttackMissed(
         val attackerName: String,
         val targetName: String,
+        val skillName: String? = null,
     ) : BattleNarration
 
     /**
@@ -112,15 +116,17 @@ sealed interface BattleNarration {
      * 範囲攻撃(対象が複数)の開始を伝える。
      *
      * @property attackerName 攻撃した個体の表示名。
+     * @property skillName 通常攻撃以外の技名。`null`なら「攻撃」と表示する。
      */
-    data class AreaAttackStart(val attackerName: String) : BattleNarration
+    data class AreaAttackStart(val attackerName: String, val skillName: String? = null) : BattleNarration
 
     /**
      * 範囲攻撃が全員に全発外れたことを伝える。
      *
      * @property attackerName 攻撃した個体の表示名。
+     * @property skillName 通常攻撃以外の技名。`null`なら「攻撃」と表示する。
      */
-    data class AreaAttackAllMissed(val attackerName: String) : BattleNarration
+    data class AreaAttackAllMissed(val attackerName: String, val skillName: String? = null) : BattleNarration
 
     /**
      * 範囲攻撃で、全発が外れた相手をまとめて伝える。

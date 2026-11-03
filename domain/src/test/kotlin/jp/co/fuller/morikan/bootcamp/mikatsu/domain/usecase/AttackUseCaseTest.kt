@@ -32,7 +32,14 @@ class AttackUseCaseTest {
         val result = useCase(attackerFpid = 1, targetFpid = 2)
 
         val field = repository.current
-        assertEquals(AttackResult(attackerFpid = 1, hits = listOf(AttackHit(targetFpid = 2, shots = listOf(AttackShot(isHit = true, damage = 24))))), result)
+        assertEquals(AttackResult(
+                attackerFpid = 1,
+                hits = listOf(AttackHit(targetFpid = 2, shots = listOf(AttackShot(isHit = true, damage = 24)))),
+                skillId = TEST_NORMAL_ATTACK.id,
+                skillName = TEST_NORMAL_ATTACK.name,
+            ),
+            result,
+        )
         assertEquals(26, field.enemies[0].currentHp)
         assertEquals(50, field.enemies[1].currentHp)
         assertEquals(100, field.allies[0].currentHp)

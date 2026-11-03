@@ -11,13 +11,17 @@ import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import jp.co.fuller.morikan.bootcamp.mikatsu.core.theme.MiKatsuTheme
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.Formation
 
 /** 陣形の1マスの角丸形状。マスの枠線とクリップの双方で同じ形状を用いる。 */
@@ -97,4 +101,20 @@ internal fun FormationSlotFrame(
         contentAlignment = Alignment.Center,
         content = content,
     )
+}
+
+/** 2×3の陣形の表に、スロット番号を入れた枠を並べた状態を確認するためのPreview。 */
+@Preview(showBackground = true, name = "陣形の表")
+@Composable
+private fun FormationGridPreview() {
+    MiKatsuTheme(darkTheme = false) {
+        FormationGrid(
+            slotContent = { slot, slotModifier ->
+                FormationSlotFrame(modifier = slotModifier, highlighted = slot == 1) {
+                    Text("スロット$slot")
+                }
+            },
+            modifier = Modifier.padding(16.dp),
+        )
+    }
 }

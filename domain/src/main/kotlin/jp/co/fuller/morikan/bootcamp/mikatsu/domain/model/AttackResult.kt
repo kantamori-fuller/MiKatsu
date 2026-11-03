@@ -9,14 +9,27 @@ package jp.co.fuller.morikan.bootcamp.mikatsu.domain.model
  *
  * @property attackerFpid 攻撃した個体のFPID。
  * @property hits 攻撃を受けた個体ごとの結果。1体以上で、攻撃を受けた順に並ぶ。
+ * @property skillId 攻撃に使ったアクティブスキルのID。通常攻撃は[NORMAL_ATTACK_SKILL_ID]。
+ * @property skillName 攻撃に使ったスキルの名前。ナレーションで通常攻撃以外の技名を示すために使う。
  */
 data class AttackResult(
     val attackerFpid: Int,
     val hits: List<AttackHit>,
+    val skillId: Int = NORMAL_ATTACK_SKILL_ID,
+    val skillName: String = "",
 ) {
+    /** 通常攻撃で使ったか(技名ではなく「攻撃!」と表示する対象か)。 */
+    val isNormalAttack: Boolean
+        get() = skillId == NORMAL_ATTACK_SKILL_ID
+
     /** 全対象に与えたダメージの合計。 */
     val totalDamage: Int
         get() = hits.sumOf { it.damage }
+
+    companion object {
+        /** 通常攻撃(Aスキル1)のスキルID。 */
+        const val NORMAL_ATTACK_SKILL_ID = 1
+    }
 }
 
 /**

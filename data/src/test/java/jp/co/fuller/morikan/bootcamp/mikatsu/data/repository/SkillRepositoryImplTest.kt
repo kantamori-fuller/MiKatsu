@@ -2,6 +2,7 @@ package jp.co.fuller.morikan.bootcamp.mikatsu.data.repository
 
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleStat
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.ActiveSkillEffect
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.PhysicalAttribute
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillArea
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillCategory
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillContactType
@@ -97,7 +98,7 @@ class SkillRepositoryImplTest {
         assertTrue(repository.getActiveSkills().any { it.id == 4 })
     }
 
-    /** 研ぎ澄ます(Aスキル6)が仕様どおりのデータで、設定可能な一覧に出ること。ID5は欠番。 */
+    /** 研ぎ澄ます(Aスキル6)が仕様どおりのデータで、設定可能な一覧に出ること。 */
     @Test
     fun togisumasu_matchesSpec() = runBlocking {
         val skill = checkNotNull(repository.getActiveSkill(6))
@@ -125,6 +126,28 @@ class SkillRepositoryImplTest {
         )
         assertEquals(SkillTargetSide.ALLY, skill.targetSide)
         assertTrue(repository.getActiveSkills().any { it.id == 6 })
-        assertNull(repository.getActiveSkill(5))
+    }
+
+    /** ローリング・ソバット(Aスキル5)が仕様どおりのデータで、設定可能な一覧に出ること。 */
+    @Test
+    fun rollingSobat_matchesSpec() = runBlocking {
+        val skill = checkNotNull(repository.getActiveSkill(5))
+
+        assertEquals("ローリング・ソバット", skill.name)
+        assertEquals(SkillElement.NONE, skill.element)
+        assertEquals(setOf(SkillCategory.PHYSICAL_ATTACK), skill.categories)
+        assertEquals(PhysicalAttribute.IMPACT, skill.physicalAttribute)
+        assertEquals(listOf(SkillCost(SkillCostType.TP, 40)), skill.costs)
+        assertEquals(0, skill.coolTime)
+        assertEquals(SkillContactType.CONTACT, skill.contactType)
+        assertEquals(SkillRange.RANGE_1, skill.range)
+        assertEquals(SkillArea.SINGLE, skill.area)
+        assertEquals(SkillTargetSelection.ONE, skill.targetSelection)
+        assertEquals(150, skill.basePower)
+        assertEquals(1, skill.activationCount)
+        assertEquals(90, skill.accuracy)
+        assertEquals(emptyList<ActiveSkillEffect>(), skill.effects)
+        assertEquals(SkillTargetSide.ENEMY, skill.targetSide)
+        assertTrue(repository.getActiveSkills().any { it.id == 5 })
     }
 }

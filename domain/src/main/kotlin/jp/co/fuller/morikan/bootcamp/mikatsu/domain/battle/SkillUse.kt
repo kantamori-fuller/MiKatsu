@@ -4,6 +4,7 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleAlly
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleField
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleStat
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.SkillResult
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.SkillUseResult
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.SkillTargetResult
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.StatChangeResult
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.ActiveSkill
@@ -18,7 +19,7 @@ import kotlin.random.Random
  * 次のいずれかに当てはまる場合はスキルを使えないため`null`を返す。
  * - 使用者が現在の行動者ではない、味方ではない、戦闘不能である、またはブレイク中で行動できない。
  * - 使用者がそのスキルを設定していない。
- * - コストを支払えない([canAfford])。
+ * - コスト(MP・HP・TP)を支払えない([canAfford])。
  * - 選んだ対象が選べない個体である(レンジ外・陣営違い・戦闘不能・存在しない。[selectableTargets]を参照)。
  * - 基礎威力を持つ(ダメージを与える)スキル。この適用は未対応で、
  *   通常攻撃は[performAttack]で行う(将来、攻撃スキルもここへ統合する)。
@@ -30,6 +31,8 @@ import kotlin.random.Random
  * 回復は最大HPで頭打ちになり、戦闘不能の個体は対象に含まれないため蘇生しない。
  * ステータス変化は対象に新しいエントリとして記録し、段階の上限で頭打ちでも記録する。
  * 発動回数が2以上でも効果の適用は1回のままである。
+ * 最後に、全対象の処理が終わった後で、使用者・対象のTPをまとめて加算する([settleTp])。使用者は1体以上に命中したときだけ
+ * 1回受け取り(攻撃技ではないので倍率なし)、避けた対象は18〜22を受け取る。乱数は命中判定がすべて終わった後で、使用者→対象の順に引く。
  * 手番の終了はここでは行わない。使用者・対象はいずれもFPIDで指定し、スキルはアクティブスキルのID
  * (アクティブ採番のマスターデータのID)で指定する。
  *
@@ -54,13 +57,8 @@ fun BattleField.performSkill(
     if (!actor.canAfford(skill)) return null
     val targets = resolveTargets(actorFpid, skill, targetFpid) ?: return null
 
-    val mpCost = skill.costOf(SkillCostType.MP)
-    val hpCost = skill.costOf(SkillCostType.HP)
-    var field = updatePawn(
-        fpid = actorFpid,
-        transformAlly = { it.copy(currentMp = it.currentMp - mpCost, currentHp = it.currentHp - hpCost) },
-        transformEnemy = { it },
-    )
+    var field = spendCosts(actorFpid, skill)
+    val tpTargets = mutableListOf<TpTargetReport>()
     val results = targets.map { target ->
         // 途中の効果で状態が変わり得るため、命中判定には対象の最新の状態を使う。
         val current = checkNotNull(field.allPawns.firstOrNull { it.fpid == target.fpid })
@@ -71,7 +69,11 @@ fun BattleField.performSkill(
             random = random,
             isTargetGuaranteedHit = current.isBroken,
         )
-        if (!isHit) return@map SkillTargetResult(targetFpid = target.fpid, healedAmount = 0, isHit = false)
+        if (!isHit) {
+            tpTargets += TpTargetReport(fpid = target.fpid, evaded = true)
+            return@map SkillTargetResult(targetFpid = target.fpid, healedAmount = 0, isHit = false)
+        }
+        tpTargets += TpTargetReport(fpid = target.fpid)
         var healedTotal = 0
         val statChanges = mutableListOf<StatChangeResult>()
         skill.effects.forEach { effect ->
@@ -95,6 +97,13 @@ fun BattleField.performSkill(
         }
         SkillTargetResult(targetFpid = target.fpid, healedAmount = healedTotal, statChanges = statChanges)
     }
+    field = field.settleTp(
+        actorFpid = actorFpid,
+        skill = skill,
+        user = TpUserReport(isHit = results.any { it.isHit }),
+        targets = tpTargets,
+        random = random,
+    )
     return field to SkillResult(
         actorFpid = actorFpid,
         skillId = skill.id,
@@ -104,9 +113,62 @@ fun BattleField.performSkill(
 }
 
 /**
+ * 現在の行動者の味方によるアクティブスキルの使用を、ダメージの有無に関わらず1つの入口として実行する。
+ *
+ * 基礎威力を持つ(ダメージを与える)スキルは[performAttack]の流れ(命中・ダメージ・クリティカル・ブレイク・防御・軽減とコスト消費)で、
+ * それ以外は[performSkill]で実行する。使用者が味方であること・スキルを設定済みであることをここで確認する
+ * (使えない条件は[performSkill]と同じ)。手番の終了は行わない。
+ *
+ * @receiver スキル使用前の戦闘フィールド。
+ * @param actorFpid スキルを使う個体のFPID。
+ * @param skillId 使うスキルのID。
+ * @param targetFpid 選んだ対象(アンカー)のFPID。
+ * @param random 判定の乱数。
+ * @return 使用後の戦闘フィールドと結果の組。使えない場合は`null`。
+ */
+fun BattleField.performActiveSkill(
+    actorFpid: Int,
+    skillId: Int,
+    targetFpid: Int,
+    random: Random,
+): Pair<BattleField, SkillUseResult>? {
+    val actor = allies.firstOrNull { it.fpid == actorFpid } ?: return null
+    val skill = actor.activeSkills.firstOrNull { it.id == skillId } ?: return null
+    if (skill.basePower == null) {
+        return performSkill(actorFpid, skillId, targetFpid, random)?.let { (field, result) ->
+            field to SkillUseResult.Effect(result)
+        }
+    }
+    return performAttack(actorFpid, targetFpid, skill, random)?.let { (field, result) ->
+        field to SkillUseResult.Attack(result)
+    }
+}
+
+/**
+ * 使用者のスキルのコスト(MP・HP・TP)を消費した[BattleField]を返す。味方でなければ何も消費しない。
+ *
+ * 支払えるかの確認は呼び出し側([canAfford])が行う。外れても戻さない。
+ *
+ * @receiver 消費前の戦闘フィールド。
+ * @param actorFpid 使用者のFPID。
+ * @param skill 使うスキル。
+ * @return コストを消費した戦闘フィールド。
+ */
+internal fun BattleField.spendCosts(actorFpid: Int, skill: ActiveSkill): BattleField {
+    val mpCost = skill.costOf(SkillCostType.MP)
+    val hpCost = skill.costOf(SkillCostType.HP)
+    val tpCost = skill.costOf(SkillCostType.TP)
+    return updatePawn(
+        fpid = actorFpid,
+        transformAlly = { it.copy(currentMp = it.currentMp - mpCost, currentHp = it.currentHp - hpCost, currentTp = it.currentTp - tpCost) },
+        transformEnemy = { it },
+    )
+}
+
+/**
  * 味方が、スキルのすべてのコストを支払えるかどうかを返す。
  *
- * MPは現在MPがコスト以上であること、HPは消費後も現在HPが1以上残る(HPが0以下になるコストは払えない)ことを条件とする。
+ * MPは現在MPがコスト以上、TPは現在TPがコスト以上であること、HPは消費後も現在HPが1以上残る(HPが0以下になるコストは払えない)ことを条件とする。
  * 戦闘画面のスキル一覧の使用可否表示と、[performSkill]の判定が同じ基準になるよう公開している。
  *
  * @receiver スキルを使おうとする味方。
@@ -114,4 +176,6 @@ fun BattleField.performSkill(
  * @return すべてのコストを支払えるなら`true`。
  */
 fun BattleAlly.canAfford(skill: ActiveSkill): Boolean =
-    currentMp >= skill.costOf(SkillCostType.MP) && currentHp - skill.costOf(SkillCostType.HP) > 0
+    currentMp >= skill.costOf(SkillCostType.MP) &&
+        currentTp >= skill.costOf(SkillCostType.TP) &&
+        currentHp - skill.costOf(SkillCostType.HP) > 0

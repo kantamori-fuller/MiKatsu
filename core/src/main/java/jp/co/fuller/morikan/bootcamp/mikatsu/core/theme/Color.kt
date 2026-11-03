@@ -23,5 +23,8 @@ val Pink40 = Color(0xFF7D5260)
 /** ブレイクゲージのバーに用いる黄色。バトル画面のカードで、HP・MPのバーと並べて表示する。 */
 val BreakGaugeYellow = Color(0xFFFFD600)
 
+/** TP(タクティカルポイント)のゲージに用いるオレンジ。バトル画面のカードと詳細ポップアップで、TPの円ゲージ・バーに使う。 */
+val TacticalPointOrange = Color(0xFFFF9800)
+
 /** 選択済み状態を表す共通カラー。編成画面の選択アイコンなどに用いる。 */
 val SelectionGreen = Color(0xFF4CAF50)

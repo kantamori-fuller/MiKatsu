@@ -12,7 +12,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import jp.co.fuller.morikan.bootcamp.mikatsu.core.theme.MiKatsuTheme
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.R
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.charactercreate.model.SkillUiModel
 
@@ -63,5 +65,30 @@ internal fun SkillSection(
         OutlinedButton(onClick = onAddClick, enabled = canAdd, modifier = Modifier.fillMaxWidth()) {
             Text(stringResource(R.string.action_add_skill))
         }
+    }
+}
+
+/** スキルが未設定の状態を確認するためのPreview。 */
+@Preview(showBackground = true, name = "スキル欄(未設定)")
+@Composable
+private fun SkillSectionEmptyPreview() {
+    MiKatsuTheme(darkTheme = false) {
+        SkillSection(
+            title = "Aスキル", skills = emptyList(), maxCount = 8, canAdd = true,
+            onAddClick = {}, onRemoveClick = {},
+        )
+    }
+}
+
+/** スキルが設定済みで、上限に達して追加できない状態を確認するためのPreview。 */
+@Preview(showBackground = true, name = "スキル欄(上限)")
+@Composable
+private fun SkillSectionFullPreview() {
+    MiKatsuTheme(darkTheme = false) {
+        SkillSection(
+            title = "Pスキル",
+            skills = listOf(SkillUiModel(1, "鋼の体"), SkillUiModel(2, "ディア")),
+            maxCount = 2, canAdd = false, onAddClick = {}, onRemoveClick = {},
+        )
     }
 }

@@ -24,8 +24,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import jp.co.fuller.morikan.bootcamp.mikatsu.core.theme.BreakGaugeYellow
+import jp.co.fuller.morikan.bootcamp.mikatsu.core.theme.MiKatsuTheme
+import jp.co.fuller.morikan.bootcamp.mikatsu.core.theme.TacticalPointOrange
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.ActionTimeline
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.BreakFormula
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BreakState
@@ -33,6 +36,7 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.ui.R
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleUnitDetailUiModel
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.StatChangeDetail
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.labelRes
+import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.previewUnitDetail
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleUnitPosition
 
 /** 裏の戦闘画面にかける黒いフェードの不透明度。 */
@@ -119,6 +123,11 @@ private fun UnitDetailContent(detail: BattleUnitDetailUiModel) {
         text = stringResource(R.string.battle_mp_format, detail.mp, detail.maxMp),
         progress = detail.mp.toFloat() / detail.maxMp.coerceAtLeast(1),
         color = MaterialTheme.colorScheme.tertiary,
+    )
+    GaugeRow(
+        text = stringResource(R.string.battle_tp_format, detail.tp, detail.maxTp),
+        progress = detail.tp.toFloat() / detail.maxTp.coerceAtLeast(1),
+        color = TacticalPointOrange,
     )
     GaugeRow(
         text = stringResource(R.string.battle_bg_format, detail.breakGauge, BreakFormula.MAX_GAUGE.toInt()),
@@ -275,3 +284,31 @@ private fun StatChanges(changes: List<StatChangeDetail>) {
  * @return 「+2」「-1」のような文字列。
  */
 private fun signed(stage: Int): String = if (stage >= 0) "+$stage" else stage.toString()
+
+/** ステータス変化・防御中・スキルを含む詳細ポップアップを確認するためのPreview。 */
+@Preview(showBackground = true, name = "詳細ポップアップ(変化あり)")
+@Composable
+private fun UnitDetailPopupPreview() {
+    MiKatsuTheme(darkTheme = false) {
+        UnitDetailPopup(detail = previewUnitDetail(), onDismiss = {})
+    }
+}
+
+/** ステータス変化もスキルもなく、ブレイク中・後衛(前衛扱い)の詳細ポップアップを確認するためのPreview。 */
+@Preview(showBackground = true, name = "詳細ポップアップ(変化なし・ブレイク中)")
+@Composable
+private fun UnitDetailPopupBrokenPreview() {
+    MiKatsuTheme(darkTheme = false) {
+        UnitDetailPopup(
+            detail = previewUnitDetail().copy(
+                breakState = BreakState.BROKEN,
+                position = BattleUnitPosition.BACK_AS_FRONT,
+                isDefending = false,
+                statChanges = emptyList(),
+                activeSkillNames = emptyList(),
+                passiveSkillNames = emptyList(),
+            ),
+            onDismiss = {},
+        )
+    }
+}

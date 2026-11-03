@@ -12,6 +12,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import jp.co.fuller.morikan.bootcamp.mikatsu.core.theme.MiKatsuTheme
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -62,5 +64,14 @@ fun MainMenuScreen(
                 Text(stringResource(R.string.menu_action_party_formation))
             }
         }
+    }
+}
+
+/** メインメニュー画面の表示を確認するためのPreview。 */
+@Preview(showBackground = true, name = "メインメニュー")
+@Composable
+private fun MainMenuScreenPreview() {
+    MiKatsuTheme(darkTheme = false) {
+        MainMenuScreen(onCreateCharacter = {}, onShowCharacterList = {}, onShowPartyFormation = {})
     }
 }

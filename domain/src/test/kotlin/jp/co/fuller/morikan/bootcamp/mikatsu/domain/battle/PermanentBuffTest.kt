@@ -55,6 +55,11 @@ class PermanentBuffTest {
     fun togisumasu_addsThreePermanentEntries_andPaysCosts() {
         val noDraw = object : Random() {
             override fun nextBits(bitCount: Int): Int = error("乱数を引いてはいけない")
+
+            // 命中判定(nextDouble)は引かない。TPの獲得量(nextInt(until))だけは引いてよい。
+            override fun nextDouble(): Double = error("命中判定の乱数を引いてはいけない")
+
+            override fun nextInt(until: Int): Int = until - 1
         }
 
         val (after, result) = checkNotNull(field().performSkill(1, TEST_TOGISUMASU.id, 1, noDraw))

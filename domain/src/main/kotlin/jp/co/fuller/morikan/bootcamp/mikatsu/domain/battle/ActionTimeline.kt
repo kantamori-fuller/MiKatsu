@@ -43,7 +43,9 @@ private fun BattleFieldPawn.timeToTurn(): Double = remainingDistance / ActionSpe
  *    最小値と同時とみなせる個体を幸運値の高い順(同値の中はランダム)に並べて手番とする。
  *
  * 新たに現在の行動者になった個体(キューの先頭)の防御状態は、どちらの経路でもここで解除する([releaseDefense])。
- * 一度決めた順番は[BattleField.turnQueue]に保存されるため、再度呼んでもくじは引き直さない。
+ * 現在の行動者が決まったところで、その個体に手番開始のTP(6〜8)を加える([gainTurnStartTp])。ブレイクで自動的に飛ばされる手番でも受け取る。
+ * 乱数は同時手番のくじの後に引く。勝敗が決まっていれば加えない。
+ * 一度決めた順番は[BattleField.turnQueue]に保存されるため、再度呼んでもくじは引き直さない(ただし新しい手番として呼ぶたびにTPは加わるため、1回の手番につき1回だけ呼ぶこと)。
  *
  * @receiver 更新前の戦闘フィールド。
  * @param random 幸運値が同じ個体の順番を決めるための乱数。
@@ -54,7 +56,10 @@ fun BattleField.advanceToNextTurn(random: Random): BattleField {
 
     val aliveFpids = allPawns.filterNot { it.isDefeated }.map { it.fpid }.toSet()
     val remainingQueue = turnQueue.filter { it in aliveFpids }
-    if (remainingQueue.isNotEmpty()) return copy(turnQueue = remainingQueue).releaseDefense(remainingQueue.first())
+    if (remainingQueue.isNotEmpty()) {
+        val actor = remainingQueue.first()
+        return copy(turnQueue = remainingQueue).releaseDefense(actor).gainTurnStartTp(actor, random)
+    }
 
     val alive = allPawns.filterNot { it.isDefeated }
     val minTime = alive.minOf { it.timeToTurn() }
@@ -80,7 +85,8 @@ fun BattleField.advanceToNextTurn(random: Random): BattleField {
         .toSortedMap(compareByDescending { it })
         .values
         .flatMap { group -> group.map { it.fpid }.shuffled(random) }
-    return advanced.copy(turnQueue = queue).releaseDefense(queue.first())
+    // 手番開始のTPは、同時手番のくじ(shuffle)の後に引く。
+    return advanced.copy(turnQueue = queue).releaseDefense(queue.first()).gainTurnStartTp(queue.first(), random)
 }
 
 /**

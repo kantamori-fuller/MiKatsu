@@ -9,7 +9,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import jp.co.fuller.morikan.bootcamp.mikatsu.core.theme.MiKatsuTheme
 
 /**
  * ステータス入力用の1行のテキストフィールド。
@@ -31,4 +33,13 @@ internal fun StatField(label: String, value: String, onValueChange: (String) -> 
         modifier = Modifier.fillMaxWidth(),
     )
     Spacer(Modifier.height(8.dp))
+}
+
+/** ステータス入力欄の表示を確認するためのPreview。 */
+@Preview(showBackground = true, name = "ステータス入力欄")
+@Composable
+private fun StatFieldPreview() {
+    MiKatsuTheme(darkTheme = false) {
+        StatField(label = "H. 体力", value = "120", onValueChange = {})
+    }
 }
