@@ -6,10 +6,13 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -17,6 +20,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -54,15 +58,17 @@ private const val SELECTABLE_BLINK_DURATION_MS = 700
  * [onClick]を指定した場合はタップ可能なカードとなり、[isSelected]が`true`のときは
  * 選択中(手番中の個体)であることを示す枠線を表示する。[isSelectable]が`true`のとき(いま選べる相手)は、
  * それより太く目立つ色で点滅する枠線を表示し、[isSelected]の枠線よりも優先する。
- * [onClick]が`null`の場合はタップできない表示専用のカードとなる。
- * [BattleUnitUiModel.isDefeated]のときは半透明にしてグレーアウトし、[onClick]があってもタップできない。
+ * [onClick]が`null`の場合はタップしても何も起きない。[BattleUnitUiModel.isDefeated]のときは半透明にしてグレーアウトし、
+ * [onClick]があってもタップしても何も起きない。[onLongClick]は、戦闘不能や選べない状態に関わらず長押しで呼ばれる。
  *
  * @param unit 表示する敵またはキャラクターの状態。
  * @param modifier このComposableに適用する[Modifier]。
  * @param isSelected 選択中(手番中の個体)として強調表示するかどうか。
  * @param isSelectable 行動の対象として選べる相手として、点滅する太い枠線で強調表示するかどうか。
  * @param onClick カードがタップされたときに呼ばれるコールバック。タップ不可にする場合は`null`。
+ * @param onLongClick カードが長押しされたときに呼ばれるコールバック。長押しを受け付けない場合は`null`。
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun UnitStatCard(
     unit: BattleUnitUiModel,
@@ -70,6 +76,7 @@ internal fun UnitStatCard(
     isSelected: Boolean = false,
     isSelectable: Boolean = false,
     onClick: (() -> Unit)? = null,
+    onLongClick: (() -> Unit)? = null,
 ) {
     val border = when {
         isSelectable -> BorderStroke(SELECTABLE_BORDER_WIDTH, SELECTABLE_BORDER_COLOR.copy(alpha = rememberBlinkAlpha()))
@@ -77,14 +84,17 @@ internal fun UnitStatCard(
         else -> null
     }
     val cardModifier = if (unit.isDefeated) modifier.alpha(DEFEATED_ALPHA) else modifier
-    if (onClick != null && !unit.isDefeated) {
-        Card(onClick = onClick, modifier = cardModifier, border = border) {
-            UnitStatContent(unit)
-        }
-    } else {
-        Card(modifier = cardModifier, border = border) {
-            UnitStatContent(unit)
-        }
+    val isTappable = onClick != null && !unit.isDefeated
+    Card(
+        modifier = cardModifier
+            .clip(CardDefaults.shape)
+            .combinedClickable(
+                onClick = { if (isTappable) onClick?.invoke() },
+                onLongClick = onLongClick,
+            ),
+        border = border,
+    ) {
+        UnitStatContent(unit)
     }
 }
 

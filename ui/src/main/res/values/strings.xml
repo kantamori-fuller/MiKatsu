@@ -77,4 +77,19 @@
     <string name="battle_break_state_recovering">立ち上がり</string>
     <string name="battle_hp_format">HP %1$d/%2$d</string>
     <string name="battle_mp_format">MP %1$d/%2$d</string>
+    <string name="battle_bg_format">BG %1$d/%2$d</string>
+    <string name="battle_position_front">前衛</string>
+    <string name="battle_position_back">後衛</string>
+    <string name="battle_position_back_as_front">後衛(前衛扱い)</string>
+    <string name="battle_detail_section_status">ステータス</string>
+    <string name="battle_detail_section_battle_values">戦闘値</string>
+    <string name="battle_detail_accuracy">命中率</string>
+    <string name="battle_detail_evasion">回避率</string>
+    <string name="battle_detail_break_resistance">ブレイク耐性</string>
+    <string name="battle_detail_break_point_rate">ブレイクポイント倍率</string>
+    <string name="battle_detail_turn_count">行動回数</string>
+    <string name="battle_detail_remaining_distance">次の手番まで</string>
+    <string name="battle_detail_distance_format">%1$d / %2$d</string>
+    <string name="battle_detail_skill_none">なし</string>
+    <string name="battle_detail_skill_separator">、</string>
 </resources>

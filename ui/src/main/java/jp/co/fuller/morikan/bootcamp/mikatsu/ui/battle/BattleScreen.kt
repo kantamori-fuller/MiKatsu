@@ -36,6 +36,7 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.Formation
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.R
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.components.FormationGrid
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.components.FormationSlotFrame
+import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.components.UnitDetailPopup
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.components.UnitStatCard
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleNarration
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleSelection
@@ -62,6 +63,7 @@ private val SKILL_LIST_MAX_HEIGHT = 160.dp
  * 点滅する太い枠線で強調され、敵・味方どちらのカードでもタップできる(それ以外のカードはタップできない)。戦闘不能のカードはグレーアウトされる。勝敗が決まると
  * 画面全体に結果を重ねて表示する。勝利時は「次に進む」ボタンで[BattleViewModel.onNextBattleClick]を呼び、
  * 敗北時はオーバーレイのタップで[onDefeat]を呼ぶ。敵カードの下の空きには進行度を表示する。
+ * カードを長押しすると[UnitDetailPopup]で個体の詳細を重ねて表示する。
  * 他の画面と異なりトップバーは表示しない。
  *
  * @param viewModel この画面に対応する[BattleViewModel]。
@@ -93,6 +95,7 @@ fun BattleScreen(
                         enemySlots = uiState.enemySlots,
                         selectableTargetIds = uiState.selectableTargetIds,
                         onEnemyClick = viewModel::onEnemyClick,
+                        onEnemyLongClick = viewModel::onUnitLongPress,
                     )
                     Spacer(Modifier.weight(1f))
                     Text(
@@ -132,6 +135,7 @@ fun BattleScreen(
                                 } else {
                                     null
                                 },
+                                onLongClick = { viewModel.onUnitLongPress(member.id) },
                             )
                         } else {
                             FormationSlotFrame(modifier = slotModifier)
@@ -181,6 +185,9 @@ fun BattleScreen(
                     }
                 }
             }
+        }
+        uiState.unitDetail?.let { detail ->
+            UnitDetailPopup(detail = detail, onDismiss = viewModel::onUnitDetailDismiss)
         }
         uiState.outcome?.let { outcome ->
             BattleOutcomeOverlay(
@@ -292,6 +299,7 @@ private fun BattleOutcomeOverlay(
  * @param enemySlots スロット番号ごとの敵。敵のいないマスは`null`。要素数は[Formation.SLOT_COUNT]。
  * @param selectableTargetIds いま選べる対象のFPID。
  * @param onEnemyClick 敵のカードがタップされたときに呼ばれるコールバック(引数はタップされた敵のFPID)。
+ * @param onEnemyLongClick 敵のカードが長押しされたときに呼ばれるコールバック(引数は長押しされた敵のFPID)。
  * @param modifier このComposableに適用する[Modifier]。
  */
 @Composable
@@ -299,6 +307,7 @@ private fun EnemyGrid(
     enemySlots: List<BattleUnitUiModel?>,
     selectableTargetIds: Set<Int>,
     onEnemyClick: (Int) -> Unit,
+    onEnemyLongClick: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     // 画面の上から順に後衛(最後の行)、前衛(最初の行)とする。味方側と同じ表で並べて幅・間隔を揃える。
@@ -320,6 +329,7 @@ private fun EnemyGrid(
                     } else {
                         null
                     },
+                    onLongClick = { onEnemyLongClick(enemy.id) },
                 )
             } else {
                 Spacer(slotModifier)

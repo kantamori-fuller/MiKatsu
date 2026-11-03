@@ -103,6 +103,8 @@ sealed interface BattleSelection {
  * @property attackTargetIds 通常攻撃で選べる対象のFPID。手番が味方でなければ空。
  * @property outcome 戦闘の勝敗。決着がついていなければ`null`。
  * @property progress マップの進行度(今いる戦闘が何戦目か)。最初は1。
+ * @property unitDetails 全個体の詳細。FPIDから[BattleUnitDetailUiModel]への対応表で、戦闘フィールドの更新のたびに組み立て直す。
+ * @property detailUnitId 詳細ポップアップを開いている個体のFPID。開いていなければ`null`。
  * @property processingNarration 演出中だけ表示する一時的なナレーション(敵の行動・攻撃結果)。
  *   それ以外のナレーションは状態から算出する。
  */
@@ -118,7 +120,13 @@ data class BattleUiState(
     val outcome: BattleOutcome? = null,
     val processingNarration: BattleNarration? = null,
     val progress: Int = 1,
+    val unitDetails: Map<Int, BattleUnitDetailUiModel> = emptyMap(),
+    val detailUnitId: Int? = null,
 ) {
+    /** 詳細ポップアップに表示する個体の詳細。開いていなければ`null`。 */
+    val unitDetail: BattleUnitDetailUiModel?
+        get() = detailUnitId?.let(unitDetails::get)
+
     /** プレイヤーが入力できる状態(プレイヤーの手番・演出中でない・勝敗未決)かどうか。 */
     private val isInputAcceptable: Boolean
         get() = isPlayerTurn && !isProcessing && outcome == null
