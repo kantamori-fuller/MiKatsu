@@ -39,6 +39,7 @@ sealed interface Skill {
  * @property targetSelection 対象選択(列「対象選択」)。一体選択か、範囲内の全て対象か。
  * @property basePower 基礎威力(列「基礎威力」)。ダメージを与えないスキルは`null`。
  * @property hitCount 攻撃回数(列「攻撃回数」)。「2回」なら2。
+ * @property accuracy 命中率(列「命中率」)。0〜100の整数。空欄(命中が関係しない)は`null`で、必中を表し命中判定をしない。
  * @property effects 効果(列「効果」)。「なし」は空リスト。
  * @property targetSide 対象にする陣営。シートにはまだない列(詳細は[SkillTargetSide])。
  */
@@ -56,6 +57,7 @@ data class ActiveSkill(
     val targetSelection: SkillTargetSelection,
     val basePower: Int?,
     val hitCount: Int = 1,
+    val accuracy: Int?,
     val effects: List<ActiveSkillEffect>,
     val targetSide: SkillTargetSide,
 ) : Skill {

@@ -1,6 +1,7 @@
 package jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase
 
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.ActionTimeline
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.HitChanceFormula
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.TEST_DIA
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.TEST_STEEL_BODY
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.testAlly
@@ -49,7 +50,7 @@ class AdvanceToNextBattleUseCaseTest {
     /** 勝利した戦闘のフィールド。味方2は戦闘不能で、味方1は一部ダメージを受けており、敵は全滅している。 */
     private fun victoryField() = BattleField(
         allies = listOf(
-            testAlly(1).copy(character = characters[0], slot = 0, currentHp = 40, currentMp = 30, turnCount = 3, remainingDistance = 123.0),
+            testAlly(1).copy(character = characters[0], slot = 0, currentHp = 40, currentMp = 30, turnCount = 3, remainingDistance = 123.0, accuracy = 130, evasion = 70),
             testAlly(2).copy(character = characters[1], slot = 3, currentHp = 0, currentMp = 0, turnCount = 2, remainingDistance = 456.0),
         ),
         enemies = listOf(testEnemy(3).copy(currentHp = 0), testEnemy(4).copy(currentHp = 0)),
@@ -76,6 +77,8 @@ class AdvanceToNextBattleUseCaseTest {
         assertTrue(field.enemies.all { it.turnCount == 0 })
         assertTrue(field.allies.all { it.turnCount == 0 })
         assertTrue(field.allPawns.all { it.remainingDistance <= ActionTimeline.BASE_DISTANCE })
+        // 命中率・回避率は持ち越さず、基本値に戻る。
+        assertTrue(field.allPawns.all { it.accuracy == HitChanceFormula.BASE_RATE && it.evasion == HitChanceFormula.BASE_RATE })
         assertEquals(2, progress.current)
         assertTrue(field.currentActorFpid != null)
     }

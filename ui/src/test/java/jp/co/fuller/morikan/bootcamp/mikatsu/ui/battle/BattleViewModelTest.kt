@@ -35,6 +35,7 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.GetBattleFieldUseCas
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.GetNormalAttackUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.ObserveBattleFieldUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.StartBattleUseCase
+import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.AreaHitEntry
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleNarration
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -88,6 +89,7 @@ class BattleViewModelTest {
      * @param enemyKindCount 登場させる敵種の数。敵は1種につき2体ずつ出現するため、2種なら4体になり4体目が後衛(スロット3)に並ぶ。
      * @param allySlots 味方(すべて同じキャラクター)を配置する陣形のスロット番号(0〜2が前衛、3〜5が後衛)。
      * @param normalAttack 通常攻撃として使うスキル。
+     * @param hitRandom 命中判定に使う乱数(味方・敵の通常攻撃で共通)。
      * @return ViewModelと戦闘状態のRepository。
      */
     private fun createViewModel(
@@ -97,6 +99,7 @@ class BattleViewModelTest {
         enemyKindCount: Int = 1,
         allySlots: List<Int> = listOf(0),
         normalAttack: ActiveSkill = DEFAULT_NORMAL_ATTACK,
+        hitRandom: Random = Random(0),
     ): Pair<BattleViewModel, FakeBattleRepository> {
         val battleRepository = FakeBattleRepository()
         val character = Character(
@@ -115,10 +118,10 @@ class BattleViewModelTest {
             formation = Formation(List(Formation.SLOT_COUNT) { if (it in allySlots) 1 else null }),
             startBattleUseCase = StartBattleUseCase(getBattleFieldUseCase, battleRepository, mapProgressRepository, random),
             observeBattleFieldUseCase = ObserveBattleFieldUseCase(battleRepository),
-            attackUseCase = AttackUseCase(battleRepository, FakeSkillRepository(normalAttack)),
+            attackUseCase = AttackUseCase(battleRepository, FakeSkillRepository(normalAttack), hitRandom),
             getNormalAttackUseCase = GetNormalAttackUseCase(FakeSkillRepository(normalAttack)),
             useSkillUseCase = UseSkillUseCase(battleRepository),
-            executeEnemyTurnUseCase = ExecuteEnemyTurnUseCase(battleRepository, FakeSkillRepository(normalAttack), RandomEnemyTargetSelector(random)),
+            executeEnemyTurnUseCase = ExecuteEnemyTurnUseCase(battleRepository, FakeSkillRepository(normalAttack), RandomEnemyTargetSelector(random), hitRandom),
             endTurnUseCase = EndTurnUseCase(battleRepository, random),
             observeMapProgressUseCase = ObserveMapProgressUseCase(mapProgressRepository),
             advanceToNextBattleUseCase = AdvanceToNextBattleUseCase(
@@ -418,7 +421,7 @@ class BattleViewModelTest {
         assertNotEquals(BattleSelection.SkillTarget(FAR_STRIKE_ID), viewModel.uiState.value.selection)
     }
 
-    /** 範囲(全て対象)の通常攻撃は複数対象のナレーションになり、全員にダメージが入ること。 */
+    /** 範囲(全て対象)の通常攻撃は「Aの攻撃!」から始まる複数対象のナレーションになり、全員にダメージが入ること。 */
     @Test
     fun areaAttack_showsMultiTargetNarration() = runTest(dispatcher) {
         val areaAttack = DEFAULT_NORMAL_ATTACK.copy(area = SkillArea.AREA, targetSelection = SkillTargetSelection.ALL)
@@ -429,8 +432,223 @@ class BattleViewModelTest {
         viewModel.onEnemyClick(repository.current.enemies[0].fpid)
         runCurrent()
 
-        assertEquals(BattleNarration.MultiAttackResult("味方", 2, 48), viewModel.uiState.value.narration)
+        assertEquals(BattleNarration.AreaAttackStart("味方"), viewModel.uiState.value.narration)
+        advanceTimeBy(RESULT_MS)
+        runCurrent()
+        assertEquals(
+            BattleNarration.AreaHit(listOf(AreaHitEntry("ゴブリンA", 24), AreaHitEntry("ゴブリンB", 24))),
+            viewModel.uiState.value.narration,
+        )
         assertEquals(listOf(976, 976), repository.current.enemies.map { it.currentHp })
+    }
+
+    /** 対象1体・1回攻撃が外れると「しかし外れた!」の1文だけになり、HPは減らず、1文のあと手番が終わること。 */
+    @Test
+    fun singleTarget_oneShot_miss() = runTest(dispatcher) {
+        val rolls = ScriptedRandom()
+        val (viewModel, repository) = createViewModel(normalAttack = DEFAULT_NORMAL_ATTACK.copy(accuracy = 90), hitRandom = rolls)
+        advanceUntilIdle()
+        rolls.queue(0.95)
+
+        viewModel.onAttackClick()
+        viewModel.onEnemyClick(repository.current.enemies[0].fpid)
+        runCurrent()
+
+        assertEquals(BattleNarration.AttackMissed("味方", "ゴブリンA"), viewModel.uiState.value.narration)
+        assertEquals(1000, repository.current.enemies[0].currentHp)
+        assertEquals(0, repository.current.allies[0].turnCount)
+        advanceTimeBy(RESULT_MS)
+        runCurrent()
+        assertEquals(1, repository.current.allies[0].turnCount)
+    }
+
+    /** 対象1体・2回攻撃で1発目が当たり2発目が外れると、1発ごとの文とまとめの文が順に並ぶこと。 */
+    @Test
+    fun singleTarget_twoShots_hitThenMiss_showsEachShotAndTotal() = runTest(dispatcher) {
+        val rolls = ScriptedRandom()
+        val (viewModel, repository) = createViewModel(
+            normalAttack = DEFAULT_NORMAL_ATTACK.copy(accuracy = 90, hitCount = 2),
+            hitRandom = rolls,
+        )
+        advanceUntilIdle()
+        rolls.queue(0.5, 0.95)
+
+        viewModel.onAttackClick()
+        viewModel.onEnemyClick(repository.current.enemies[0].fpid)
+        runCurrent()
+
+        assertEquals(BattleNarration.ShotHit(1, 24), viewModel.uiState.value.narration)
+        advanceTimeBy(RESULT_MS)
+        runCurrent()
+        assertEquals(BattleNarration.ShotMissed(2), viewModel.uiState.value.narration)
+        advanceTimeBy(RESULT_MS)
+        runCurrent()
+        assertEquals(BattleNarration.AttackTotal("味方", "ゴブリンA", 24, 2, 1), viewModel.uiState.value.narration)
+        assertEquals(976, repository.current.enemies[0].currentHp)
+    }
+
+    /** 対象1体・2回攻撃が全発外れると、1発ごとの表示をせず「しかし外れた!」の1文だけになること。 */
+    @Test
+    fun singleTarget_twoShots_allMiss_isSingleMissSentence() = runTest(dispatcher) {
+        val rolls = ScriptedRandom()
+        val (viewModel, repository) = createViewModel(
+            normalAttack = DEFAULT_NORMAL_ATTACK.copy(accuracy = 90, hitCount = 2),
+            hitRandom = rolls,
+        )
+        advanceUntilIdle()
+        rolls.queue(0.95, 0.95)
+
+        viewModel.onAttackClick()
+        viewModel.onEnemyClick(repository.current.enemies[0].fpid)
+        runCurrent()
+        assertEquals(BattleNarration.AttackMissed("味方", "ゴブリンA"), viewModel.uiState.value.narration)
+        advanceTimeBy(RESULT_MS)
+        runCurrent()
+
+        assertEquals(1, repository.current.allies[0].turnCount)
+    }
+
+    /** 範囲攻撃で一部が外れると、開始・外れた相手のまとめ・命中した相手のまとめの順に表示されること。 */
+    @Test
+    fun area_someMiss_showsStartMissedAndHit() = runTest(dispatcher) {
+        val rolls = ScriptedRandom()
+        val area = DEFAULT_NORMAL_ATTACK.copy(
+            area = SkillArea.AREA, targetSelection = SkillTargetSelection.ALL, accuracy = 90,
+        )
+        val (viewModel, repository) = createViewModel(normalAttack = area, hitRandom = rolls)
+        advanceUntilIdle()
+        rolls.queue(0.95, 0.5)
+
+        viewModel.onAttackClick()
+        viewModel.onEnemyClick(repository.current.enemies[0].fpid)
+        runCurrent()
+
+        val seen = mutableListOf(viewModel.uiState.value.narration)
+        repeat(2) {
+            advanceTimeBy(RESULT_MS)
+            runCurrent()
+            seen += viewModel.uiState.value.narration
+        }
+        assertEquals(
+            listOf(
+                BattleNarration.AreaAttackStart("味方"),
+                BattleNarration.AreaMissed(listOf("ゴブリンA")),
+                BattleNarration.AreaHit(listOf(AreaHitEntry("ゴブリンB", 24))),
+            ),
+            seen,
+        )
+    }
+
+    /** 範囲攻撃が全員に外れると「Aの攻撃! しかし外れた!」の1文だけになること。 */
+    @Test
+    fun area_allMiss_isSingleSentence() = runTest(dispatcher) {
+        val rolls = ScriptedRandom()
+        val area = DEFAULT_NORMAL_ATTACK.copy(
+            area = SkillArea.AREA, targetSelection = SkillTargetSelection.ALL, accuracy = 90,
+        )
+        val (viewModel, repository) = createViewModel(normalAttack = area, hitRandom = rolls)
+        advanceUntilIdle()
+        rolls.queue(0.95, 0.95)
+
+        viewModel.onAttackClick()
+        viewModel.onEnemyClick(repository.current.enemies[0].fpid)
+        runCurrent()
+        assertEquals(BattleNarration.AreaAttackAllMissed("味方"), viewModel.uiState.value.narration)
+        advanceTimeBy(RESULT_MS)
+        runCurrent()
+
+        assertEquals(1, repository.current.allies[0].turnCount)
+    }
+
+    /** ナレーション欄のタップで、待ちを打ち切って次の文へ進み、最後の文なら手番を終えること。 */
+    @Test
+    fun narrationTap_advancesToNextSentence_andEndsTurnAfterLast() = runTest(dispatcher) {
+        val rolls = ScriptedRandom()
+        val (viewModel, repository) = createViewModel(
+            normalAttack = DEFAULT_NORMAL_ATTACK.copy(accuracy = 90, hitCount = 2),
+            hitRandom = rolls,
+        )
+        advanceUntilIdle()
+        rolls.queue(0.5, 0.95)
+        viewModel.onAttackClick()
+        viewModel.onEnemyClick(repository.current.enemies[0].fpid)
+        runCurrent()
+        assertEquals(BattleNarration.ShotHit(1, 24), viewModel.uiState.value.narration)
+
+        viewModel.onNarrationClick()
+        runCurrent()
+        assertEquals(BattleNarration.ShotMissed(2), viewModel.uiState.value.narration)
+        viewModel.onNarrationClick()
+        runCurrent()
+        assertEquals(BattleNarration.AttackTotal("味方", "ゴブリンA", 24, 2, 1), viewModel.uiState.value.narration)
+        assertEquals(0, repository.current.allies[0].turnCount)
+
+        viewModel.onNarrationClick()
+        runCurrent()
+        assertEquals(1, repository.current.allies[0].turnCount)
+    }
+
+    /** 待っていない間のタップは捨てられ、次に表示される文が飛ばされないこと。1回のタップで進むのは1文だけであること。 */
+    @Test
+    fun narrationTap_whenNotWaiting_isDiscarded_andOneTapAdvancesOneSentence() = runTest(dispatcher) {
+        val rolls = ScriptedRandom()
+        val (viewModel, repository) = createViewModel(
+            normalAttack = DEFAULT_NORMAL_ATTACK.copy(accuracy = 90, hitCount = 2),
+            hitRandom = rolls,
+        )
+        advanceUntilIdle()
+        val selectAction = viewModel.uiState.value.narration
+        viewModel.onNarrationClick() // 演出中でない: 何も起きない
+        runCurrent()
+        assertEquals(selectAction, viewModel.uiState.value.narration)
+
+        rolls.queue(0.5, 0.95)
+        viewModel.onAttackClick()
+        viewModel.onEnemyClick(repository.current.enemies[0].fpid)
+        viewModel.onNarrationClick() // 演出ジョブが文を表示する前のタップは捨てられる
+        runCurrent()
+        assertEquals(BattleNarration.ShotHit(1, 24), viewModel.uiState.value.narration)
+
+        viewModel.onNarrationClick()
+        viewModel.onNarrationClick() // 同時の2回目は同じ文の待ちに対するもので、無視される
+        runCurrent()
+        assertEquals(BattleNarration.ShotMissed(2), viewModel.uiState.value.narration)
+    }
+
+    /** 最後の文で何度タップしても、手番の終了は1回だけであること。 */
+    @Test
+    fun narrationTap_repeatedOnLastSentence_endsTurnOnce() = runTest(dispatcher) {
+        val (viewModel, repository) = createViewModel()
+        advanceUntilIdle()
+        viewModel.onAttackClick()
+        viewModel.onEnemyClick(repository.current.enemies[0].fpid)
+        runCurrent()
+        assertEquals(BattleNarration.AttackResult("味方", "ゴブリンA", 24), viewModel.uiState.value.narration)
+
+        repeat(5) { viewModel.onNarrationClick() }
+        runCurrent()
+
+        assertEquals(1, repository.current.allies[0].turnCount)
+        // 敵の手番が連鎖し、連打したタップは敵の演出を飛ばさない(敵の行動の文が表示されている)。
+        assertEquals(BattleNarration.EnemyTurn("ゴブリンA"), viewModel.uiState.value.narration)
+        advanceUntilIdle()
+        assertEquals(1, repository.current.allies[0].turnCount)
+        assertTrue(viewModel.uiState.value.isPlayerTurn) // 敵の手番を終えて、次は味方の手番に戻る
+    }
+
+    /** 敵の手番の「◯◯の行動」もタップで打ち切られ、すぐ攻撃が実行されること。 */
+    @Test
+    fun narrationTap_skipsEnemyTurnIntro() = runTest(dispatcher) {
+        val (viewModel, repository) = createViewModel()
+        runCurrent()
+        assertEquals(BattleNarration.EnemyTurn("ゴブリンA"), viewModel.uiState.value.narration)
+        assertEquals(1000, repository.current.allies[0].currentHp)
+
+        viewModel.onNarrationClick()
+        runCurrent()
+
+        assertEquals(1000 - 24, repository.current.allies[0].currentHp)
+        assertEquals(BattleNarration.AttackResult("ゴブリンA", "味方", 24), viewModel.uiState.value.narration)
     }
 
     /** 全て対象の回復スキルは、味方全員に効き、複数対象のナレーションになること。 */
@@ -526,6 +744,9 @@ class BattleViewModelTest {
 
     /** テスト用の定数をまとめたcompanion。 */
     private companion object {
+        /** 結果の各文を表示する時間(ミリ秒。ViewModelの定数と同じ)。 */
+        const val RESULT_MS = 1200L
+
         /** レンジ1・敵対象の、ダメージなしの近接スキル(後衛からは届かない)のID。 */
         const val FAR_STRIKE_ID = 3
 
@@ -536,6 +757,27 @@ class BattleViewModelTest {
         val DEFAULT_NORMAL_ATTACK = testActiveSkill(
             id = 1, name = "通常攻撃", targetSide = SkillTargetSide.ENEMY, basePower = 100,
         )
+    }
+
+    /**
+     * 命中判定の乱数を、積んだ値の順に返すテスト用の乱数。積んでいない間は0.0(命中率が1以上なら必ず当たり)を返す。
+     * 敵の手番など、結果を気にしない判定を必ず当たりにしておき、確認したい判定の直前に値を積むために使う。
+     */
+    private class ScriptedRandom : Random() {
+        private val rolls = ArrayDeque<Double>()
+
+        /**
+         * 以降の判定で順に返す値を積む。
+         *
+         * @param values 返す値(0.0以上1.0未満)。
+         */
+        fun queue(vararg values: Double) {
+            rolls.addAll(values.toList())
+        }
+
+        override fun nextBits(bitCount: Int): Int = error("nextDouble以外は使わない")
+
+        override fun nextDouble(): Double = rolls.removeFirstOrNull() ?: 0.0
     }
 
     /** テスト用の、1体のキャラクターだけを返す[CharacterRepository]。 */

@@ -4,6 +4,7 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.performAttack
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.AttackResult
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.repository.BattleRepository
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.repository.SkillRepository
+import kotlin.random.Random
 
 /**
  * 味方の通常攻撃を実行し、対象の現在HPを減らすUseCase。
@@ -16,10 +17,12 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.repository.SkillRepository
  *
  * @property battleRepository 戦闘状態を保持するRepository。
  * @property skillRepository 通常攻撃のスキルデータを提供するRepository。
+ * @property random 命中判定の乱数。
  */
 class AttackUseCase(
     private val battleRepository: BattleRepository,
     private val skillRepository: SkillRepository,
+    private val random: Random,
 ) {
 
     /**
@@ -37,7 +40,7 @@ class AttackUseCase(
         val normalAttack = skillRepository.getNormalAttack()
         var result: AttackResult? = null
         battleRepository.updateBattleField { field ->
-            val attack = field.performAttack(attackerFpid, targetFpid, normalAttack)
+            val attack = field.performAttack(attackerFpid, targetFpid, normalAttack, random)
             result = attack?.second
             attack?.first ?: field
         }

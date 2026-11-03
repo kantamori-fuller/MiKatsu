@@ -4,6 +4,7 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleField
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillTargetSide
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import kotlin.random.Random
 
 /** パッシブスキル(鋼の体)によるダメージ軽減が、通常攻撃の最終ダメージに正しく適用されることを検証するテスト。 */
 class DamageReductionTest {
@@ -16,7 +17,7 @@ class DamageReductionTest {
     fun noPassive_damageUnchanged() {
         val field = BattleField(listOf(testAlly(1)), listOf(testEnemy(2)), turnQueue = listOf(2))
 
-        val (_, result) = checkNotNull(field.performAttack(2, 1, TEST_NORMAL_ATTACK))
+        val (_, result) = checkNotNull(field.performAttack(2, 1, TEST_NORMAL_ATTACK, Random(0)))
 
         assertEquals(baseDamage, result.totalDamage)
     }
@@ -30,7 +31,7 @@ class DamageReductionTest {
             turnQueue = listOf(2),
         )
         // 攻撃300・耐久100: 300*100*11/(100*50)+2 = 68
-        val (after, result) = checkNotNull(field.performAttack(2, 1, TEST_NORMAL_ATTACK))
+        val (after, result) = checkNotNull(field.performAttack(2, 1, TEST_NORMAL_ATTACK, Random(0)))
 
         assertEquals(48, result.totalDamage)
         assertEquals(100 - 48, after.allies[0].currentHp)
@@ -45,7 +46,7 @@ class DamageReductionTest {
             turnQueue = listOf(1),
         )
 
-        val (_, result) = checkNotNull(field.performAttack(1, 2, TEST_NORMAL_ATTACK.copy(targetSide = SkillTargetSide.ALLY)))
+        val (_, result) = checkNotNull(field.performAttack(1, 2, TEST_NORMAL_ATTACK.copy(targetSide = SkillTargetSide.ALLY), Random(0)))
 
         assertEquals(48, result.totalDamage)
     }
@@ -59,7 +60,7 @@ class DamageReductionTest {
             turnQueue = listOf(2),
         )
 
-        val (_, result) = checkNotNull(field.performAttack(2, 1, TEST_NORMAL_ATTACK))
+        val (_, result) = checkNotNull(field.performAttack(2, 1, TEST_NORMAL_ATTACK, Random(0)))
 
         assertEquals(1, result.totalDamage)
     }
@@ -73,7 +74,7 @@ class DamageReductionTest {
             turnQueue = listOf(1),
         )
 
-        val (_, result) = checkNotNull(field.performAttack(1, 2, TEST_NORMAL_ATTACK))
+        val (_, result) = checkNotNull(field.performAttack(1, 2, TEST_NORMAL_ATTACK, Random(0)))
 
         assertEquals(68, result.totalDamage)
     }

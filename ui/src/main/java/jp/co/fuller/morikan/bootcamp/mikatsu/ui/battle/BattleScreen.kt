@@ -2,6 +2,7 @@ package jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,6 +23,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -109,7 +111,13 @@ fun BattleScreen(
                 Text(
                     text = uiState.narration?.toText().orEmpty(),
                     style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = viewModel::onNarrationClick,
+                        ),
                     textAlign = TextAlign.Center,
                 )
                 Spacer(Modifier.height(16.dp))
@@ -350,8 +358,23 @@ private fun BattleNarration.toText(): String = when (this) {
         stringResource(R.string.battle_narration_attack_result, attackerName, targetName, damage)
     is BattleNarration.SkillResult ->
         stringResource(R.string.battle_narration_skill_result, actorName, targetName, skillName, healedAmount)
-    is BattleNarration.MultiAttackResult ->
-        stringResource(R.string.battle_narration_multi_attack_result, attackerName, targetCount, totalDamage)
+    is BattleNarration.AttackMissed -> stringResource(R.string.battle_narration_attack_missed, attackerName, targetName)
+    is BattleNarration.ShotHit -> stringResource(R.string.battle_narration_shot_hit, shotNumber, damage)
+    is BattleNarration.ShotMissed -> stringResource(R.string.battle_narration_shot_missed, shotNumber)
+    is BattleNarration.AttackTotal ->
+        stringResource(R.string.battle_narration_attack_total, attackerName, targetName, totalDamage, shotCount, hitCount)
+    is BattleNarration.AreaAttackStart -> stringResource(R.string.battle_narration_area_attack_start, attackerName)
+    is BattleNarration.AreaAttackAllMissed -> stringResource(R.string.battle_narration_area_attack_all_missed, attackerName)
+    is BattleNarration.AreaMissed -> stringResource(
+        R.string.battle_narration_area_missed,
+        targetNames.joinToString(stringResource(R.string.battle_narration_area_missed_separator)),
+    )
+    is BattleNarration.AreaHit -> stringResource(
+        R.string.battle_narration_area_hit,
+        entries
+            .map { stringResource(R.string.battle_narration_area_hit_entry, it.targetName, it.damage) }
+            .joinToString(stringResource(R.string.battle_narration_area_hit_separator)),
+    )
     is BattleNarration.MultiSkillResult ->
         stringResource(R.string.battle_narration_multi_skill_result, actorName, skillName, targetCount, totalHealed)
 }

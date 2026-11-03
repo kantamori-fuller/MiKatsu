@@ -4,12 +4,14 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.TEST_NORMAL_ATTACK
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.testAlly
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.testEnemy
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.AttackHit
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.AttackShot
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.AttackResult
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleField
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import kotlin.random.Random
 
 /** [AttackUseCase]が手番の個体だけの攻撃を受け付け、指定したFPIDの個体にだけダメージを与えることを検証するテスト。 */
 class AttackUseCaseTest {
@@ -22,7 +24,7 @@ class AttackUseCaseTest {
             turnQueue = listOf(1),
         ),
     )
-    private val useCase = AttackUseCase(repository, FakeSkillRepository())
+    private val useCase = AttackUseCase(repository, FakeSkillRepository(), Random(0))
 
     /** 対象のHPだけが減り、味方のHPは変わらず、結果が返ること。 */
     @Test
@@ -30,7 +32,7 @@ class AttackUseCaseTest {
         val result = useCase(attackerFpid = 1, targetFpid = 2)
 
         val field = repository.current
-        assertEquals(AttackResult(attackerFpid = 1, hits = listOf(AttackHit(targetFpid = 2, damage = 24))), result)
+        assertEquals(AttackResult(attackerFpid = 1, hits = listOf(AttackHit(targetFpid = 2, shots = listOf(AttackShot(isHit = true, damage = 24))))), result)
         assertEquals(26, field.enemies[0].currentHp)
         assertEquals(50, field.enemies[1].currentHp)
         assertEquals(100, field.allies[0].currentHp)
@@ -77,7 +79,7 @@ class AttackUseCaseTest {
         )
         val repo = FakeBattleRepository(field)
 
-        assertNull(AttackUseCase(repo, FakeSkillRepository())(attackerFpid = 1, targetFpid = 2))
+        assertNull(AttackUseCase(repo, FakeSkillRepository(), Random(0))(attackerFpid = 1, targetFpid = 2))
 
         assertEquals(field, repo.current)
     }
@@ -87,7 +89,7 @@ class AttackUseCaseTest {
     fun invoke_usesNormalAttackHitCount() = runBlocking {
         val skills = FakeSkillRepository(TEST_NORMAL_ATTACK.copy(hitCount = 2))
 
-        val result = AttackUseCase(repository, skills)(attackerFpid = 1, targetFpid = 2)
+        val result = AttackUseCase(repository, skills, Random(0))(attackerFpid = 1, targetFpid = 2)
 
         assertEquals(48, result?.totalDamage)
         assertEquals(2, repository.current.enemies[0].currentHp)

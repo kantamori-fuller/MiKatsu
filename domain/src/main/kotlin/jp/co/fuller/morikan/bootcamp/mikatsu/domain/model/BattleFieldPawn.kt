@@ -39,6 +39,15 @@ sealed interface BattleFieldPawn {
     val luck: Int
 
     /**
+     * 命中率。基本値は[jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.HitChanceFormula.BASE_RATE]で、戦闘ごとにその値から始まる。
+     * 将来のバフ・デバフで加減算される戦闘中だけの値で、保存データやマスターデータには持たない。
+     */
+    val accuracy: Int
+
+    /** 回避率。基本値と性質は[accuracy]と同じ。 */
+    val evasion: Int
+
+    /**
      * 次の手番までに進む必要がある残り距離。開始時と行動後は
      * [jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.ActionTimeline.BASE_DISTANCE]に戻る。
      *
