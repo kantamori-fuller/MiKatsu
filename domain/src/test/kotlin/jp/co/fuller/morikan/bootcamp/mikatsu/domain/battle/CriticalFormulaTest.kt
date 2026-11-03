@@ -23,6 +23,8 @@ class CriticalRandom(private val criticalRoll: Int = 23, vararg hitRolls: Double
     override fun nextBits(bitCount: Int): Int = error("nextDouble・nextInt(until)以外は使わない")
 
     override fun nextInt(until: Int): Int {
+        // TP(タクティカルポイント)の獲得量を引く乱数(範囲の幅が24以外)はクリティカル判定として数えず、範囲内の最大値を返す。
+        if (until != CriticalFormula.RATE_DENOMINATOR) return until - 1
         criticalDraws++
         return criticalRoll
     }

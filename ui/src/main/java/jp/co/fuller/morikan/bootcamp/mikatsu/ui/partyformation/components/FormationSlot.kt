@@ -1,10 +1,15 @@
 package jp.co.fuller.morikan.bootcamp.mikatsu.ui.partyformation.components
 
 import androidx.compose.foundation.draganddrop.dragAndDropTarget
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.Row
+import jp.co.fuller.morikan.bootcamp.mikatsu.core.theme.MiKatsuTheme
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -99,3 +104,26 @@ internal fun FormationSlot(
         )
     }
 }
+
+/** 空きマスと配置済みマスの表示を確認するためのPreview。 */
+@Preview(showBackground = true, name = "陣形のマス(空/配置済み)")
+@Composable
+private fun FormationSlotPreview() {
+    MiKatsuTheme(darkTheme = false) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(16.dp)) {
+            FormationSlot(character = null, onDrop = {}, onClick = {}, modifier = Modifier.width(112.dp))
+            FormationSlot(
+                character = previewCharacter(),
+                onDrop = {},
+                onClick = {},
+                modifier = Modifier.width(112.dp),
+            )
+        }
+    }
+}
+
+/** Previewで配置済みマスに表示するダミーのキャラクターを返す。 */
+private fun previewCharacter() = Character(
+    id = 1, name = "アリス", hp = 120, mana = 50, attack = 30, defense = 20,
+    manaOutput = 10, manaResistance = 10, agility = 25, luck = 5,
+)

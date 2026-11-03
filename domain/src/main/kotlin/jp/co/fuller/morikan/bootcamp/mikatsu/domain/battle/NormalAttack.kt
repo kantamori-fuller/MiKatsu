@@ -3,6 +3,7 @@ package jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.AttackHit
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.AttackResult
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.AttackShot
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleAlly
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleField
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleStat
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.CriticalType
@@ -28,6 +29,13 @@ import kotlin.random.Random
  * 選んだ対象が選べない個体(レンジ外・陣営違い・戦闘不能・存在しない)の場合は攻撃できないため`null`を返す。
  * 手番の終了はここでは行わない。
  *
+ * 攻撃者が味方のときは、スキルのコスト(MP・HP・TP)を技の最初に消費し(外れても戻さない)、払えなければ`null`を返す([canAfford])。
+ * 通常攻撃はコストを持たないため消費しない。技の最後には、全対象・全ヒットの処理が終わった後で、使用者・対象のTPをまとめて加算する
+ * ([settleTp]。使用者は1回の技で1回だけ、1発以上命中したときに条件1の分を受け取り、対象はヒットごとの被ダメージ割合と回避の分を受け取る)。
+ * 乱数は、命中・クリティカルの判定がすべて終わった後で、使用者→対象の順にTPのために引く。
+ * 結果には、使った技のIDと名前を持たせる。ダメージのあるスキルを使う場合も、この関数が命中・ダメージ・クリティカル・ブレイク・防御・軽減を担う。
+ * スキルを設定済みかどうかの確認は呼び出し側([performActiveSkill])が行う。
+ *
  * なお特殊型攻撃(C・Dのステータスを使うダメージ式)は未実装で、現状は物理型と同じ式を使う(将来対応)。
  *
  * @receiver 攻撃前の戦闘フィールド。
@@ -47,11 +55,18 @@ fun BattleField.performAttack(
     val power = attackSkill.basePower ?: return null
     val attacker = allPawns.firstOrNull { it.fpid == attackerFpid } ?: return null
     if (attacker.isDefeated || attacker.isBroken) return null
+    if (attacker is BattleAlly && !attacker.canAfford(attackSkill)) return null
     val targets = resolveTargets(attackerFpid, attackSkill, targetFpid) ?: return null
 
-    var field = this
+    var field = spendCosts(attackerFpid, attackSkill)
+    // 使用者のTP(条件1)の材料。命中したヒットごとに集める。
+    var anyHit = false
+    var allHitsOnDefending = true
+    var maxCriticalRate: Int? = null
+    val tpTargets = mutableListOf<TpTargetReport>()
     val hits = targets.map { target ->
         val shots = mutableListOf<AttackShot>()
+        var tpFromDamage = 0.0
         while (shots.size < attackSkill.activationCount) {
             // 途中でブレイクした効果を残りのヒットに効かせるため、ヒットごとに最新の対象の状態を読む。
             val current = field.allPawns.firstOrNull { it.fpid == target.fpid } ?: break
@@ -74,6 +89,11 @@ fun BattleField.performAttack(
             )
             val judged = CriticalFormula.judge(attacker.effectiveStage(BattleStat.CRITICAL_RATE), random)
             val damageStage = attacker.effectiveStage(BattleStat.CRITICAL_DAMAGE)
+            val actualCriticalRate = CriticalFormula.damageRate(
+                attacker.criticalDamageRate,
+                damageStage,
+                isBad = judged == CriticalType.BAD_CRITICAL,
+            )
             val finalType = CriticalFormula.finalType(judged, attacker.criticalDamageRate, damageStage)
             // 防御中の対象には、最終的にクリティカルになるヒットを通常ヒット扱いにする(乱数は判定のために引いたまま)。
             val isCriticalBlocked = DefenseFormula.blocksCritical(current.isDefending, finalType)
@@ -83,6 +103,12 @@ fun BattleField.performAttack(
             val boosted = BreakFormula.boostDamage(criticalDamage, current.isBroken)
             val damage = current.reduceDamage(DefenseFormula.reduceDamage(boosted, current.isDefending))
             val hpLoss = minOf(damage, current.currentHp)
+            // TPのために、ヒットの時点の防御と最終的なクリティカルの倍率を控える(防がれたクリティカルはNONEなので倍率に含めない)。
+            val criticalRate = if (critical == CriticalType.CRITICAL) actualCriticalRate else null
+            anyHit = true
+            if (!current.isDefending) allHitsOnDefending = false
+            if (criticalRate != null) maxCriticalRate = maxOf(maxCriticalRate ?: 0, criticalRate)
+            tpFromDamage += TacticalPointFormula.damageTaken(hpLoss, current.maxHp, current.isDefending, criticalRate)
             val (broken, causedBreak) = field
                 .applyDamage(targetFpid = target.fpid, damage = damage)
                 .accumulateBreakGauge(attacker.breakPointRate, target.fpid, hpLoss)
@@ -95,7 +121,24 @@ fun BattleField.performAttack(
                 isCriticalBlocked = isCriticalBlocked,
             )
         }
+        tpTargets += TpTargetReport(
+            fpid = target.fpid,
+            tpFromDamage = tpFromDamage,
+            evaded = shots.any { !it.isHit },
+        )
         AttackHit(targetFpid = target.fpid, shots = shots)
     }
-    return field to AttackResult(attackerFpid = attackerFpid, hits = hits)
+    field = field.settleTp(
+        actorFpid = attackerFpid,
+        skill = attackSkill,
+        user = TpUserReport(isHit = anyHit, allHitsOnDefending = allHitsOnDefending, maxCriticalRate = maxCriticalRate),
+        targets = tpTargets,
+        random = random,
+    )
+    return field to AttackResult(
+        attackerFpid = attackerFpid,
+        hits = hits,
+        skillId = attackSkill.id,
+        skillName = attackSkill.name,
+    )
 }

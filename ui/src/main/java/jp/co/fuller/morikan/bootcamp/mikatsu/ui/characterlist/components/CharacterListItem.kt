@@ -10,6 +10,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import jp.co.fuller.morikan.bootcamp.mikatsu.core.theme.MiKatsuTheme
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -45,5 +47,14 @@ internal fun CharacterListItem(
         IconButton(onClick = onDeleteClick) {
             Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.action_delete))
         }
+    }
+}
+
+/** キャラ一覧の1行の表示を確認するためのPreview。 */
+@Preview(showBackground = true, name = "キャラ一覧の行")
+@Composable
+private fun CharacterListItemPreview() {
+    MiKatsuTheme(darkTheme = false) {
+        CharacterListItem(name = "アリス", onClick = {}, onDeleteClick = {})
     }
 }

@@ -14,7 +14,7 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.AttackResult
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleOutcome
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.Formation
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleStat
-import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.SkillResult
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.SkillUseResult
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillRange
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.ActiveSkill
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillCostType
@@ -205,7 +205,7 @@ class BattleViewModel @AssistedInject constructor(
     /**
      * スキル一覧でスキルが選ばれたときに呼ばれる。
      *
-     * スキル一覧の選択中で、選ばれたスキルが手番の味方のもので、現在のMPで使え、選べる相手がいるときだけ、
+     * スキル一覧の選択中で、選ばれたスキルが手番の味方のもので、現在のコスト(MP・HP・TP)を払え、選べる相手がいるときだけ、
      * 対象を選ぶ状態へ移行する。ただしレンジ0のスキル([BattleSkillUiModel.isSelfTargeting])は、対象選択を挟まず
      * 使用者自身を対象(FPID)として、その場で発動する。それ以外の場合は何も行わない。
      *
@@ -223,7 +223,7 @@ class BattleViewModel @AssistedInject constructor(
         if (skill.isSelfTargeting) {
             launchPlayerAction(actorFpid) {
                 useSkillUseCase(actorFpid = actorFpid, skillId = skillId, targetFpid = actorFpid)
-                    ?.let(::skillNarrations)
+                    ?.let(::skillUseNarrations)
             }
         } else {
             _uiState.update { it.copy(selection = BattleSelection.SkillTarget(skillId)) }
@@ -295,7 +295,7 @@ class BattleViewModel @AssistedInject constructor(
             }
             is BattleSelection.SkillTarget -> launchPlayerAction(actorFpid) {
                 useSkillUseCase(actorFpid = actorFpid, skillId = selection.skillId, targetFpid = fpid)
-                    ?.let(::skillNarrations)
+                    ?.let(::skillUseNarrations)
             }
             else -> Unit
         }
@@ -440,16 +440,18 @@ class BattleViewModel @AssistedInject constructor(
     }
 
     /**
-     * スキルの結果から、表示するナレーションの列を作る。
+     * スキル使用の結果から、表示するナレーションの列を作る。
      *
-     * 文の組み立て自体は[toNarrations]に委ね、ここでは表示名の解決だけを行う。
+     * ダメージを与えるスキル([SkillUseResult.Attack])は通常攻撃と同じ[attackNarrations]に乗せ、
+     * 与えないスキル([SkillUseResult.Effect])はスキルの結果として[toNarrations]で組み立てる。
+     * どちらも表示名の解決だけをここで行う。
      *
-     * @param result スキルの結果。
+     * @param result スキル使用の結果。
      * @return 順に1文ずつ表示するナレーション。
      */
-    private fun skillNarrations(result: SkillResult): List<BattleNarration> {
-        val state = _uiState.value
-        return result.toNarrations(state::nameOf)
+    private fun skillUseNarrations(result: SkillUseResult): List<BattleNarration> = when (result) {
+        is SkillUseResult.Attack -> attackNarrations(result.result)
+        is SkillUseResult.Effect -> result.result.toNarrations(_uiState.value::nameOf)
     }
 
     /**
@@ -509,6 +511,7 @@ private fun BattleField.reflectedIn(current: BattleUiState, normalAttack: Active
                     name = skill.name,
                     mpCost = skill.costOf(SkillCostType.MP),
                     hpCost = skill.costOf(SkillCostType.HP),
+                    tpCost = skill.costOf(SkillCostType.TP),
                     targetIds = targetIds,
                     isUsable = ally.canAfford(skill) && targetIds.isNotEmpty(),
                     isSelfTargeting = skill.range == SkillRange.RANGE_0,
@@ -548,6 +551,8 @@ private fun BattleField.detailOf(pawn: BattleFieldPawn, displayName: String): Ba
         maxHp = pawn.maxHp,
         mp = ally?.currentMp ?: enemy?.enemy?.mana ?: 0,
         maxMp = ally?.maxMp ?: enemy?.enemy?.mana ?: 0,
+        tp = pawn.currentTp,
+        maxTp = pawn.maxTp,
         breakGauge = floor(pawn.breakGauge).toInt(),
         breakState = pawn.breakState,
         isDefending = pawn.isDefending,
@@ -606,6 +611,8 @@ private fun BattleEnemy.toUiModel(displayName: String, isActive: Boolean) = Batt
     isActive = isActive,
     breakGaugeFraction = floor(breakGauge).toFloat() / BreakFormula.MAX_GAUGE.toFloat(),
     breakState = breakState,
+    tp = currentTp,
+    maxTp = maxTp,
 )
 
 /**
@@ -632,6 +639,8 @@ private fun BattleAlly.toUiModel(displayName: String, isActive: Boolean) = Battl
     isActive = isActive,
     breakGaugeFraction = floor(breakGauge).toFloat() / BreakFormula.MAX_GAUGE.toFloat(),
     breakState = breakState,
+    tp = currentTp,
+    maxTp = maxTp,
 )
 
 /**

@@ -4,6 +4,7 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.TEST_DIA
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.testAlly
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.testEnemy
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleField
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.SkillUseResult
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -29,7 +30,7 @@ class UseSkillUseCaseTest {
     fun invoke_appliesEffect() = runBlocking {
         val result = useCase(actorFpid = 1, skillId = TEST_DIA.id, targetFpid = 2)
 
-        assertEquals(50, result?.totalHealed)
+        assertEquals(50, (result as SkillUseResult.Effect).result.totalHealed)
         assertEquals(60, repository.current.allies[1].currentHp)
         assertEquals(0, repository.current.allies[0].currentMp)
     }

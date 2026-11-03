@@ -56,6 +56,11 @@ class PerformSkillStatTest {
     fun seishin_doesNotDrawRandom() {
         val random = object : Random() {
             override fun nextBits(bitCount: Int): Int = error("乱数を引いてはいけない")
+
+            // 命中判定(nextDouble)は引かない。TPの獲得量(nextInt(until))だけは引いてよい。
+            override fun nextDouble(): Double = error("命中判定の乱数を引いてはいけない")
+
+            override fun nextInt(until: Int): Int = until - 1
         }
 
         assertNotNull(field().performSkill(1, TEST_SEISHIN.id, 1, random))
@@ -105,6 +110,11 @@ class PerformSkillStatTest {
             .let { it.copy(enemies = it.enemies.map { e -> e.copy(breakState = BreakState.BROKEN) }) }
         val noDraw = object : Random() {
             override fun nextBits(bitCount: Int): Int = error("乱数を引いてはいけない")
+
+            // 命中判定(nextDouble)は引かない。TPの獲得量(nextInt(until))だけは引いてよい。
+            override fun nextDouble(): Double = error("命中判定の乱数を引いてはいけない")
+
+            override fun nextInt(until: Int): Int = until - 1
         }
 
         val (after, result) = checkNotNull(f.performSkill(1, TEST_HAKI.id, 3, noDraw))

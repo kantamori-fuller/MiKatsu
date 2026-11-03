@@ -21,7 +21,7 @@ import javax.inject.Inject
 /**
  * [SkillRepository]の暫定実装。スキル一覧(`data/スキル一覧.xlsx`)を書き写した固定のマスターデータを返す。
  *
- * スキルIDはアクティブ・パッシブで独立して採番する(Aスキル1=通常攻撃、Aスキル2=ディア、Aスキル3=精神一到、Aスキル4=覇気、Aスキル6=研ぎ澄ます、Pスキル1=鋼の体。Aスキル5は欠番)。
+ * スキルIDはアクティブ・パッシブで独立して採番する(Aスキル1=通常攻撃、Aスキル2=ディア、Aスキル3=精神一到、Aスキル4=覇気、Aスキル5=ローリング・ソバット、Aスキル6=研ぎ澄ます、Pスキル1=鋼の体)。
  * 同じ数値でも種別が違えば別のスキルなので、IDは必ず種別とセットで扱う。
  * 通常攻撃(Aスキル1)は全キャラクター・全敵が標準で持つため、設定可能な一覧や設定済みスキルの解決には含めない。
  *
@@ -176,6 +176,25 @@ class SkillRepositoryImpl @Inject constructor() : SkillRepository {
                     ActiveSkillEffect.StatChange(BattleStat.CRITICAL_DAMAGE, stages = 1, durationTurns = null),
                 ),
                 targetSide = SkillTargetSide.ALLY,
+            ),
+            // ローリング・ソバット: TPを消費する物理攻撃。説明文の「押し出す」効果は未実装(effectsは空)
+            ActiveSkill(
+                id = 5,
+                name = "ローリング・ソバット",
+                element = SkillElement.NONE,
+                categories = setOf(SkillCategory.PHYSICAL_ATTACK),
+                physicalAttribute = PhysicalAttribute.IMPACT,
+                costs = listOf(SkillCost(SkillCostType.TP, 40)),
+                coolTime = 0,
+                contactType = SkillContactType.CONTACT,
+                range = SkillRange.RANGE_1,
+                area = SkillArea.SINGLE,
+                targetSelection = SkillTargetSelection.ONE,
+                basePower = 150,
+                activationCount = 1,
+                accuracy = 90,
+                effects = emptyList(),
+                targetSide = SkillTargetSide.ENEMY,
             ),
         )
 

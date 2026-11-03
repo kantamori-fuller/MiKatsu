@@ -217,3 +217,13 @@ val TEST_TOGISUMASU = testActiveSkill(
         ActiveSkillEffect.StatChange(BattleStat.CRITICAL_DAMAGE, stages = 1, durationTurns = null),
     ),
 )
+
+/** テスト用の「ローリング・ソバット」(Aスキル5・TP40・レンジ1・敵単体・基礎威力150・命中率90・物理型攻撃)。マスターデータと同じ内容。 */
+val TEST_SOBAT = testActiveSkill(
+    id = 5,
+    name = "ローリング・ソバット",
+    targetSide = SkillTargetSide.ENEMY,
+    costs = listOf(SkillCost(SkillCostType.TP, 40)),
+    basePower = 150,
+    accuracy = 90,
+).copy(categories = setOf(SkillCategory.PHYSICAL_ATTACK), physicalAttribute = PhysicalAttribute.IMPACT, contactType = SkillContactType.CONTACT)

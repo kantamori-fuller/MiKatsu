@@ -638,7 +638,9 @@ class BattleViewModelTest {
 
         assertEquals(1, repository.current.allies[0].turnCount)
         // 敵の手番が連鎖し、連打したタップは敵の演出を飛ばさない(敵の行動の文が表示されている)。
-        assertEquals(BattleNarration.EnemyTurn("ゴブリンA"), viewModel.uiState.value.narration)
+        // 同時に手番が来た敵の順番はTPの乱数で変わるため、いま手番の敵の名前で確かめる。
+        val actorName = viewModel.uiState.value.nameOf(checkNotNull(repository.current.currentActorFpid))
+        assertEquals(BattleNarration.EnemyTurn(actorName), viewModel.uiState.value.narration)
         advanceUntilIdle()
         assertEquals(1, repository.current.allies[0].turnCount)
         assertTrue(viewModel.uiState.value.isPlayerTurn) // 敵の手番を終えて、次は味方の手番に戻る
@@ -700,18 +702,22 @@ class BattleViewModelTest {
         viewModel.onAttackClick()
         viewModel.onEnemyClick(repository.current.enemies[0].fpid)
         runCurrent()
+        // 同時に手番が来た敵の順番はTPの乱数で変わるため、最初に手番を飛ばされる敵を名前とFPIDで確かめる。
         advanceTimeBy(1_200)
         runCurrent()
+        val skippedFpid = checkNotNull(repository.current.currentActorFpid)
+        val skippedName = viewModel.uiState.value.nameOf(skippedFpid)
 
-        assertEquals(BattleNarration.BreakStunned("ゴブリンA"), viewModel.uiState.value.narration)
+        assertEquals(BattleNarration.BreakStunned(skippedName), viewModel.uiState.value.narration)
         assertEquals(allyHp, repository.current.allies[0].currentHp)
         advanceTimeBy(1_200)
         runCurrent()
-        assertEquals(BattleNarration.BreakRecovered("ゴブリンA"), viewModel.uiState.value.narration)
+        assertEquals(BattleNarration.BreakRecovered(skippedName), viewModel.uiState.value.narration)
         advanceTimeBy(1_200)
         runCurrent()
-        assertEquals(BreakState.RECOVERING, repository.current.enemies[0].breakState)
-        assertEquals(2, repository.current.enemies[0].turnCount) // 味方の手番の前に1回行動済み
+        val skipped = repository.current.enemies.first { it.fpid == skippedFpid }
+        assertEquals(BreakState.RECOVERING, skipped.breakState)
+        assertEquals(2, skipped.turnCount) // 味方の手番の前に1回行動済み
     }
 
     /** 全て対象の回復スキルは、味方全員に効き、複数対象のナレーションになること。 */
@@ -732,6 +738,38 @@ class BattleViewModelTest {
         narration as BattleNarration.MultiSkillResult
         assertEquals("全体回復", narration.skillName)
         assertEquals(2, narration.targetCount)
+    }
+
+    /** TPが足りないときはTPのコストのスキルが選べず、足りれば攻撃として演出され、TPが消費・獲得され、カードのTPにも反映されること。 */
+    @Test
+    fun tpSkill_withTp_usesAttackFlowWithSkillName() = runTest(dispatcher) {
+        val (viewModel, repository) = createViewModel(activeSkillIds = listOf(SOBAT_ID))
+        advanceUntilIdle()
+        viewModel.onSkillClick()
+        assertFalse(viewModel.uiState.value.skills.single().isUsable)
+        assertEquals(40, viewModel.uiState.value.skills.single().tpCost)
+        viewModel.onCancelClick()
+
+        repository.updateBattleField { f -> f.copy(allies = f.allies.map { it.copy(currentTp = 100) }) }
+        runCurrent()
+        assertEquals(100, viewModel.uiState.value.partySlots[0]?.tp)
+        viewModel.onSkillClick()
+        assertTrue(viewModel.uiState.value.skills.single().isUsable)
+        viewModel.onSkillSelected(SOBAT_ID)
+        viewModel.onEnemyClick(repository.current.enemies[0].fpid)
+        runCurrent()
+
+        val narration = viewModel.uiState.value.narration
+        assertTrue(narration is BattleNarration.AttackResult)
+        narration as BattleNarration.AttackResult
+        assertEquals("ローリング・ソバット", narration.skillName)
+        assertEquals("味方", narration.attackerName)
+        assertEquals("ゴブリンA", narration.targetName)
+        val tp = repository.current.allies[0].currentTp
+        assertTrue("TPは100-40に条件1の8〜12(クリティカルなら倍率つき)が加わる: $tp", tp in 68..78)
+        assertEquals(tp, viewModel.uiState.value.partySlots[0]?.tp)
+        advanceUntilIdle()
+        assertEquals(1, repository.current.allies[0].turnCount)
     }
 
     /** 敵の手番で攻撃が届く相手がいないとき、「届かない」ナレーションを表示してから手番を終え、味方のHPは変わらないこと。 */
@@ -1103,7 +1141,11 @@ class BattleViewModelTest {
             effects = listOf(ActiveSkillEffect.StatChange(BattleStat.ATTACK, stages = 1, durationTurns = 10)),
         )
         override suspend fun getNormalAttack(): ActiveSkill = normalAttack
-        private val all = listOf(dia, farStrike, healAll, seishin)
+        private val sobat = testActiveSkill(
+            id = SOBAT_ID, name = "ローリング・ソバット", costs = listOf(SkillCost(SkillCostType.TP, 40)),
+            targetSide = SkillTargetSide.ENEMY, basePower = 150,
+        )
+        private val all = listOf(dia, farStrike, healAll, seishin, sobat)
         override suspend fun getActiveSkills(): List<ActiveSkill> = all
         override suspend fun getPassiveSkills(): List<PassiveSkill> = emptyList()
         override suspend fun getActiveSkill(id: Int): ActiveSkill? = all.firstOrNull { it.id == id }
@@ -1120,6 +1162,9 @@ class BattleViewModelTest {
 
         /** レンジ3・味方エリア全体・全て対象の回復スキルのID。 */
         const val HEAL_ALL_ID = 4
+
+        /** TP40を消費する、基礎威力150の単体攻撃スキル(ローリング・ソバット)のID。 */
+        const val SOBAT_ID = 6
 
         /** レンジ0・自分の破壊力を+1段階10ターンにするスキル(精神一到)のID。 */
         const val SEISHIN_ID = 5

@@ -29,6 +29,8 @@ enum class BattleUnitPosition {
  * @property maxHp 最大HP(ステータスのHと同じ値)。
  * @property mp 現在のMP。
  * @property maxMp 最大MP(ステータスのMと同じ値)。
+ * @property tp 現在のTP。
+ * @property maxTp 最大TP。
  * @property breakGauge ブレイクゲージを切り捨てた整数(0〜100)。
  * @property breakState ブレイクの状態。
  * @property position 陣形上の位置。
@@ -58,6 +60,8 @@ data class BattleUnitDetailUiModel(
     val maxHp: Int,
     val mp: Int,
     val maxMp: Int,
+    val tp: Int,
+    val maxTp: Int,
     val breakGauge: Int,
     val breakState: BreakState,
     val position: BattleUnitPosition,

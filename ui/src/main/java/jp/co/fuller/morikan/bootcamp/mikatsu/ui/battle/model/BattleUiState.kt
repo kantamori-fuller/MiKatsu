@@ -2,6 +2,7 @@ package jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model
 
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleOutcome
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BreakState
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.TacticalPointFormula
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.Formation
 
 /**
@@ -26,6 +27,8 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.Formation
  * @property isActive 現在の手番の個体かどうか。
  * @property breakGaugeFraction ブレイクゲージの表示割合(0〜1)。ゲージを切り捨てた整数値を100で割った値で、数値は表示しない。
  * @property breakState ブレイクの状態。ブレイク中・立ち上がり中はカードにラベルを表示する。
+ * @property tp 現在のTP(0〜[maxTp])。カードの右上に円ゲージと数値で表示する。
+ * @property maxTp 最大TP。円ゲージの割合(`tp / maxTp`)の分母。
  */
 data class BattleUnitUiModel(
     val id: Int,
@@ -38,6 +41,8 @@ data class BattleUnitUiModel(
     val isActive: Boolean,
     val breakGaugeFraction: Float = 0f,
     val breakState: BreakState = BreakState.NONE,
+    val tp: Int = 0,
+    val maxTp: Int = TacticalPointFormula.MAX_TP,
 )
 
 /**
@@ -47,10 +52,11 @@ data class BattleUnitUiModel(
  * @property name スキルの名前。
  * @property mpCost 使用に必要なMP。
  * @property hpCost 使用に必要なHP。消費しない場合は0。
+ * @property tpCost 使用に必要なTP。消費しない場合は0。
  * @property targetIds このスキルで選べる対象のFPID([BattleUnitUiModel.id])。レンジ・陣営の条件を満たす相手で、
  *   手番の味方から見たもの。
  * @property isSelfTargeting レンジ0(使用者自身だけが対象)のスキルか。`true`なら一覧で選んだ瞬間に対象選択を挟まず発動する。
- * @property isUsable 現在のMP・HPですべてのコストを支払え、かつ選べる相手([targetIds])が1体以上いるかどうか。
+ * @property isUsable 現在のMP・HP・TPですべてのコストを支払え、かつ選べる相手([targetIds])が1体以上いるかどうか。
  *   `false`のとき一覧で選択できない。
  */
 data class BattleSkillUiModel(
@@ -61,6 +67,7 @@ data class BattleSkillUiModel(
     val targetIds: Set<Int>,
     val isUsable: Boolean,
     val isSelfTargeting: Boolean = false,
+    val tpCost: Int = 0,
 )
 
 /**

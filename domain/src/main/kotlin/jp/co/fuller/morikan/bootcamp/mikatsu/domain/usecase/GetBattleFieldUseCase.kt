@@ -1,6 +1,7 @@
 package jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase
 
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.ActionTimeline
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.grantBattleStartTp
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleAlly
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleEnemy
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleField
@@ -37,7 +38,7 @@ class GetBattleFieldUseCase(
     /**
      * 味方・敵にFPIDを割り当てた[BattleField]を組み立てる。
      *
-     * 味方のFPIDは陣形のスロット番号順に割り当てる。
+     * 味方のFPIDは陣形のスロット番号順に割り当てる。TPは味方・敵とも0から始め、戦闘開始のTP(+10)を全個体に加える。
      *
      * @param formation 味方として参戦するキャラクターの陣形。
      * @return FPIDを割り当てた[BattleField]。
@@ -54,17 +55,19 @@ class GetBattleFieldUseCase(
                     slot = slot,
                     currentHp = character.hp,
                     currentMp = character.mana,
+                    currentTp = 0,
                 )
             }
-        return BattleField(allies = allies, enemies = spawnEnemies(firstFpid = allies.size + 1))
+        return BattleField(allies = allies, enemies = spawnEnemies(firstFpid = allies.size + 1)).grantBattleStartTp()
     }
 
     /**
      * 勝利後の次の戦闘のために、前の戦闘の味方を引き継いだ新しい[BattleField]を組み立てる。
      *
      * 味方は[BattleField.allies]をスロット番号順に並べてFPIDを1から振り直し、キャラクター・スロット・
-     * 現在HP・現在MPを引き継ぐ(戦闘不能の味方も現在HP0のまま参戦する)。残り距離と手番の回数は初期状態に戻す。
-     * 敵は[invoke]と同じ構成で新しく生成し、味方に続く番号でFPIDを採番する。
+     * 現在HP・現在MP・現在TPを引き継ぐ(戦闘不能の味方も現在HP0のまま参戦する)。残り距離と手番の回数は初期状態に戻す。
+     * 敵は[invoke]と同じ構成で新しく生成し(TPは0)、味方に続く番号でFPIDを採番する。
+     * 全個体には、引き継いだ値に戦闘開始のTPを加える(上限100)。
      *
      * @param previous 直前の戦闘のフィールド。
      * @return 味方の状態を引き継いだ、次の戦闘のフィールド。最初の手番はまだ決まっていない。
@@ -79,9 +82,10 @@ class GetBattleFieldUseCase(
                     slot = ally.slot,
                     currentHp = ally.currentHp,
                     currentMp = ally.currentMp,
+                    currentTp = ally.currentTp,
                 )
             }
-        return BattleField(allies = allies, enemies = spawnEnemies(firstFpid = allies.size + 1))
+        return BattleField(allies = allies, enemies = spawnEnemies(firstFpid = allies.size + 1)).grantBattleStartTp()
     }
 
     /**
@@ -92,13 +96,15 @@ class GetBattleFieldUseCase(
      * @param slot 陣形上のスロット番号。
      * @param currentHp 現在HP。
      * @param currentMp 現在MP。
+     * @param currentTp 現在TP(戦闘開始のTPを加える前の値)。
      * @return 生成した味方個体。キャラクターが設定したスキルIDは、マスターデータから解決して持たせる。
      */
-    private suspend fun newAlly(fpid: Int, character: Character, slot: Int, currentHp: Int, currentMp: Int) = BattleAlly(
+    private suspend fun newAlly(fpid: Int, character: Character, slot: Int, currentHp: Int, currentMp: Int, currentTp: Int) = BattleAlly(
         fpid = fpid,
         character = character,
         currentHp = currentHp,
         currentMp = currentMp,
+        currentTp = currentTp,
         slot = slot,
         remainingDistance = ActionTimeline.BASE_DISTANCE,
         turnCount = 0,

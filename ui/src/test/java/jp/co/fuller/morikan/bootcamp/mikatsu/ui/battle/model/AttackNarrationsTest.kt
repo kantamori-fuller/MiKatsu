@@ -178,4 +178,61 @@ class AttackNarrationsTest {
             result.toNarrations(nameOf),
         )
     }
+
+    /** ローリング・ソバット(対象1体・1ヒット)は、「攻撃!」の部分が技名になること(外れ・クリティカルも同じ)。 */
+    @Test
+    fun sobat_single_usesSkillName() {
+        val hit = AttackResult(1, listOf(AttackHit(2, listOf(AttackShot(true, 45)))), skillId = 5, skillName = "ローリング・ソバット")
+        val miss = AttackResult(1, listOf(AttackHit(2, listOf(AttackShot(false, 0)))), skillId = 5, skillName = "ローリング・ソバット")
+        val critical = AttackResult(
+            1,
+            listOf(AttackHit(2, listOf(AttackShot(true, 60, critical = CriticalType.CRITICAL)))),
+            skillId = 5,
+            skillName = "ローリング・ソバット",
+        )
+
+        assertEquals(
+            listOf(BattleNarration.AttackResult("味方", "ゴブリンA", 45, skillName = "ローリング・ソバット")),
+            hit.toNarrations(nameOf),
+        )
+        assertEquals(
+            listOf(BattleNarration.AttackMissed("味方", "ゴブリンA", "ローリング・ソバット")),
+            miss.toNarrations(nameOf),
+        )
+        assertEquals(
+            listOf(BattleNarration.AttackResult("味方", "ゴブリンA", 60, CriticalType.CRITICAL, skillName = "ローリング・ソバット")),
+            critical.toNarrations(nameOf),
+        )
+    }
+
+    /** 範囲攻撃の技は、「Aのローリング・ソバット!」と技名で始まり、全員外れなら技名つきの1文になること。 */
+    @Test
+    fun sobat_area_usesSkillName() {
+        val landed = AttackResult(
+            1,
+            listOf(AttackHit(2, listOf(AttackShot(true, 24))), AttackHit(3, listOf(AttackShot(true, 25)))),
+            skillId = 5,
+            skillName = "ローリング・ソバット",
+        )
+        val allMissed = AttackResult(
+            1,
+            listOf(AttackHit(2, listOf(AttackShot(false, 0))), AttackHit(3, listOf(AttackShot(false, 0)))),
+            skillId = 5,
+            skillName = "ローリング・ソバット",
+        )
+
+        assertEquals(BattleNarration.AreaAttackStart("味方", "ローリング・ソバット"), landed.toNarrations(nameOf).first())
+        assertEquals(
+            listOf(BattleNarration.AreaAttackAllMissed("味方", "ローリング・ソバット")),
+            allMissed.toNarrations(nameOf),
+        )
+    }
+
+    /** 通常攻撃(スキルID1)は、技名が入っていても「攻撃」のまま(技名を持たない)であること。 */
+    @Test
+    fun normalAttack_keepsAttackWording() {
+        val normal = AttackResult(1, listOf(AttackHit(2, listOf(AttackShot(true, 24)))), skillId = 1, skillName = "通常攻撃")
+
+        assertEquals(listOf(BattleNarration.AttackResult("味方", "ゴブリンA", 24)), normal.toNarrations(nameOf))
+    }
 }

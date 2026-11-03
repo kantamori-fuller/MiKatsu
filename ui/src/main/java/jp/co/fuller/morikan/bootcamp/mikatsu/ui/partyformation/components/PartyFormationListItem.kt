@@ -9,6 +9,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.layout.Column
+import jp.co.fuller.morikan.bootcamp.mikatsu.core.theme.MiKatsuTheme
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -48,5 +51,17 @@ internal fun PartyFormationListItem(
             contentDescription = stringResource(R.string.content_description_select),
             tint = if (isPlaced) SelectionGreen else LocalContentColor.current,
         )
+    }
+}
+
+/** 未配置と配置済み(アイコンが緑)の行を並べて確認するためのPreview。 */
+@Preview(showBackground = true, name = "編成の行(未配置/配置済み)")
+@Composable
+private fun PartyFormationListItemPreview() {
+    MiKatsuTheme(darkTheme = false) {
+        Column {
+            PartyFormationListItem(characterId = 1, name = "アリス", isPlaced = false)
+            PartyFormationListItem(characterId = 2, name = "ボブ", isPlaced = true)
+        }
     }
 }

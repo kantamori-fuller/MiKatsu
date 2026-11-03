@@ -8,7 +8,13 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.ui.Alignment
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Card
@@ -24,11 +30,19 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import jp.co.fuller.morikan.bootcamp.mikatsu.core.theme.BreakGaugeYellow
+import jp.co.fuller.morikan.bootcamp.mikatsu.core.theme.MiKatsuTheme
+import jp.co.fuller.morikan.bootcamp.mikatsu.core.theme.TacticalPointOrange
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BreakState
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.R
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleUnitUiModel
+import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.previewAlly
+import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.previewEnemy
+
+/** カード右上のTP円ゲージの大きさ。 */
+private val TP_GAUGE_SIZE = 24.dp
 
 /** 戦闘不能のカードに適用する不透明度(グレーアウト表現)。 */
 private const val DEFEATED_ALPHA = 0.4f
@@ -49,7 +63,7 @@ private const val SELECTABLE_BLINK_MIN_ALPHA = 0.35f
 private const val SELECTABLE_BLINK_DURATION_MS = 700
 
 /**
- * バトル画面で敵・味方1体分の状態(名前・HP・MP・ブレイクゲージ)を表示するカード。
+ * バトル画面で敵・味方1体分の状態(名前・HP・MP・TP・ブレイクゲージ)を表示するカード。
  *
  * 敵陣営・味方陣営の双方から共通で利用され、この画面における
  * 「四角いカード」という見た目を1箇所にまとめることを目的とする。
@@ -116,7 +130,7 @@ private fun rememberBlinkAlpha(): Float {
 }
 
 /**
- * [UnitStatCard]の中身となる、名前・HP・MP・ブレイクゲージの表示部分。
+ * [UnitStatCard]の中身となる、名前・HP・MP・ブレイクゲージと、右上のTP円ゲージの表示部分。
  *
  * ブレイクゲージは数値を表示せず黄色のバーだけで示し、ブレイク中・立ち上がり中は状態のラベルを添える。
  *
@@ -126,45 +140,112 @@ private fun rememberBlinkAlpha(): Float {
  */
 @Composable
 private fun UnitStatContent(unit: BattleUnitUiModel) {
-    Column(modifier = Modifier.padding(8.dp)) {
-        Text(
-            unit.name,
-            style = MaterialTheme.typography.labelLarge,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-        Text(
-            stringResource(R.string.battle_hp_format, unit.hp, unit.maxHp),
-            style = MaterialTheme.typography.labelSmall,
-        )
-        LinearProgressIndicator(
-            progress = { unit.hp.toFloat() / unit.maxHp.coerceAtLeast(1) },
-            modifier = Modifier.fillMaxWidth(),
-        )
-        Text(
-            stringResource(R.string.battle_mp_format, unit.mana, unit.maxMana),
-            style = MaterialTheme.typography.labelSmall,
-        )
-        LinearProgressIndicator(
-            progress = { unit.mana.toFloat() / unit.maxMana.coerceAtLeast(1) },
-            modifier = Modifier.fillMaxWidth(),
-            color = MaterialTheme.colorScheme.tertiary,
-        )
-        LinearProgressIndicator(
-            progress = { unit.breakGaugeFraction.coerceIn(0f, 1f) },
-            modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-            color = BreakGaugeYellow,
-        )
-        when (unit.breakState) {
-            BreakState.BROKEN -> Text(
-                stringResource(R.string.battle_break_state_broken),
+    Box(modifier = Modifier.padding(8.dp)) {
+        Column {
+            // 右上のTPゲージと名前が重ならないよう、名前の行の右側にゲージの幅だけ余白を空ける。
+            Text(
+                unit.name,
+                style = MaterialTheme.typography.labelLarge,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(end = TP_GAUGE_SIZE + 4.dp),
+            )
+            Text(
+                stringResource(R.string.battle_hp_format, unit.hp, unit.maxHp),
                 style = MaterialTheme.typography.labelSmall,
             )
-            BreakState.RECOVERING -> Text(
-                stringResource(R.string.battle_break_state_recovering),
+            LinearProgressIndicator(
+                progress = { unit.hp.toFloat() / unit.maxHp.coerceAtLeast(1) },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Text(
+                stringResource(R.string.battle_mp_format, unit.mana, unit.maxMana),
                 style = MaterialTheme.typography.labelSmall,
             )
-            BreakState.NONE -> Unit
+            LinearProgressIndicator(
+                progress = { unit.mana.toFloat() / unit.maxMana.coerceAtLeast(1) },
+                modifier = Modifier.fillMaxWidth(),
+                color = MaterialTheme.colorScheme.tertiary,
+            )
+            LinearProgressIndicator(
+                progress = { unit.breakGaugeFraction.coerceIn(0f, 1f) },
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                color = BreakGaugeYellow,
+            )
+            when (unit.breakState) {
+                BreakState.BROKEN -> Text(
+                    stringResource(R.string.battle_break_state_broken),
+                    style = MaterialTheme.typography.labelSmall,
+                )
+                BreakState.RECOVERING -> Text(
+                    stringResource(R.string.battle_break_state_recovering),
+                    style = MaterialTheme.typography.labelSmall,
+                )
+                BreakState.NONE -> Unit
+            }
         }
+        TacticalPointGauge(unit = unit, modifier = Modifier.align(Alignment.TopEnd))
     }
+}
+
+/**
+ * カードの右上に置く、TPの円ゲージ。円の進み具合がTP/最大TPで、真ん中に現在のTPの数値を表示する。
+ *
+ * @param unit 表示する敵またはキャラクターの状態。
+ * @param modifier このComposableに適用する[Modifier]。
+ */
+@Composable
+private fun TacticalPointGauge(unit: BattleUnitUiModel, modifier: Modifier = Modifier) {
+    Box(modifier = modifier.size(TP_GAUGE_SIZE), contentAlignment = Alignment.Center) {
+        CircularProgressIndicator(
+            progress = { unit.tp.toFloat() / unit.maxTp.coerceAtLeast(1) },
+            modifier = Modifier.fillMaxSize(),
+            color = TacticalPointOrange,
+            strokeWidth = 3.dp,
+        )
+        Text(unit.tp.toString(), style = MaterialTheme.typography.labelSmall)
+    }
+}
+
+/** Preview用に、カードを幅160dpで表示する。 */
+@Composable
+private fun UnitStatCardPreviewFrame(content: @Composable (Modifier) -> Unit) {
+    MiKatsuTheme(darkTheme = false) { content(Modifier.width(160.dp).padding(8.dp)) }
+}
+
+/** 手番中(選択枠あり)の通常の味方カードを確認するためのPreview。 */
+@Preview(showBackground = true, name = "カード(通常・手番中)")
+@Composable
+private fun UnitStatCardNormalPreview() {
+    UnitStatCardPreviewFrame { UnitStatCard(unit = previewAlly(), modifier = it, isSelected = true) }
+}
+
+/** 行動の対象として選べる(点滅する太枠)状態のカードを確認するためのPreview。 */
+@Preview(showBackground = true, name = "カード(選択可能)")
+@Composable
+private fun UnitStatCardSelectablePreview() {
+    UnitStatCardPreviewFrame { UnitStatCard(unit = previewEnemy(), modifier = it, isSelectable = true, onClick = {}) }
+}
+
+/** 戦闘不能(グレーアウト)のカードを確認するためのPreview。 */
+@Preview(showBackground = true, name = "カード(戦闘不能)")
+@Composable
+private fun UnitStatCardDefeatedPreview() {
+    UnitStatCardPreviewFrame { UnitStatCard(unit = previewEnemy(hp = 0, isDefeated = true), modifier = it) }
+}
+
+/** ブレイク中(ラベルとゲージ満タン)のカードを確認するためのPreview。 */
+@Preview(showBackground = true, name = "カード(ブレイク中)")
+@Composable
+private fun UnitStatCardBrokenPreview() {
+    UnitStatCardPreviewFrame {
+        UnitStatCard(unit = previewEnemy().copy(breakState = BreakState.BROKEN, breakGaugeFraction = 1f), modifier = it)
+    }
+}
+
+/** TPがほぼ満タン(円ゲージが多い)のカードを確認するためのPreview。 */
+@Preview(showBackground = true, name = "カード(TP多め)")
+@Composable
+private fun UnitStatCardHighTpPreview() {
+    UnitStatCardPreviewFrame { UnitStatCard(unit = previewAlly().copy(tp = 95), modifier = it) }
 }
