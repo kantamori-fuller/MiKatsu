@@ -16,7 +16,7 @@ import kotlin.random.Random
  * 対象は、選んだ対象([targetFpid])を[resolveTargets]で範囲・対象選択に従って展開して決める。
  * ダメージ計算の破壊力・耐久力は、バフ・デバフを反映した値([jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleFieldPawn.effectiveStat])を使う。
  * 対象ごとに、1ヒットずつ[HitChanceFormula]で命中判定を行い、命中したヒットだけ[DamageFormula]の結果へ
- * クリティカル判定([CriticalFormula]。命中後に1回、乱数を引く)と倍率の適用、続けてブレイク中の被ダメージ増加([BreakFormula.boostDamage])、さらに対象のパッシブスキルによるダメージ軽減
+ * クリティカル判定([CriticalFormula]。命中後に1回、乱数を引く)と倍率の適用(ヒットの種別は最終的な倍率で決める)、続けてブレイク中の被ダメージ増加([BreakFormula.boostDamage])、さらに対象のパッシブスキルによるダメージ軽減
  * ([reduceDamage])を適用する。外れたヒットはダメージ0で軽減も適用せず、発動回数は1回消費する。
  * 発動回数だけ繰り返し、途中で対象が戦闘不能になったら、その対象への残りのヒットは行わない。
  * ダメージは1ヒットごとにフィールドへ適用してブレイクゲージを加算し([accumulateBreakGauge])、次のヒットは
@@ -70,13 +70,10 @@ fun BattleField.performAttack(
                 attacker.effectiveStat(BattleStat.ATTACK),
                 current.effectiveStat(BattleStat.DEFENSE),
             )
-            val critical = CriticalFormula.judge(attacker.effectiveStage(BattleStat.CRITICAL_RATE), random)
-            val criticalDamage = CriticalFormula.applyDamage(
-                damage = base,
-                type = critical,
-                baseRate = attacker.criticalDamageRate,
-                damageStage = attacker.effectiveStage(BattleStat.CRITICAL_DAMAGE),
-            )
+            val judged = CriticalFormula.judge(attacker.effectiveStage(BattleStat.CRITICAL_RATE), random)
+            val damageStage = attacker.effectiveStage(BattleStat.CRITICAL_DAMAGE)
+            val criticalDamage = CriticalFormula.applyDamage(base, judged, attacker.criticalDamageRate, damageStage)
+            val critical = CriticalFormula.finalType(judged, attacker.criticalDamageRate, damageStage)
             val damage = current.reduceDamage(BreakFormula.boostDamage(criticalDamage, current.isBroken))
             val hpLoss = minOf(damage, current.currentHp)
             val (broken, causedBreak) = field

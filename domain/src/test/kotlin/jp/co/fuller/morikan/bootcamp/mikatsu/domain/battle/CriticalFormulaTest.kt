@@ -124,4 +124,25 @@ class CriticalFormulaTest {
         assertEquals(24, CriticalFormula.applyDamage(24, CriticalType.NONE, 150, 12))
         assertEquals(0, CriticalFormula.applyDamage(0, CriticalType.NONE, 150, 0))
     }
+
+    /** 倍率の分類: 99%まではBAD_CRITICAL、100%(ちょうど)以上はCRITICAL、0%もBAD_CRITICAL。 */
+    @Test
+    fun classify_boundaries() {
+        assertEquals(CriticalType.BAD_CRITICAL, CriticalFormula.classify(0))
+        assertEquals(CriticalType.BAD_CRITICAL, CriticalFormula.classify(99))
+        assertEquals(CriticalType.CRITICAL, CriticalFormula.classify(100))
+        assertEquals(CriticalType.CRITICAL, CriticalFormula.classify(450))
+    }
+
+    /** 最終種別は判定の種類ではなく最終倍率で決まる: 段階-3のクリティカル(75%)はBAD、段階+4のバッド(175%)はCRITICAL、段階-2のクリティカル(100%)はCRITICAL。 */
+    @Test
+    fun finalType_decidedByFinalRate() {
+        assertEquals(CriticalType.BAD_CRITICAL, CriticalFormula.finalType(CriticalType.CRITICAL, 150, -3))
+        assertEquals(CriticalType.CRITICAL, CriticalFormula.finalType(CriticalType.BAD_CRITICAL, 150, 4))
+        assertEquals(CriticalType.CRITICAL, CriticalFormula.finalType(CriticalType.CRITICAL, 150, -2))
+        assertEquals(CriticalType.BAD_CRITICAL, CriticalFormula.finalType(CriticalType.BAD_CRITICAL, 150, 0)) // 75
+        assertEquals(CriticalType.CRITICAL, CriticalFormula.finalType(CriticalType.BAD_CRITICAL, 150, 1)) // 100
+        assertEquals(CriticalType.BAD_CRITICAL, CriticalFormula.finalType(CriticalType.CRITICAL, 150, -12)) // 0
+        assertEquals(CriticalType.NONE, CriticalFormula.finalType(CriticalType.NONE, 150, 12))
+    }
 }

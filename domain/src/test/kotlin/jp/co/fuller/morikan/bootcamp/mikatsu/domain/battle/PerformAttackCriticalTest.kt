@@ -38,7 +38,7 @@ class PerformAttackCriticalTest {
         assertEquals(24, result.totalDamage)
     }
 
-    /** 発生率の段階が負ならバッドクリティカル: 倍率150-75=75% → 24×75/100=18。 */
+    /** 発生率の段階が負でバッドの判定が出ても、最終倍率150-75=75%は100未満なのでBAD_CRITICAL: 24×75/100=18。 */
     @Test
     fun badCritical_reducesDamage() {
         val f = field(listOf(StatModifier(BattleStat.CRITICAL_RATE, -1, null)))
@@ -181,5 +181,52 @@ class PerformAttackCriticalTest {
     fun baseDamageRate_is150ForEveryone() {
         assertEquals(150, testAlly(1).criticalDamageRate)
         assertEquals(150, testEnemy(2).criticalDamageRate)
+    }
+
+    /** 倍率段階-3でクリティカルの判定 → 75% → BAD_CRITICAL(ダメージ24×75/100=18)。 */
+    @Test
+    fun classify_criticalJudgedButRateBelow100_isBad() {
+        val f = field(listOf(StatModifier(BattleStat.CRITICAL_DAMAGE, -3, null)))
+
+        val shot = checkNotNull(f.performAttack(1, 2, TEST_NORMAL_ATTACK, CriticalRandom(0))).second.hits.single().shots.single()
+
+        assertEquals(CriticalType.BAD_CRITICAL, shot.critical)
+        assertEquals(18, shot.damage)
+    }
+
+    /** 倍率段階+4でバッドの判定 → 250-75=175% → CRITICAL(ダメージ24×175/100=42)。 */
+    @Test
+    fun classify_badJudgedButRateAtLeast100_isCritical() {
+        val f = field(listOf(StatModifier(BattleStat.CRITICAL_RATE, -1, null), StatModifier(BattleStat.CRITICAL_DAMAGE, 4, null)))
+
+        val shot = checkNotNull(f.performAttack(1, 2, TEST_NORMAL_ATTACK, CriticalRandom(0))).second.hits.single().shots.single()
+
+        assertEquals(CriticalType.CRITICAL, shot.critical)
+        assertEquals(42, shot.damage)
+    }
+
+    /** 倍率段階-2でクリティカル → ちょうど100% → CRITICAL(ダメージ24)。 */
+    @Test
+    fun classify_exactly100_isCritical() {
+        val f = field(listOf(StatModifier(BattleStat.CRITICAL_DAMAGE, -2, null)))
+
+        val shot = checkNotNull(f.performAttack(1, 2, TEST_NORMAL_ATTACK, CriticalRandom(0))).second.hits.single().shots.single()
+
+        assertEquals(CriticalType.CRITICAL, shot.critical)
+        assertEquals(24, shot.damage)
+    }
+
+    /** 倍率0%(段階-6でクリティカル)はBAD_CRITICALで、ダメージは最低1。判定が出ない場合はNONEのまま。 */
+    @Test
+    fun classify_zeroRate_isBad_andNotJudgedStaysNone() {
+        val f = field(listOf(StatModifier(BattleStat.CRITICAL_DAMAGE, -6, null)))
+
+        val bad = checkNotNull(f.performAttack(1, 2, TEST_NORMAL_ATTACK, CriticalRandom(0))).second.hits.single().shots.single()
+        val none = checkNotNull(f.performAttack(1, 2, TEST_NORMAL_ATTACK, CriticalRandom(5))).second.hits.single().shots.single()
+
+        assertEquals(CriticalType.BAD_CRITICAL, bad.critical)
+        assertEquals(1, bad.damage)
+        assertEquals(CriticalType.NONE, none.critical)
+        assertEquals(24, none.damage)
     }
 }
