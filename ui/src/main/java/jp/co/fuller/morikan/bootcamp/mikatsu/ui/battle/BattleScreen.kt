@@ -32,6 +32,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleOutcome
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.CriticalType
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.Formation
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.R
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.components.FormationGrid
@@ -356,12 +357,28 @@ private fun BattleNarration.toText(): String = when (this) {
     is BattleNarration.EnemyCannotReach -> stringResource(R.string.battle_narration_enemy_cannot_reach, actorName)
     BattleNarration.SelectSkill -> stringResource(R.string.battle_narration_select_skill)
     BattleNarration.SelectAllyTarget -> stringResource(R.string.battle_narration_select_ally_target)
-    is BattleNarration.AttackResult ->
-        stringResource(R.string.battle_narration_attack_result, attackerName, targetName, damage)
+    is BattleNarration.AttackResult -> stringResource(
+        when (critical) {
+            CriticalType.NONE -> R.string.battle_narration_attack_result
+            CriticalType.CRITICAL -> R.string.battle_narration_attack_result_critical
+            CriticalType.BAD_CRITICAL -> R.string.battle_narration_attack_result_bad_critical
+        },
+        attackerName,
+        targetName,
+        damage,
+    )
     is BattleNarration.SkillResult ->
         stringResource(R.string.battle_narration_skill_result, actorName, targetName, skillName, healedAmount)
     is BattleNarration.AttackMissed -> stringResource(R.string.battle_narration_attack_missed, attackerName, targetName)
-    is BattleNarration.ShotHit -> stringResource(R.string.battle_narration_shot_hit, shotNumber, damage)
+    is BattleNarration.ShotHit -> stringResource(
+        when (critical) {
+            CriticalType.NONE -> R.string.battle_narration_shot_hit
+            CriticalType.CRITICAL -> R.string.battle_narration_shot_critical
+            CriticalType.BAD_CRITICAL -> R.string.battle_narration_shot_bad_critical
+        },
+        shotNumber,
+        damage,
+    )
     is BattleNarration.ShotMissed -> stringResource(R.string.battle_narration_shot_missed, shotNumber)
     is BattleNarration.AttackTotal ->
         stringResource(R.string.battle_narration_attack_total, attackerName, targetName, totalDamage, shotCount, hitCount)
@@ -377,6 +394,8 @@ private fun BattleNarration.toText(): String = when (this) {
             .map { stringResource(R.string.battle_narration_area_hit_entry, it.targetName, it.damage) }
             .joinToString(stringResource(R.string.battle_narration_area_hit_separator)),
     )
+    is BattleNarration.AreaCritical -> stringResource(R.string.battle_narration_area_critical, targetName)
+    is BattleNarration.AreaBadCritical -> stringResource(R.string.battle_narration_area_bad_critical, targetName)
     is BattleNarration.Broke -> stringResource(R.string.battle_narration_broke, targetName)
     is BattleNarration.BreakStunned -> stringResource(R.string.battle_narration_break_stunned, actorName)
     is BattleNarration.BreakRecovered -> stringResource(R.string.battle_narration_break_recovered, actorName)

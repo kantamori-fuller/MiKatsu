@@ -30,10 +30,14 @@ class BreakTest {
             turnQueue = listOf(1),
         )
 
-    /** 乱数を1回でも引いたら失敗する乱数。被必中で乱数を消費しないことの確認に使う。 */
+    /**
+     * 命中判定の乱数([Random.nextDouble])を1回でも引いたら失敗する乱数。被必中で命中判定の乱数を消費しないことの確認に使う。
+     * クリティカル判定の[Random.nextInt]は命中したヒットで引くため許し、クリティカルにならない値を返す。
+     */
     private val noRandom = object : Random() {
-        override fun nextBits(bitCount: Int): Int = error("乱数は引かない")
-        override fun nextDouble(): Double = error("乱数は引かない")
+        override fun nextBits(bitCount: Int): Int = error("命中判定の乱数は引かない")
+        override fun nextInt(until: Int): Int = until - 1
+        override fun nextDouble(): Double = error("命中判定の乱数は引かない")
     }
 
     /** 必ず当たる値を返す乱数(通常攻撃の命中率100に対して)。 */

@@ -50,6 +50,12 @@
     <string name="battle_narration_skill_result">%1$sは%2$sに%3$sを使った！%2$sのHPが%4$d回復した！</string>
     <string name="battle_narration_attack_missed">%1$sが%2$sに攻撃! しかし外れた!</string>
     <string name="battle_narration_shot_hit">%1$d回目: 命中! %2$dダメージ</string>
+    <string name="battle_narration_attack_result_critical">%1$sが%2$sに攻撃! クリティカル! %3$dダメージ</string>
+    <string name="battle_narration_attack_result_bad_critical">%1$sが%2$sに攻撃! バッドクリティカル… %3$dダメージ</string>
+    <string name="battle_narration_shot_critical">%1$d回目: クリティカル! %2$dダメージ</string>
+    <string name="battle_narration_shot_bad_critical">%1$d回目: バッドクリティカル… %2$dダメージ</string>
+    <string name="battle_narration_area_critical">%1$sにクリティカル!</string>
+    <string name="battle_narration_area_bad_critical">%1$sにバッドクリティカル…</string>
     <string name="battle_narration_shot_missed">%1$d回目: 外れた!</string>
     <string name="battle_narration_attack_total">%1$sが%2$sに合計%3$dダメージ(%4$d回中%5$d回命中)</string>
     <string name="battle_narration_area_attack_start">%1$sの攻撃!</string>
@@ -85,6 +91,9 @@
     <string name="battle_detail_section_battle_values">戦闘値</string>
     <string name="battle_detail_accuracy">命中率</string>
     <string name="battle_detail_evasion">回避率</string>
+    <string name="battle_detail_critical_rate">クリティカル発生率</string>
+    <string name="battle_detail_critical_damage">クリティカル倍率</string>
+    <string name="battle_detail_percent_format">%1$d%%</string>
     <string name="battle_detail_break_resistance">ブレイク耐性</string>
     <string name="battle_detail_break_point_rate">ブレイクポイント倍率</string>
     <string name="battle_detail_turn_count">行動回数</string>
@@ -105,5 +114,6 @@
     <string name="battle_detail_section_stat_changes">ステータス変化</string>
     <string name="battle_detail_stat_change_row">%1$s %2$s (%3$s)</string>
     <string name="battle_detail_stat_change_entry">%1$s 残り%2$d</string>
+    <string name="battle_detail_stat_change_entry_permanent">%1$s 永続</string>
     <string name="battle_detail_stat_change_entry_separator">" / "</string>
 </resources>

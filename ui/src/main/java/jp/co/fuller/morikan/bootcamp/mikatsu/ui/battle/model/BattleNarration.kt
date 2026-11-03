@@ -1,6 +1,7 @@
 package jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model
 
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleStat
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.CriticalType
 
 /**
  * バトル画面で、プレイヤーに表示するテキスト(バトルナレーター)の種類。
@@ -46,11 +47,13 @@ sealed interface BattleNarration {
      * @property attackerName 攻撃した個体の表示名。
      * @property targetName 攻撃を受けた個体の表示名。
      * @property damage 与えたダメージ量。
+     * @property critical そのヒットのクリティカルの種別。通常は[CriticalType.NONE]。
      */
     data class AttackResult(
         val attackerName: String,
         val targetName: String,
         val damage: Int,
+        val critical: CriticalType = CriticalType.NONE,
     ) : BattleNarration
 
     /**
@@ -69,8 +72,13 @@ sealed interface BattleNarration {
      *
      * @property shotNumber 何回目のヒットか(1始まり)。
      * @property damage そのヒットのダメージ量。
+     * @property critical そのヒットのクリティカルの種別。通常は[CriticalType.NONE]。
      */
-    data class ShotHit(val shotNumber: Int, val damage: Int) : BattleNarration
+    data class ShotHit(
+        val shotNumber: Int,
+        val damage: Int,
+        val critical: CriticalType = CriticalType.NONE,
+    ) : BattleNarration
 
     /**
      * 複数回攻撃の1ヒットが外れたことを伝える。
@@ -123,6 +131,20 @@ sealed interface BattleNarration {
      * @property entries 命中した相手ごとのダメージ。
      */
     data class AreaHit(val entries: List<AreaHitEntry>) : BattleNarration
+
+    /**
+     * 範囲攻撃で、クリティカルが出た対象を伝える。ヒットごとに1文ずつ使う。
+     *
+     * @property targetName クリティカルを受けた個体の表示名。
+     */
+    data class AreaCritical(val targetName: String) : BattleNarration
+
+    /**
+     * 範囲攻撃で、バッドクリティカルが出た対象を伝える。ヒットごとに1文ずつ使う。
+     *
+     * @property targetName バッドクリティカルを受けた個体の表示名。
+     */
+    data class AreaBadCritical(val targetName: String) : BattleNarration
 
     /**
      * 攻撃を受けた個体がブレイクしたことを伝える。

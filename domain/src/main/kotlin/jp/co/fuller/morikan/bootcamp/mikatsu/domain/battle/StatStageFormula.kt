@@ -12,7 +12,7 @@ import kotlin.math.abs
  * 段階nの倍率は、n≥0なら`(4+n)/4`、n<0なら`4/(4+|n|)`。適用後の値は`floor(基礎値 × 分子 / 分母)`を
  * 整数演算で求め、浮動小数を使わない。段階は[MIN_STAGE]〜[MAX_STAGE]に収める。
  * この倍率表は基礎ステータス6種用で、命中率・回避率は別の倍率表を持つ[HitChanceFormula]が扱う。
- * 段階の合計の求め方([effectiveStage])は8種で共通。
+ * 段階の合計の求め方([effectiveStage])は全ステータスで共通だが、上限だけステータスごとに違う(クリティカル発生率は±6)。
  */
 object StatStageFormula {
 
@@ -61,7 +61,25 @@ object StatStageFormula {
      * @return 有効な段階。
      */
     fun effectiveStage(modifiers: List<StatModifier>, stat: BattleStat): Int =
-        modifiers.filter { it.stat == stat }.sumOf { it.stages }.coerceIn(MIN_STAGE, MAX_STAGE)
+        modifiers.filter { it.stat == stat }.sumOf { it.stages }.coerceIn(minStageOf(stat), maxStageOf(stat))
+
+    /**
+     * ステータスごとの段階の下限を返す。
+     *
+     * @param stat 調べるステータス。
+     * @return クリティカル発生率は[CriticalFormula.MIN_RATE_STAGE]、それ以外は[MIN_STAGE]。
+     */
+    fun minStageOf(stat: BattleStat): Int =
+        if (stat == BattleStat.CRITICAL_RATE) CriticalFormula.MIN_RATE_STAGE else MIN_STAGE
+
+    /**
+     * ステータスごとの段階の上限を返す。
+     *
+     * @param stat 調べるステータス。
+     * @return クリティカル発生率は[CriticalFormula.MAX_RATE_STAGE]、それ以外は[MAX_STAGE]。
+     */
+    fun maxStageOf(stat: BattleStat): Int =
+        if (stat == BattleStat.CRITICAL_RATE) CriticalFormula.MAX_RATE_STAGE else MAX_STAGE
 }
 
 /**
@@ -74,10 +92,10 @@ object StatStageFormula {
  * @param fpid 対象の個体のFPID。
  * @param stat 補正するステータス。
  * @param stages 段階の増減。
- * @param durationTurns 持続ターン数。
+ * @param durationTurns 持続ターン数。`null`は永続。
  * @return エントリを追加した戦闘フィールド。該当するFPIDの個体がなければ内容は変わらない。
  */
-internal fun BattleField.addStatModifier(fpid: Int, stat: BattleStat, stages: Int, durationTurns: Int): BattleField {
+internal fun BattleField.addStatModifier(fpid: Int, stat: BattleStat, stages: Int, durationTurns: Int?): BattleField {
     val modifier = StatModifier(
         stat = stat,
         stages = stages,
@@ -95,7 +113,7 @@ internal fun BattleField.addStatModifier(fpid: Int, stat: BattleStat, stages: In
  * 手番を終えた個体のバフ・デバフを1手番分進める。
  *
  * 手番中にかけられたエントリ([StatModifier.grantedDuringOwnTurn])はフラグを下ろすだけで残りターンを減らさない。
- * それ以外は残りターンを1減らし、0になったエントリを削除する。
+ * 永続のエントリ(残りターンが`null`)は変えない。それ以外は残りターンを1減らし、0になったエントリを削除する。
  *
  * @receiver 更新前の戦闘フィールド。
  * @param fpid 手番を終えた個体のFPID。
@@ -112,6 +130,7 @@ private fun List<StatModifier>.afterOwnTurn(): List<StatModifier> = mapNotNull {
     if (modifier.grantedDuringOwnTurn) {
         modifier.copy(grantedDuringOwnTurn = false)
     } else {
-        modifier.copy(remainingTurns = modifier.remainingTurns - 1).takeIf { it.remainingTurns > 0 }
+        val remaining = modifier.remainingTurns
+        if (remaining == null) modifier else modifier.copy(remainingTurns = remaining - 1).takeIf { remaining - 1 > 0 }
     }
 }

@@ -22,4 +22,6 @@ val BattleStat.labelRes: Int
         BattleStat.LUCK -> R.string.battle_stat_luck
         BattleStat.ACCURACY -> R.string.battle_detail_accuracy
         BattleStat.EVASION -> R.string.battle_detail_evasion
+        BattleStat.CRITICAL_RATE -> R.string.battle_detail_critical_rate
+        BattleStat.CRITICAL_DAMAGE -> R.string.battle_detail_critical_damage
     }

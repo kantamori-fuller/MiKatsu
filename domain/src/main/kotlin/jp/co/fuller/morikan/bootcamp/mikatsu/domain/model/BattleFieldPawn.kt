@@ -69,6 +69,12 @@ sealed interface BattleFieldPawn {
      */
     val breakPointRate: Int
 
+    /**
+     * クリティカル倍率(%)の基本値。全個体が同じ固定値([jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.CriticalFormula.BASE_DAMAGE_RATE])を
+     * 戦闘中だけ持つ。段階の増減([BattleStat.CRITICAL_DAMAGE])はこれに加算される。
+     */
+    val criticalDamageRate: Int
+
     /** ブレイクの状態。[BreakState.BROKEN]の間は行動できず、被ダメージ増加と被必中の効果を受ける。 */
     val breakState: BreakState
 
@@ -107,12 +113,13 @@ sealed interface BattleFieldPawn {
         BattleStat.MANA_RESISTANCE -> manaResistance
         BattleStat.AGILITY -> agility
         BattleStat.LUCK -> luck
-        BattleStat.ACCURACY, BattleStat.EVASION ->
-            error("命中率・回避率は基礎値を持たない。段階はeffectiveStageで取得する: $stat")
+        BattleStat.ACCURACY, BattleStat.EVASION, BattleStat.CRITICAL_RATE, BattleStat.CRITICAL_DAMAGE ->
+            error("命中率・回避率・クリティカル関連は基礎値を持たない。段階はeffectiveStageで取得する: $stat")
     }
 
     /**
-     * ステータスの有効な段階(そのステータスの全エントリの合計を±12に収めた値)を返す。
+     * ステータスの有効な段階(そのステータスの全エントリの合計を、ステータスごとの上限に収めた値)を返す。
+     * 上限は通常±12で、クリティカル発生率だけ±6。
      *
      * @param stat 調べるステータス。
      * @return 有効な段階。
@@ -122,7 +129,7 @@ sealed interface BattleFieldPawn {
     /**
      * バフ・デバフを反映した、戦闘で実際に使うステータスの値を返す。ダメージ計算や行動順はこの値を使う。
      *
-     * @param stat 取得するステータス。命中率・回避率は6種用の倍率表で値を出すと誤りになるため渡せない(例外)。
+     * @param stat 取得するステータス。命中率・回避率・クリティカル関連は6種用の倍率表で値を出すと誤りになるため渡せない(例外)。
      * @return `floor(基礎値 × 段階の倍率)`。
      */
     fun effectiveStat(stat: BattleStat): Int = StatStageFormula.apply(baseStat(stat), effectiveStage(stat))

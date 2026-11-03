@@ -98,12 +98,14 @@ class HitChanceFormulaTest {
 
 /**
  * [Random.nextDouble]が、与えた値を順に(尽きたら最後の値を)返すテスト用の乱数。命中判定の結果を固定するために使う。
+ * クリティカル判定の[Random.nextInt]は、常に`until - 1`(基本の発生率ではクリティカルにならない値)を返す。
  *
  * @param values 順に返す値(0.0以上1.0未満)。
  * @return 生成した乱数。
  */
 fun fixedRandom(vararg values: Double): Random = object : Random() {
     private var index = 0
-    override fun nextBits(bitCount: Int): Int = error("nextDouble以外は使わない")
+    override fun nextBits(bitCount: Int): Int = error("nextDouble・nextInt(until)以外は使わない")
+    override fun nextInt(until: Int): Int = until - 1
     override fun nextDouble(): Double = values[minOf(index++, values.lastIndex)]
 }

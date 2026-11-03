@@ -48,9 +48,11 @@ data class AttackHit(
  * @property isHit 命中したか。
  * @property damage そのヒットのダメージ。外れたヒットは0。
  * @property causedBreak このヒットで対象がブレイクしたか。
+ * @property critical このヒットのクリティカルの種別。外れたヒットは[CriticalType.NONE]。
  */
 data class AttackShot(
     val isHit: Boolean,
     val damage: Int,
     val causedBreak: Boolean = false,
+    val critical: CriticalType = CriticalType.NONE,
 )

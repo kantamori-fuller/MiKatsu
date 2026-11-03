@@ -21,7 +21,7 @@ sealed interface ActiveSkillEffect {
      *
      * @property stat 補正するステータス。
      * @property stages 段階の増減。バフは正、デバフは負。
-     * @property durationTurns 持続ターン数(対象本人の手番を数える。詳細は[jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.StatModifier])。
+     * @property durationTurns 持続ターン数(対象本人の手番を数える。`null`は永続で、その戦闘の終わりまで切れない。詳細は[jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.StatModifier])。
      */
-    data class StatChange(val stat: BattleStat, val stages: Int, val durationTurns: Int) : ActiveSkillEffect
+    data class StatChange(val stat: BattleStat, val stages: Int, val durationTurns: Int?) : ActiveSkillEffect
 }

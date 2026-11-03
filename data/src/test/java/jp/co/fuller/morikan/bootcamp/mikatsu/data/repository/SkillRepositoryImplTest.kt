@@ -96,4 +96,35 @@ class SkillRepositoryImplTest {
         assertEquals(SkillTargetSide.ENEMY, skill.targetSide)
         assertTrue(repository.getActiveSkills().any { it.id == 4 })
     }
+
+    /** 研ぎ澄ます(Aスキル6)が仕様どおりのデータで、設定可能な一覧に出ること。ID5は欠番。 */
+    @Test
+    fun togisumasu_matchesSpec() = runBlocking {
+        val skill = checkNotNull(repository.getActiveSkill(6))
+
+        assertEquals("研ぎ澄ます", skill.name)
+        assertEquals(SkillElement.NONE, skill.element)
+        assertEquals(setOf(SkillCategory.BUFF), skill.categories)
+        assertNull(skill.physicalAttribute)
+        assertEquals(listOf(SkillCost(SkillCostType.HP, 30), SkillCost(SkillCostType.MP, 50)), skill.costs)
+        assertEquals(0, skill.coolTime)
+        assertEquals(SkillContactType.NON_CONTACT, skill.contactType)
+        assertEquals(SkillRange.RANGE_0, skill.range)
+        assertEquals(SkillArea.SINGLE, skill.area)
+        assertEquals(SkillTargetSelection.ONE, skill.targetSelection)
+        assertNull(skill.basePower)
+        assertEquals(1, skill.activationCount)
+        assertNull(skill.accuracy)
+        assertEquals(
+            listOf(
+                ActiveSkillEffect.StatChange(BattleStat.ACCURACY, 1, null),
+                ActiveSkillEffect.StatChange(BattleStat.CRITICAL_RATE, 1, null),
+                ActiveSkillEffect.StatChange(BattleStat.CRITICAL_DAMAGE, 1, null),
+            ),
+            skill.effects,
+        )
+        assertEquals(SkillTargetSide.ALLY, skill.targetSide)
+        assertTrue(repository.getActiveSkills().any { it.id == 6 })
+        assertNull(repository.getActiveSkill(5))
+    }
 }
