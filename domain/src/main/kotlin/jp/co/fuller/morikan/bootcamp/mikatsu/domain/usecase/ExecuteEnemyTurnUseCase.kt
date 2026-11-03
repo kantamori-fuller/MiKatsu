@@ -6,6 +6,7 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.selectableTargets
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.AttackResult
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.repository.BattleRepository
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.repository.SkillRepository
+import kotlin.random.Random
 
 /**
  * 現在の手番が敵のとき、その敵の通常攻撃を実行するUseCase。
@@ -14,16 +15,18 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.repository.SkillRepository
  * [EnemyTargetSelector]に委ねる。ダメージ処理は味方の攻撃([AttackUseCase])と同じ共通関数を使う。
  * 届く相手がいなければ何もしない。手番の終了は呼び出し側が[EndTurnUseCase]で行う。
  *
- * 威力・攻撃回数は通常攻撃のスキルデータ([SkillRepository.getNormalAttack])から読む。
+ * 威力・攻撃回数・命中率は通常攻撃のスキルデータ([SkillRepository.getNormalAttack])から読む。
  *
  * @property battleRepository 戦闘状態を保持するRepository。
  * @property skillRepository 通常攻撃のスキルデータを提供するRepository。
  * @property enemyTargetSelector 敵の攻撃対象を選ぶ方法。
+ * @property random 命中判定の乱数。
  */
 class ExecuteEnemyTurnUseCase(
     private val battleRepository: BattleRepository,
     private val skillRepository: SkillRepository,
     private val enemyTargetSelector: EnemyTargetSelector,
+    private val random: Random,
 ) {
 
     /**
@@ -44,7 +47,7 @@ class ExecuteEnemyTurnUseCase(
             val candidates = attacker?.let { field.selectableTargets(it.fpid, normalAttack) }.orEmpty()
             val target = attacker?.takeIf { candidates.isNotEmpty() }?.let { enemyTargetSelector.select(field, it, candidates) }
             val attack = if (attacker != null && target != null) {
-                field.performAttack(attacker.fpid, target.fpid, normalAttack)
+                field.performAttack(attacker.fpid, target.fpid, normalAttack, random)
             } else {
                 null
             }

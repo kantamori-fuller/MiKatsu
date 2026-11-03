@@ -42,6 +42,7 @@ import javax.inject.Inject
  *     targetSelection = SkillTargetSelection.ONE,  // 対象選択(一体選択/全て対象)
  *     basePower = null,                            // 基礎威力(ダメージなしはnull)
  *     hitCount = 1,                                // 攻撃回数(2回なら2)
+ *     accuracy = 100,                              // 命中率(0〜100。空欄=命中が関係しないスキルはnull)
  *     effects = emptyList(),                       // 効果(なしならemptyList())
  *     targetSide = SkillTargetSide.ENEMY,          // 対象の陣営(シートにまだない列。敵ならENEMY、味方ならALLY)
  * )
@@ -85,6 +86,7 @@ class SkillRepositoryImpl @Inject constructor() : SkillRepository {
             targetSelection = SkillTargetSelection.ONE,
             basePower = 100,
             hitCount = 1,
+            accuracy = 100,
             effects = emptyList(),
             targetSide = SkillTargetSide.ENEMY,
         )
@@ -106,6 +108,7 @@ class SkillRepositoryImpl @Inject constructor() : SkillRepository {
                 targetSelection = SkillTargetSelection.ONE,
                 basePower = null,
                 hitCount = 1,
+                accuracy = null,
                 effects = listOf(ActiveSkillEffect.Heal(amount = 50)),
                 targetSide = SkillTargetSide.ALLY,
             ),

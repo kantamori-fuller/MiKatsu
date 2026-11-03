@@ -39,7 +39,7 @@ sealed interface BattleNarration {
     data class EnemyCannotReach(val actorName: String) : BattleNarration
 
     /**
-     * 攻撃の結果(誰が誰にどれだけのダメージを与えたか)を伝える。
+     * 対象1体への攻撃が1回命中したときの結果(誰が誰にどれだけのダメージを与えたか)を伝える。
      *
      * @property attackerName 攻撃した個体の表示名。
      * @property targetName 攻撃を受けた個体の表示名。
@@ -52,17 +52,75 @@ sealed interface BattleNarration {
     ) : BattleNarration
 
     /**
-     * 範囲攻撃の結果(誰が何体に合計どれだけのダメージを与えたか)を伝える。対象が複数のときに使う。
+     * 対象1体への攻撃が全て外れたことを伝える。
      *
      * @property attackerName 攻撃した個体の表示名。
-     * @property targetCount 攻撃を受けた個体の数。
-     * @property totalDamage 全対象に与えたダメージの合計。
+     * @property targetName 攻撃を外した相手の表示名。
      */
-    data class MultiAttackResult(
+    data class AttackMissed(
         val attackerName: String,
-        val targetCount: Int,
-        val totalDamage: Int,
+        val targetName: String,
     ) : BattleNarration
+
+    /**
+     * 複数回攻撃の1ヒットが命中したことを伝える。
+     *
+     * @property shotNumber 何回目のヒットか(1始まり)。
+     * @property damage そのヒットのダメージ量。
+     */
+    data class ShotHit(val shotNumber: Int, val damage: Int) : BattleNarration
+
+    /**
+     * 複数回攻撃の1ヒットが外れたことを伝える。
+     *
+     * @property shotNumber 何回目のヒットか(1始まり)。
+     */
+    data class ShotMissed(val shotNumber: Int) : BattleNarration
+
+    /**
+     * 複数回攻撃のまとめ(合計ダメージと命中回数)を伝える。
+     *
+     * @property attackerName 攻撃した個体の表示名。
+     * @property targetName 攻撃を受けた個体の表示名。
+     * @property totalDamage 与えたダメージの合計。
+     * @property shotCount 実際に行ったヒット数。
+     * @property hitCount そのうち命中した数。
+     */
+    data class AttackTotal(
+        val attackerName: String,
+        val targetName: String,
+        val totalDamage: Int,
+        val shotCount: Int,
+        val hitCount: Int,
+    ) : BattleNarration
+
+    /**
+     * 範囲攻撃(対象が複数)の開始を伝える。
+     *
+     * @property attackerName 攻撃した個体の表示名。
+     */
+    data class AreaAttackStart(val attackerName: String) : BattleNarration
+
+    /**
+     * 範囲攻撃が全員に全発外れたことを伝える。
+     *
+     * @property attackerName 攻撃した個体の表示名。
+     */
+    data class AreaAttackAllMissed(val attackerName: String) : BattleNarration
+
+    /**
+     * 範囲攻撃で、全発が外れた相手をまとめて伝える。
+     *
+     * @property targetNames 外れた相手の表示名。
+     */
+    data class AreaMissed(val targetNames: List<String>) : BattleNarration
+
+    /**
+     * 範囲攻撃で、命中した相手と与えたダメージをまとめて伝える。
+     *
+     * @property entries 命中した相手ごとのダメージ。
+     */
+    data class AreaHit(val entries: List<AreaHitEntry>) : BattleNarration
 
     /**
      * 回復スキルの結果(誰が誰にどのスキルを使い、HPがどれだけ回復したか)を伝える。
@@ -94,3 +152,14 @@ sealed interface BattleNarration {
         val totalHealed: Int,
     ) : BattleNarration
 }
+
+/**
+ * 範囲攻撃で命中した1体分の、表示名と与えたダメージ。
+ *
+ * @property targetName 命中した相手の表示名。
+ * @property damage その相手に与えたダメージ量(全ヒットの合計)。
+ */
+data class AreaHitEntry(
+    val targetName: String,
+    val damage: Int,
+)

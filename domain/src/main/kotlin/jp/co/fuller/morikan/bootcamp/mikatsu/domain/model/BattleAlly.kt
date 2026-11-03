@@ -1,5 +1,6 @@
 package jp.co.fuller.morikan.bootcamp.mikatsu.domain.model
 
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.HitChanceFormula
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.ActiveSkill
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.PassiveSkill
 
@@ -19,6 +20,8 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.PassiveSkill
  * @property slot 陣形([Formation])上で配置されているマスのスロット番号([BattleFieldPawn.slot])。上段(0〜2)が前衛、下段(3〜5)が後衛。
  * @property remainingDistance 次の手番までに進む必要がある残り距離([BattleFieldPawn.remainingDistance])。
  * @property turnCount この個体が終えた自分の手番の回数([BattleFieldPawn.turnCount])。
+ * @property accuracy 命中率([BattleFieldPawn.accuracy])。戦闘ごとに基本値から始まり、次の戦闘へは持ち越さない。
+ * @property evasion 回避率([BattleFieldPawn.evasion])。性質は[accuracy]と同じ。
  * @property activeSkills [Character.activeSkillIds]から解決した、使えるアクティブスキル。
  * @property passiveSkills [Character.passiveSkillIds]から解決した、発揮しているパッシブスキル。
  */
@@ -30,6 +33,8 @@ data class BattleAlly(
     override val slot: Int,
     override val remainingDistance: Double,
     override val turnCount: Int,
+    override val accuracy: Int = HitChanceFormula.BASE_RATE,
+    override val evasion: Int = HitChanceFormula.BASE_RATE,
     val activeSkills: List<ActiveSkill> = emptyList(),
     override val passiveSkills: List<PassiveSkill> = emptyList(),
 ) : BattleFieldPawn {

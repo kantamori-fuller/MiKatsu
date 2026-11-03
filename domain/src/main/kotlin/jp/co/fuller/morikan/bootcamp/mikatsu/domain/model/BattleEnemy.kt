@@ -1,5 +1,6 @@
 package jp.co.fuller.morikan.bootcamp.mikatsu.domain.model
 
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.HitChanceFormula
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.PassiveSkill
 
 /**
@@ -17,6 +18,8 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.PassiveSkill
  *   0〜2が前衛、3〜5が後衛となる。
  * @property remainingDistance 次の手番までに進む必要がある残り距離([BattleFieldPawn.remainingDistance])。
  * @property turnCount この個体が終えた自分の手番の回数([BattleFieldPawn.turnCount])。
+ * @property accuracy 命中率([BattleFieldPawn.accuracy])。戦闘ごとに基本値から始まる。
+ * @property evasion 回避率([BattleFieldPawn.evasion])。性質は[accuracy]と同じ。
  */
 data class BattleEnemy(
     override val fpid: Int,
@@ -25,6 +28,8 @@ data class BattleEnemy(
     override val slot: Int,
     override val remainingDistance: Double,
     override val turnCount: Int,
+    override val accuracy: Int = HitChanceFormula.BASE_RATE,
+    override val evasion: Int = HitChanceFormula.BASE_RATE,
 ) : BattleFieldPawn {
     override val maxHp: Int get() = enemy.hp
     override val attack: Int get() = enemy.attack

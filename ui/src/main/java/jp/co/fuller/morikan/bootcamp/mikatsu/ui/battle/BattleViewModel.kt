@@ -9,8 +9,8 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleAlly
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleEnemy
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleField
-import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleOutcome
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.AttackResult
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleOutcome
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.Formation
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.SkillResult
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.ActiveSkill
@@ -32,6 +32,8 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleSkillUiModel
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleUiState
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleUnitUiModel
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.resolveDisplayNames
+import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.toNarrations
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -39,11 +41,12 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 /** 敵の行動を開始してから攻撃を実行するまでの間(ミリ秒)。 */
 private const val ENEMY_TURN_DELAY_MS = 800L
 
-/** 攻撃結果のナレーションを表示してから手番を終えるまでの間(ミリ秒)。 */
+/** 攻撃結果などの演出ナレーション1文あたりの表示時間(ミリ秒)。最後の文の表示後に手番を終える。 */
 private const val RESULT_DISPLAY_MS = 1200L
 
 /**
@@ -58,6 +61,8 @@ private const val RESULT_DISPLAY_MS = 1200L
  * 求めた「選べる相手」だけで、敵・味方どちらのカードからでも選べる。
  * 手番が敵のときは、間とナレーションを挟みながら[executeEnemyTurnUseCase]で自動的に攻撃させる。
  * 行動のたびに[endTurnUseCase]で手番を終える。
+ * 演出中のナレーションは複数の文の列として1文ずつ順に表示し、ナレーション欄のタップ([onNarrationClick])で
+ * 表示時間の待ちを打ち切って次の文へ進められる。
  * 勝利後は「次に進む」で[advanceToNextBattleUseCase]により同じ編成のまま次の戦闘へ進み、
  * 進行度は[observeMapProgressUseCase]で購読して表示する(正はRepositoryが保持する)。
  *
@@ -100,6 +105,13 @@ class BattleViewModel @AssistedInject constructor(
     /** 次の戦闘へ進める処理のジョブ。連打で二重に進まないための目印として保持する。 */
     private var nextBattleJob: Job? = null
 
+    /**
+     * 演出中のナレーション1文の表示時間の待ちを打ち切るための合図。待っている間だけ非`null`で、
+     * 待っていない間に来たタップを捨てるために使う。完了済みの合図への再度の完了は無視されるため、
+     * 1回のタップで進むのは1文だけになる。
+     */
+    private var narrationSkipSignal: CompletableDeferred<Unit>? = null
+
     /** 演出中(敵の手番または味方の攻撃・スキルのジョブが動いている間)かどうか。 */
     private val isBusy: Boolean
         get() = enemyTurnJob?.isActive == true || playerActionJob?.isActive == true
@@ -119,6 +131,16 @@ class BattleViewModel @AssistedInject constructor(
                 startEnemyTurnIfNeeded(battleField)
             }
         }
+    }
+
+    /**
+     * ナレーション欄がタップされたときに呼ばれる。
+     *
+     * 演出中で、ナレーション1文の表示時間を待っている間だけ、その待ちを打ち切って次の文へ進める
+     * (最後の文なら手番の終了へ進む)。待っていない間のタップは溜め込まずに捨てる。
+     */
+    fun onNarrationClick() {
+        narrationSkipSignal?.complete(Unit)
     }
 
     /**
@@ -208,11 +230,11 @@ class BattleViewModel @AssistedInject constructor(
         if (!state.isPlayerTurn || isBusy || fpid !in state.selectableTargetIds) return
         when (val selection = state.selection) {
             BattleSelection.AttackTarget -> launchPlayerAction(actorFpid) {
-                attackUseCase(attackerFpid = actorFpid, targetFpid = fpid)?.let(::attackNarration)
+                attackUseCase(attackerFpid = actorFpid, targetFpid = fpid)?.let(::attackNarrations)
             }
             is BattleSelection.SkillTarget -> launchPlayerAction(actorFpid) {
                 useSkillUseCase(actorFpid = actorFpid, skillId = selection.skillId, targetFpid = fpid)
-                    ?.let(::skillNarration)
+                    ?.let { listOf(skillNarration(it)) }
             }
             else -> Unit
         }
@@ -226,15 +248,14 @@ class BattleViewModel @AssistedInject constructor(
      * ([execute]が`null`)は、手番を終えずに行動選択へ戻す。
      *
      * @param actorFpid 行動する味方のFPID。
-     * @param execute 行動を実行し、結果のナレーションを返す処理。実行できなければ`null`を返す。
+     * @param execute 行動を実行し、結果のナレーションの列を返す処理。実行できなければ`null`を返す。
      */
-    private fun launchPlayerAction(actorFpid: Int, execute: suspend () -> BattleNarration?) {
+    private fun launchPlayerAction(actorFpid: Int, execute: suspend () -> List<BattleNarration>?) {
         _uiState.update { it.copy(isProcessing = true, selection = BattleSelection.None) }
         playerActionJob = viewModelScope.launch {
-            val narration = execute()
-            if (narration != null) {
-                _uiState.update { it.copy(processingNarration = narration) }
-                delay(RESULT_DISPLAY_MS)
+            val narrations = execute()
+            if (narrations != null) {
+                narrations.forEach { showNarration(it, RESULT_DISPLAY_MS) }
                 endTurnUseCase(actorFpid)
             }
             _uiState.update { it.copy(isProcessing = false, processingNarration = null) }
@@ -261,9 +282,10 @@ class BattleViewModel @AssistedInject constructor(
      * 現在の手番が敵で、演出中でなく、勝敗も決まっていなければ、敵の手番の演出ジョブを開始する。
      *
      * 判断には、古くなり得るUiStateではなく、Repositoryから流れてきた最新の[field]を用いる。
-     * 流れは「演出中にする → 敵の行動のナレーション → 間 → 攻撃 → 攻撃結果のナレーション → 間 →
+     * 流れは「演出中にする → 敵の行動のナレーション → 間 → 攻撃 → 攻撃結果のナレーションの列(1文ずつ、間を置く) →
      * 手番終了 → 演出終了」。届く相手がいなくて攻撃できなかったときは、攻撃結果の代わりに
      * 「届かない」ナレーション([BattleNarration.EnemyCannotReach])を同じ間だけ表示してから手番を終える。
+     * 各ナレーションの間は、ナレーション欄のタップ([onNarrationClick])で打ち切れる。
      * 2つのジョブが動いている間は多重起動しない。
      *
      * @param field 判断に用いる、最新の戦闘フィールド。
@@ -276,11 +298,11 @@ class BattleViewModel @AssistedInject constructor(
             it.copy(isProcessing = true, processingNarration = BattleNarration.EnemyTurn(it.nameOf(actorFpid)))
         }
         enemyTurnJob = viewModelScope.launch {
-            delay(ENEMY_TURN_DELAY_MS)
+            waitForNarration(ENEMY_TURN_DELAY_MS)
             val result = executeEnemyTurnUseCase(actorFpid)
-            val narration = result?.let(::attackNarration) ?: BattleNarration.EnemyCannotReach(_uiState.value.nameOf(actorFpid))
-            _uiState.update { it.copy(processingNarration = narration) }
-            delay(RESULT_DISPLAY_MS)
+            val narrations = result?.let(::attackNarrations)
+                ?: listOf(BattleNarration.EnemyCannotReach(_uiState.value.nameOf(actorFpid)))
+            narrations.forEach { showNarration(it, RESULT_DISPLAY_MS) }
             endTurnUseCase(actorFpid)
             _uiState.update { it.copy(isProcessing = false, processingNarration = null) }
             enemyTurnJob = null
@@ -289,27 +311,42 @@ class BattleViewModel @AssistedInject constructor(
     }
 
     /**
-     * 攻撃結果から、表示するナレーションを作る。
+     * 演出中のナレーションを1文表示し、表示時間が過ぎるかナレーション欄がタップされるまで待つ。
+     *
+     * @param narration 表示するナレーション。
+     * @param durationMs 表示する時間(ミリ秒)。
+     */
+    private suspend fun showNarration(narration: BattleNarration, durationMs: Long) {
+        _uiState.update { it.copy(processingNarration = narration) }
+        waitForNarration(durationMs)
+    }
+
+    /**
+     * [durationMs]が過ぎるか[onNarrationClick]で打ち切られるまで待つ。待っている間だけタップを受け付ける。
+     *
+     * @param durationMs 待つ時間(ミリ秒)。
+     */
+    private suspend fun waitForNarration(durationMs: Long) {
+        val signal = CompletableDeferred<Unit>()
+        narrationSkipSignal = signal
+        try {
+            withTimeoutOrNull(durationMs) { signal.await() }
+        } finally {
+            narrationSkipSignal = null
+        }
+    }
+
+    /**
+     * 攻撃結果から、表示するナレーションの列を作る。
+     *
+     * 文の組み立て自体は[toNarrations]に委ね、ここでは表示名の解決だけを行う。
      *
      * @param result 攻撃の結果。
-     * @return 対象が1体なら誰が誰にどれだけのダメージを与えたか、複数なら何体に合計どれだけのダメージを与えたかを伝えるナレーション。
+     * @return 順に1文ずつ表示するナレーション。
      */
-    private fun attackNarration(result: AttackResult): BattleNarration {
+    private fun attackNarrations(result: AttackResult): List<BattleNarration> {
         val state = _uiState.value
-        val single = result.hits.singleOrNull()
-        return if (single != null) {
-            BattleNarration.AttackResult(
-                attackerName = state.nameOf(result.attackerFpid),
-                targetName = state.nameOf(single.targetFpid),
-                damage = single.damage,
-            )
-        } else {
-            BattleNarration.MultiAttackResult(
-                attackerName = state.nameOf(result.attackerFpid),
-                targetCount = result.hits.size,
-                totalDamage = result.totalDamage,
-            )
-        }
+        return result.toNarrations(state::nameOf)
     }
 
     /**

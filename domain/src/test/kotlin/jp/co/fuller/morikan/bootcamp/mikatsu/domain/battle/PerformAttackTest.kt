@@ -1,6 +1,5 @@
 package jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle
 
-import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.AttackHit
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleField
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillArea
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillRange
@@ -8,6 +7,7 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillTargetSelec
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import kotlin.random.Random
 
 /** [performAttack]が攻撃スキルの基礎威力・攻撃回数を使い、ヒットごとにダメージ軽減を適用することを検証するテスト。 */
 class PerformAttackTest {
@@ -22,7 +22,7 @@ class PerformAttackTest {
     /** 通常攻撃は基礎威力100・1ヒットで、従来と同じ24ダメージになること。 */
     @Test
     fun normalAttack_usesBasePower100_singleHit() {
-        val (after, result) = checkNotNull(field().performAttack(1, 2, TEST_NORMAL_ATTACK))
+        val (after, result) = checkNotNull(field().performAttack(1, 2, TEST_NORMAL_ATTACK, Random(0)))
 
         assertEquals(24, result.totalDamage)
         assertEquals(1000 - 24, after.enemies[0].currentHp)
@@ -33,7 +33,7 @@ class PerformAttackTest {
     fun basePower_isApplied() {
         val skill = TEST_NORMAL_ATTACK.copy(basePower = 200)
 
-        val (_, result) = checkNotNull(field().performAttack(1, 2, skill))
+        val (_, result) = checkNotNull(field().performAttack(1, 2, skill, Random(0)))
 
         assertEquals(46, result.totalDamage)
     }
@@ -43,7 +43,7 @@ class PerformAttackTest {
     fun hitCount_sumsDamage() {
         val skill = TEST_NORMAL_ATTACK.copy(hitCount = 2)
 
-        val (after, result) = checkNotNull(field().performAttack(1, 2, skill))
+        val (after, result) = checkNotNull(field().performAttack(1, 2, skill, Random(0)))
 
         assertEquals(48, result.totalDamage)
         assertEquals(1000 - 48, after.enemies[0].currentHp)
@@ -54,7 +54,7 @@ class PerformAttackTest {
     fun hitCount_stopsWhenTargetDefeated() {
         val skill = TEST_NORMAL_ATTACK.copy(hitCount = 5)
 
-        val (after, result) = checkNotNull(field(enemyHp = 30).performAttack(1, 2, skill))
+        val (after, result) = checkNotNull(field(enemyHp = 30).performAttack(1, 2, skill, Random(0)))
 
         assertEquals(48, result.totalDamage) // 24 + 24 で30を超えたので3回目は行わない
         assertEquals(0, after.enemies[0].currentHp)
@@ -69,7 +69,7 @@ class PerformAttackTest {
             turnQueue = listOf(2),
         )
 
-        val (_, result) = checkNotNull(f.performAttack(2, 1, TEST_NORMAL_ATTACK.copy(hitCount = 2)))
+        val (_, result) = checkNotNull(f.performAttack(2, 1, TEST_NORMAL_ATTACK.copy(hitCount = 2), Random(0)))
 
         assertEquals(96, result.totalDamage)
     }
@@ -77,7 +77,7 @@ class PerformAttackTest {
     /** 基礎威力のないスキルでは攻撃できないこと。 */
     @Test
     fun noBasePower_returnsNull() {
-        assertNull(field().performAttack(1, 2, TEST_NORMAL_ATTACK.copy(basePower = null)))
+        assertNull(field().performAttack(1, 2, TEST_NORMAL_ATTACK.copy(basePower = null), Random(0)))
     }
 
     /** 敵3体(前衛2・後衛1)がいる、範囲攻撃の検証用フィールド。耐久100の1ヒットは24ダメージ。 */
@@ -96,9 +96,9 @@ class PerformAttackTest {
     fun formationAll_hitsEveryoneInTheRow() {
         val skill = TEST_NORMAL_ATTACK.copy(area = SkillArea.FORMATION, targetSelection = SkillTargetSelection.ALL)
 
-        val (after, result) = checkNotNull(multiField().performAttack(1, 2, skill))
+        val (after, result) = checkNotNull(multiField().performAttack(1, 2, skill, Random(0)))
 
-        assertEquals(listOf(AttackHit(2, 24), AttackHit(3, 24)), result.hits)
+        assertEquals(listOf(2 to 24, 3 to 24), result.hits.map { it.targetFpid to it.damage })
         assertEquals(48, result.totalDamage)
         assertEquals(listOf(976, 976, 1000), after.enemies.map { it.currentHp })
     }
@@ -115,9 +115,9 @@ class PerformAttackTest {
             area = SkillArea.AREA, targetSelection = SkillTargetSelection.ALL, hitCount = 5,
         )
 
-        val (after, result) = checkNotNull(f.performAttack(1, 2, skill))
+        val (after, result) = checkNotNull(f.performAttack(1, 2, skill, Random(0)))
 
-        assertEquals(listOf(AttackHit(2, 48), AttackHit(3, 120)), result.hits) // 30のHPは2ヒット、1000のHPは5ヒット
+        assertEquals(listOf(2 to 48, 3 to 120), result.hits.map { it.targetFpid to it.damage }) // 30のHPは2ヒット、1000のHPは5ヒット
         assertEquals(listOf(0, 880), after.enemies.map { it.currentHp })
     }
 
@@ -127,7 +127,7 @@ class PerformAttackTest {
         val f = multiField().let { it.copy(enemies = it.enemies.map { e -> if (e.fpid == 3) e.copy(currentHp = 0) else e }) }
         val skill = TEST_NORMAL_ATTACK.copy(area = SkillArea.AREA, targetSelection = SkillTargetSelection.ALL, range = SkillRange.RANGE_3)
 
-        val (_, result) = checkNotNull(f.performAttack(1, 2, skill))
+        val (_, result) = checkNotNull(f.performAttack(1, 2, skill, Random(0)))
 
         assertEquals(listOf(2, 4), result.hits.map { it.targetFpid })
     }
@@ -137,7 +137,7 @@ class PerformAttackTest {
     fun oneSelection_hitsOnlyAnchor() {
         val skill = TEST_NORMAL_ATTACK.copy(area = SkillArea.AREA, targetSelection = SkillTargetSelection.ONE)
 
-        val (after, result) = checkNotNull(multiField().performAttack(1, 3, skill))
+        val (after, result) = checkNotNull(multiField().performAttack(1, 3, skill, Random(0)))
 
         assertEquals(listOf(3), result.hits.map { it.targetFpid })
         assertEquals(listOf(1000, 976, 1000), after.enemies.map { it.currentHp })
@@ -146,10 +146,10 @@ class PerformAttackTest {
     /** レンジ外の敵(後衛)を、レンジ1の通常攻撃で選ぶと攻撃できずnullになり、レンジ2なら届くこと。 */
     @Test
     fun outOfRange_returnsNull() {
-        assertNull(multiField().performAttack(1, 4, TEST_NORMAL_ATTACK))
-        assertNull(multiField().performAttack(1, 1, TEST_NORMAL_ATTACK)) // 陣営違い(味方)
+        assertNull(multiField().performAttack(1, 4, TEST_NORMAL_ATTACK, Random(0)))
+        assertNull(multiField().performAttack(1, 1, TEST_NORMAL_ATTACK, Random(0))) // 陣営違い(味方)
 
-        val (_, result) = checkNotNull(multiField().performAttack(1, 4, TEST_NORMAL_ATTACK.copy(range = SkillRange.RANGE_2)))
+        val (_, result) = checkNotNull(multiField().performAttack(1, 4, TEST_NORMAL_ATTACK.copy(range = SkillRange.RANGE_2), Random(0)))
         assertEquals(listOf(4), result.hits.map { it.targetFpid })
     }
 
@@ -161,9 +161,9 @@ class PerformAttackTest {
             enemies = listOf(testEnemy(3, slot = 0)),
             turnQueue = listOf(2),
         )
-        assertNull(back.performAttack(2, 3, TEST_NORMAL_ATTACK))
+        assertNull(back.performAttack(2, 3, TEST_NORMAL_ATTACK, Random(0)))
 
         val promoted = back.copy(allies = back.allies.map { if (it.fpid == 1) it.copy(currentHp = 0) else it })
-        assertEquals(listOf(3), checkNotNull(promoted.performAttack(2, 3, TEST_NORMAL_ATTACK)).second.hits.map { it.targetFpid })
+        assertEquals(listOf(3), checkNotNull(promoted.performAttack(2, 3, TEST_NORMAL_ATTACK, Random(0))).second.hits.map { it.targetFpid })
     }
 }

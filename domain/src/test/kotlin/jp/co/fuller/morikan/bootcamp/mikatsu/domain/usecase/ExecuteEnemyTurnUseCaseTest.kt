@@ -27,7 +27,7 @@ class ExecuteEnemyTurnUseCaseTest {
                     turnQueue = listOf(4),
                 ),
             )
-            val result = ExecuteEnemyTurnUseCase(repo, FakeSkillRepository(), RandomEnemyTargetSelector(Random(seed)))(actorFpid = 4)
+            val result = ExecuteEnemyTurnUseCase(repo, FakeSkillRepository(), RandomEnemyTargetSelector(Random(seed)), Random(0))(actorFpid = 4)
 
             assertNotNull(result)
             assertEquals(4, result!!.attackerFpid)
@@ -46,7 +46,7 @@ class ExecuteEnemyTurnUseCaseTest {
         )
         val repo = FakeBattleRepository(field)
 
-        assertNull(ExecuteEnemyTurnUseCase(repo, FakeSkillRepository(), RandomEnemyTargetSelector(Random(0)))(actorFpid = 2))
+        assertNull(ExecuteEnemyTurnUseCase(repo, FakeSkillRepository(), RandomEnemyTargetSelector(Random(0)), Random(0))(actorFpid = 2))
 
         assertEquals(field, repo.current)
     }
@@ -61,7 +61,7 @@ class ExecuteEnemyTurnUseCaseTest {
         )
         val repo = FakeBattleRepository(field)
 
-        assertNull(ExecuteEnemyTurnUseCase(repo, FakeSkillRepository(), RandomEnemyTargetSelector(Random(0)))(actorFpid = 3))
+        assertNull(ExecuteEnemyTurnUseCase(repo, FakeSkillRepository(), RandomEnemyTargetSelector(Random(0)), Random(0))(actorFpid = 3))
 
         assertEquals(field, repo.current)
     }
@@ -74,7 +74,7 @@ class ExecuteEnemyTurnUseCaseTest {
         )
         val skills = FakeSkillRepository(TEST_NORMAL_ATTACK.copy(basePower = 200, hitCount = 2))
 
-        val result = ExecuteEnemyTurnUseCase(repo, skills, RandomEnemyTargetSelector(Random(0)))(actorFpid = 2)
+        val result = ExecuteEnemyTurnUseCase(repo, skills, RandomEnemyTargetSelector(Random(0)), Random(0))(actorFpid = 2)
 
         assertEquals(92, result?.totalDamage) // 威力200の1ヒットは46、2回で92
         assertEquals(100 - 92, repo.current.allies[0].currentHp)
@@ -92,7 +92,7 @@ class ExecuteEnemyTurnUseCaseTest {
                 ),
             )
 
-            val result = ExecuteEnemyTurnUseCase(repo, FakeSkillRepository(), RandomEnemyTargetSelector(Random(seed)))(actorFpid = 4)
+            val result = ExecuteEnemyTurnUseCase(repo, FakeSkillRepository(), RandomEnemyTargetSelector(Random(seed)), Random(0))(actorFpid = 4)
 
             assertTrue(checkNotNull(result).hits.single().targetFpid in listOf(1, 3))
             assertEquals(100, repo.current.allies[1].currentHp)
@@ -109,7 +109,7 @@ class ExecuteEnemyTurnUseCaseTest {
         )
         val repo = FakeBattleRepository(field)
 
-        assertNull(ExecuteEnemyTurnUseCase(repo, FakeSkillRepository(), RandomEnemyTargetSelector(Random(0)))(actorFpid = 3))
+        assertNull(ExecuteEnemyTurnUseCase(repo, FakeSkillRepository(), RandomEnemyTargetSelector(Random(0)), Random(0))(actorFpid = 3))
 
         assertEquals(field, repo.current)
     }
@@ -125,7 +125,7 @@ class ExecuteEnemyTurnUseCaseTest {
             ),
         )
 
-        val result = ExecuteEnemyTurnUseCase(repo, FakeSkillRepository(), RandomEnemyTargetSelector(Random(0)))(actorFpid = 3)
+        val result = ExecuteEnemyTurnUseCase(repo, FakeSkillRepository(), RandomEnemyTargetSelector(Random(0)), Random(0))(actorFpid = 3)
 
         assertEquals(listOf(1), result?.hits?.map { it.targetFpid })
     }
