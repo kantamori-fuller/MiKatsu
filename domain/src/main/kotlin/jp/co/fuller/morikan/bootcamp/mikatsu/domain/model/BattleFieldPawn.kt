@@ -75,6 +75,13 @@ sealed interface BattleFieldPawn {
      */
     val criticalDamageRate: Int
 
+    /**
+     * 防御状態か。防御中は受けるダメージが30%カットされ、クリティカルが無効になる
+     * ([jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.DefenseFormula])。次の自分の手番が始まるか、ブレイクすると解除される。
+     * 戦闘中だけの値で、戦闘ごとに`false`から始まり、次の戦闘へは持ち越さない。
+     */
+    val isDefending: Boolean
+
     /** ブレイクの状態。[BreakState.BROKEN]の間は行動できず、被ダメージ増加と被必中の効果を受ける。 */
     val breakState: BreakState
 

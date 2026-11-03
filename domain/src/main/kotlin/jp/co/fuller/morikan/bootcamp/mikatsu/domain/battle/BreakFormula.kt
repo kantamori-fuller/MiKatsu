@@ -82,7 +82,7 @@ object BreakFormula {
  * 攻撃の1ヒットでダメージを与えた後の対象に、ブレイクゲージを加算する。
  *
  * ダメージの適用後の戦闘フィールドに対して呼ぶ。対象が戦闘不能になった・ブレイク中・立ち上がり中のときは何もしない。
- * 加算後に[BreakFormula.MAX_GAUGE]以上になったら、ゲージを0に戻して(超過分は捨てる)[BreakState.BROKEN]にする。
+ * 加算後に[BreakFormula.MAX_GAUGE]以上になったら、ゲージを0に戻して(超過分は捨てる)[BreakState.BROKEN]にし、防御状態も解除する。
  * 貯まるのは攻撃によるダメージだけで、HPコストの支払いや回復では呼ばない。
  *
  * @receiver ダメージ適用後の戦闘フィールド。
@@ -109,8 +109,8 @@ internal fun BattleField.accumulateBreakGauge(
     val newState = if (broke) BreakState.BROKEN else BreakState.NONE
     val updated = updatePawn(
         fpid = targetFpid,
-        transformAlly = { it.copy(breakGauge = newGauge, breakState = newState) },
-        transformEnemy = { it.copy(breakGauge = newGauge, breakState = newState) },
+        transformAlly = { it.copy(breakGauge = newGauge, breakState = newState, isDefending = it.isDefending && !broke) },
+        transformEnemy = { it.copy(breakGauge = newGauge, breakState = newState, isDefending = it.isDefending && !broke) },
     )
     return updated to broke
 }

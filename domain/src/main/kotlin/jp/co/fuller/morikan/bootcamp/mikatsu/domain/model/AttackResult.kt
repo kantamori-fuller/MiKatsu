@@ -50,10 +50,12 @@ data class AttackHit(
  * @property causedBreak このヒットで対象がブレイクしたか。
  * @property critical このヒットのクリティカルの種別。最終的なクリティカル倍率が100%未満なら[CriticalType.BAD_CRITICAL]、以上なら[CriticalType.CRITICAL]で、
  *   発生判定が出なかったヒットと外れたヒットは[CriticalType.NONE]。
+ * @property isCriticalBlocked 対象の防御によってクリティカルが無効になったか。このときヒットは通常ヒット扱いで[critical]は[CriticalType.NONE]。
  */
 data class AttackShot(
     val isHit: Boolean,
     val damage: Int,
     val causedBreak: Boolean = false,
     val critical: CriticalType = CriticalType.NONE,
+    val isCriticalBlocked: Boolean = false,
 )

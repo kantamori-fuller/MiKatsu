@@ -42,6 +42,7 @@ private fun BattleFieldPawn.timeToTurn(): Double = remainingDistance / ActionSpe
  * 3. 誰もいなければ、生きている個体の次の手番までの時間の最小値だけ全員の距離を進め、
  *    最小値と同時とみなせる個体を幸運値の高い順(同値の中はランダム)に並べて手番とする。
  *
+ * 新たに現在の行動者になった個体(キューの先頭)の防御状態は、どちらの経路でもここで解除する([releaseDefense])。
  * 一度決めた順番は[BattleField.turnQueue]に保存されるため、再度呼んでもくじは引き直さない。
  *
  * @receiver 更新前の戦闘フィールド。
@@ -53,7 +54,7 @@ fun BattleField.advanceToNextTurn(random: Random): BattleField {
 
     val aliveFpids = allPawns.filterNot { it.isDefeated }.map { it.fpid }.toSet()
     val remainingQueue = turnQueue.filter { it in aliveFpids }
-    if (remainingQueue.isNotEmpty()) return copy(turnQueue = remainingQueue)
+    if (remainingQueue.isNotEmpty()) return copy(turnQueue = remainingQueue).releaseDefense(remainingQueue.first())
 
     val alive = allPawns.filterNot { it.isDefeated }
     val minTime = alive.minOf { it.timeToTurn() }
@@ -79,7 +80,7 @@ fun BattleField.advanceToNextTurn(random: Random): BattleField {
         .toSortedMap(compareByDescending { it })
         .values
         .flatMap { group -> group.map { it.fpid }.shuffled(random) }
-    return advanced.copy(turnQueue = queue)
+    return advanced.copy(turnQueue = queue).releaseDefense(queue.first())
 }
 
 /**

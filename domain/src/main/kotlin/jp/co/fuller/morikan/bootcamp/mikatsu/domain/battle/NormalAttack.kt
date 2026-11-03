@@ -5,6 +5,7 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.AttackResult
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.AttackShot
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleField
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleStat
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.CriticalType
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.applyDamage
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.ActiveSkill
 import kotlin.random.Random
@@ -16,8 +17,9 @@ import kotlin.random.Random
  * 対象は、選んだ対象([targetFpid])を[resolveTargets]で範囲・対象選択に従って展開して決める。
  * ダメージ計算の破壊力・耐久力は、バフ・デバフを反映した値([jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleFieldPawn.effectiveStat])を使う。
  * 対象ごとに、1ヒットずつ[HitChanceFormula]で命中判定を行い、命中したヒットだけ[DamageFormula]の結果へ
- * クリティカル判定([CriticalFormula]。命中後に1回、乱数を引く)と倍率の適用(ヒットの種別は最終的な倍率で決める)、続けてブレイク中の被ダメージ増加([BreakFormula.boostDamage])、さらに対象のパッシブスキルによるダメージ軽減
+ * クリティカル判定([CriticalFormula]。命中後に1回、乱数を引く)と倍率の適用(ヒットの種別は最終的な倍率で決める)、続けてブレイク中の被ダメージ増加([BreakFormula.boostDamage])、対象が防御中なら30%カット([DefenseFormula.reduceDamage])、さらに対象のパッシブスキルによるダメージ軽減
  * ([reduceDamage])を適用する。外れたヒットはダメージ0で軽減も適用せず、発動回数は1回消費する。
+ * 防御中の対象では、最終的にクリティカルになるヒットを通常ヒット扱いにする([DefenseFormula.blocksCritical]。乱数は通常どおり引く)。
  * 発動回数だけ繰り返し、途中で対象が戦闘不能になったら、その対象への残りのヒットは行わない。
  * ダメージは1ヒットごとにフィールドへ適用してブレイクゲージを加算し([accumulateBreakGauge])、次のヒットは
  * 更新後の対象の状態で計算する。そのため多段攻撃の途中でブレイクすると、残りのヒットからすぐに被ダメージ増加と被必中が効く。
@@ -72,15 +74,26 @@ fun BattleField.performAttack(
             )
             val judged = CriticalFormula.judge(attacker.effectiveStage(BattleStat.CRITICAL_RATE), random)
             val damageStage = attacker.effectiveStage(BattleStat.CRITICAL_DAMAGE)
-            val criticalDamage = CriticalFormula.applyDamage(base, judged, attacker.criticalDamageRate, damageStage)
-            val critical = CriticalFormula.finalType(judged, attacker.criticalDamageRate, damageStage)
-            val damage = current.reduceDamage(BreakFormula.boostDamage(criticalDamage, current.isBroken))
+            val finalType = CriticalFormula.finalType(judged, attacker.criticalDamageRate, damageStage)
+            // 防御中の対象には、最終的にクリティカルになるヒットを通常ヒット扱いにする(乱数は判定のために引いたまま)。
+            val isCriticalBlocked = DefenseFormula.blocksCritical(current.isDefending, finalType)
+            val critical = if (isCriticalBlocked) CriticalType.NONE else finalType
+            val appliedJudge = if (isCriticalBlocked) CriticalType.NONE else judged
+            val criticalDamage = CriticalFormula.applyDamage(base, appliedJudge, attacker.criticalDamageRate, damageStage)
+            val boosted = BreakFormula.boostDamage(criticalDamage, current.isBroken)
+            val damage = current.reduceDamage(DefenseFormula.reduceDamage(boosted, current.isDefending))
             val hpLoss = minOf(damage, current.currentHp)
             val (broken, causedBreak) = field
                 .applyDamage(targetFpid = target.fpid, damage = damage)
                 .accumulateBreakGauge(attacker.breakPointRate, target.fpid, hpLoss)
             field = broken
-            shots += AttackShot(isHit = true, damage = damage, causedBreak = causedBreak, critical = critical)
+            shots += AttackShot(
+                isHit = true,
+                damage = damage,
+                causedBreak = causedBreak,
+                critical = critical,
+                isCriticalBlocked = isCriticalBlocked,
+            )
         }
         AttackHit(targetFpid = target.fpid, shots = shots)
     }

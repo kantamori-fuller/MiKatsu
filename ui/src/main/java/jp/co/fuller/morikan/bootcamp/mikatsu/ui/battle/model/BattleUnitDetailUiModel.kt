@@ -48,6 +48,7 @@ enum class BattleUnitPosition {
  * @property remainingDistance 次の手番までの残り距離を切り捨てた整数。基準は`ActionTimeline.BASE_DISTANCE`。
  * @property activeSkillNames 設定しているAスキルの名前(通常攻撃は含まない)。
  * @property passiveSkillNames 設定しているPスキルの名前。
+ * @property isDefending 防御中か。`true`のときだけ、ブレイク状態の近くに「防御中」を表示する。
  * @property statChanges かかっているステータス変化。変化のあるステータスだけを持ち、1つもなければ空。ステータス欄(基礎値)には反映しない。
  */
 data class BattleUnitDetailUiModel(
@@ -76,6 +77,7 @@ data class BattleUnitDetailUiModel(
     val remainingDistance: Int,
     val activeSkillNames: List<String>,
     val passiveSkillNames: List<String>,
+    val isDefending: Boolean = false,
     val statChanges: List<StatChangeDetail> = emptyList(),
 )
 

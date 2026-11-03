@@ -48,12 +48,14 @@ sealed interface BattleNarration {
      * @property targetName 攻撃を受けた個体の表示名。
      * @property damage 与えたダメージ量。
      * @property critical そのヒットのクリティカルの種別。通常は[CriticalType.NONE]。
+     * @property isCriticalBlocked 対象の防御でクリティカルを防いだか。`true`のとき[critical]は[CriticalType.NONE]。
      */
     data class AttackResult(
         val attackerName: String,
         val targetName: String,
         val damage: Int,
         val critical: CriticalType = CriticalType.NONE,
+        val isCriticalBlocked: Boolean = false,
     ) : BattleNarration
 
     /**
@@ -73,11 +75,13 @@ sealed interface BattleNarration {
      * @property shotNumber 何回目のヒットか(1始まり)。
      * @property damage そのヒットのダメージ量。
      * @property critical そのヒットのクリティカルの種別。通常は[CriticalType.NONE]。
+     * @property isCriticalBlocked 対象の防御でクリティカルを防いだか。`true`のとき[critical]は[CriticalType.NONE]。
      */
     data class ShotHit(
         val shotNumber: Int,
         val damage: Int,
         val critical: CriticalType = CriticalType.NONE,
+        val isCriticalBlocked: Boolean = false,
     ) : BattleNarration
 
     /**
@@ -145,6 +149,20 @@ sealed interface BattleNarration {
      * @property targetName バッドクリティカルを受けた個体の表示名。
      */
     data class AreaBadCritical(val targetName: String) : BattleNarration
+
+    /**
+     * 範囲攻撃で、対象が防御でクリティカルを防いだことを伝える。ヒットごとに1文ずつ使う。
+     *
+     * @property targetName 防御でクリティカルを防いだ個体の表示名。
+     */
+    data class AreaCriticalBlocked(val targetName: String) : BattleNarration
+
+    /**
+     * 味方が防御したことを伝える(「〇〇は防御している!」)。
+     *
+     * @property actorName 防御した個体の表示名。
+     */
+    data class Defend(val actorName: String) : BattleNarration
 
     /**
      * 攻撃を受けた個体がブレイクしたことを伝える。
