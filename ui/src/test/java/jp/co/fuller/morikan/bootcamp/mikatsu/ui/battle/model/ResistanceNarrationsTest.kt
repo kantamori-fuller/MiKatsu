@@ -96,6 +96,30 @@ class ResistanceNarrationsTest {
         )
     }
 
+    /** 範囲の多段攻撃で一部が無効のとき、無効の文は回ごとに出て、まとめにはダメージを与えた相手だけが並ぶこと。 */
+    @Test
+    fun areaMulti_nullifiedTargetIsExcludedFromTotal() {
+        val result = AttackResult(
+            1,
+            listOf(
+                AttackHit(2, listOf(nullified, nullified)),
+                AttackHit(3, listOf(AttackShot(true, 24), AttackShot(true, 24))),
+            ),
+        )
+
+        assertEquals(
+            listOf(
+                BattleNarration.AreaAttackStart("味方", null),
+                BattleNarration.InRound(1, BattleNarration.AreaHit(listOf(AreaHitEntry("ゴブリンB", 24)))),
+                BattleNarration.InRound(1, BattleNarration.AreaNullified(listOf("ゴブリンA"))),
+                BattleNarration.InRound(2, BattleNarration.AreaHit(listOf(AreaHitEntry("ゴブリンB", 24)))),
+                BattleNarration.InRound(2, BattleNarration.AreaNullified(listOf("ゴブリンA"))),
+                BattleNarration.AreaAttackTotal("味方", listOf(AreaHitEntry("ゴブリンB", 48))),
+            ),
+            result.toNarrations(nameOf),
+        )
+    }
+
     /** 吸収は「Bは攻撃を吸収した! HPが30回復」の1文になること。 */
     @Test
     fun single_absorbed() {

@@ -91,6 +91,9 @@
     <string name="battle_narration_area_hit">%1$sダメージ!</string>
     <string name="battle_narration_area_hit_entry">%1$sに%2$d</string>
     <string name="battle_narration_area_hit_separator">、</string>
+    <string name="battle_narration_in_round">%1$d回目: %2$s</string>
+    <string name="battle_narration_area_attack_total">%1$sが%2$sダメージ</string>
+    <string name="battle_narration_area_total_entry">%1$sに合計%2$d</string>
     <string name="battle_narration_multi_skill_result">%1$sは%2$sを使った！%3$d体のHPを合計%4$d回復した！</string>
     <string name="battle_skill_item_format">%1$s　%2$s</string>
     <string name="battle_skill_cost_mp_format">MP%1$d</string>

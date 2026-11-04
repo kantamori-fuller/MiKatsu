@@ -41,6 +41,7 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.ui.components.FormationGrid
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.components.FormationSlotFrame
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.components.UnitDetailPopup
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.components.UnitStatCard
+import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.AreaHitEntry
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleNarration
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.labelRes
 import kotlin.math.abs
@@ -503,6 +504,14 @@ private fun BattleNarration.toText(): String = when (this) {
             .map { stringResource(R.string.battle_narration_area_hit_entry, it.targetName, it.damage) }
             .joinToString(stringResource(R.string.battle_narration_area_hit_separator)),
     )
+    is BattleNarration.InRound -> stringResource(R.string.battle_narration_in_round, shotNumber, narration.toText())
+    is BattleNarration.AreaAttackTotal -> stringResource(
+        R.string.battle_narration_area_attack_total,
+        attackerName,
+        entries
+            .map { stringResource(R.string.battle_narration_area_total_entry, it.targetName, it.damage) }
+            .joinToString(stringResource(R.string.battle_narration_area_hit_separator)),
+    )
     is BattleNarration.AreaCritical -> stringResource(R.string.battle_narration_area_critical, targetName)
     is BattleNarration.AreaBadCritical -> stringResource(R.string.battle_narration_area_bad_critical, targetName)
     is BattleNarration.AreaCriticalBlocked -> stringResource(R.string.battle_narration_area_critical_blocked, targetName)
@@ -632,4 +641,28 @@ private fun BattleScreenVictoryPreview() {
 @Composable
 private fun BattleScreenDefeatPreview() {
     BattleContentPreview(previewBattleUiState().copy(outcome = BattleOutcome.Defeat))
+}
+
+/** 範囲の多段攻撃の、回ごとの報告(「2回目: Bに28ダメージ!」)を演出中に表示している状態を確認するためのPreview。 */
+@Preview(showBackground = true, name = "戦闘(範囲多段の回ごとのナレーション)")
+@Composable
+private fun BattleScreenAreaMultiStrikeRoundPreview() {
+    BattleContentPreview(
+        previewBattleUiState().copy(
+            isProcessing = true,
+            processingNarration = BattleNarration.InRound(2, BattleNarration.AreaHit(listOf(AreaHitEntry("ゴブリンB", 28)))),
+        ),
+    )
+}
+
+/** 範囲の多段攻撃の最後の、対象ごとの合計のまとめ(「AがBに合計30、Cに合計53ダメージ」)を表示している状態を確認するためのPreview。 */
+@Preview(showBackground = true, name = "戦闘(範囲多段の合計)")
+@Composable
+private fun BattleScreenAreaMultiStrikeTotalPreview() {
+    BattleContentPreview(
+        previewBattleUiState().copy(
+            isProcessing = true,
+            processingNarration = BattleNarration.AreaAttackTotal("味方", listOf(AreaHitEntry("ゴブリンA", 30), AreaHitEntry("ゴブリンB", 53))),
+        ),
+    )
 }

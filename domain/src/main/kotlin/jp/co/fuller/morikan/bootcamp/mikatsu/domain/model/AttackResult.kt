@@ -11,12 +11,18 @@ package jp.co.fuller.morikan.bootcamp.mikatsu.domain.model
  * @property hits 攻撃を受けた個体ごとの結果。1体以上で、攻撃を受けた順に並ぶ。
  * @property skillId 攻撃に使ったアクティブスキルのID。通常攻撃は[NORMAL_ATTACK_SKILL_ID]。
  * @property skillName 攻撃に使ったスキルの名前。ナレーションで通常攻撃以外の技名を示すために使う。
+ * @property fieldBeforeShots コスト消費・CT開始の直後で、1発目の前の戦闘フィールド。ナレーションと表示を連動させるための表示用スナップショット
+ *   (技の最初の文の時点の表示)。`performAttack`が必ず埋め、`null`はテストでの組み立て用。
+ * @property fieldAfter TP加算(`settleTp`)まで済んだ技の最終の戦闘フィールド。ナレーションと表示を連動させるための表示用スナップショット
+ *   (技の最後の文の時点の表示)。`performAttack`が必ず埋め、`null`はテストでの組み立て用。
  */
 data class AttackResult(
     val attackerFpid: Int,
     val hits: List<AttackHit>,
     val skillId: Int = NORMAL_ATTACK_SKILL_ID,
     val skillName: String = "",
+    val fieldBeforeShots: BattleField? = null,
+    val fieldAfter: BattleField? = null,
 ) {
     /** 通常攻撃で使ったか(技名ではなく「攻撃!」と表示する対象か)。 */
     val isNormalAttack: Boolean
@@ -67,6 +73,8 @@ data class AttackHit(
  * @property resistance 対象の属性耐性によるヒットの扱い。無効・反射・吸収のヒットは命中した扱いで、[damage]は0(対象のHPは減らない)。
  * @property absorbedAmount [resistance]が[ResistanceOutcome.ABSORBED]のとき、対象が実際に回復したHP量(最大HPで頭打ち)。それ以外は0。
  * @property reflected [resistance]が[ResistanceOutcome.REFLECTED]のとき、攻撃者に跳ね返ったダメージの結果。それ以外は`null`。
+ * @property fieldAfter このヒットを反映した直後(ダメージ・ブレイク・吸収・反射の反映後)の戦闘フィールド。外れたヒットは直前と同じフィールド。
+ *   ナレーションと表示を連動させるための表示用スナップショットで、`performAttack`が必ず埋める。`null`はテストでの組み立て用。
  */
 data class AttackShot(
     val isHit: Boolean,
@@ -77,6 +85,7 @@ data class AttackShot(
     val resistance: ResistanceOutcome = ResistanceOutcome.NONE,
     val absorbedAmount: Int = 0,
     val reflected: ReflectedDamage? = null,
+    val fieldAfter: BattleField? = null,
 )
 
 /**
