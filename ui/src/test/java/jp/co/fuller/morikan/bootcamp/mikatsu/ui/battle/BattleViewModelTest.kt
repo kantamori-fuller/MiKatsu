@@ -740,14 +740,47 @@ class BattleViewModelTest {
         assertEquals(2, narration.targetCount)
     }
 
-    /** TPが足りないときはTPのコストのスキルが選べず、足りれば攻撃として演出され、TPが消費・獲得され、カードのTPにも反映されること。 */
+    /**
+     * TPが足りないときは不足分をHPで肩代わりして選べ(代替HPは最大HPの1%/TP切り上げ)、肩代わりでHPが0以下になるときは使えないこと。
+     * TPが足りれば代替HPは0で、攻撃として演出され、TPが消費・獲得され、カードのTPにも反映されること。
+     */
     @Test
     fun tpSkill_withTp_usesAttackFlowWithSkillName() = runTest(dispatcher) {
         val (viewModel, repository) = createViewModel(activeSkillIds = listOf(SOBAT_ID))
         advanceUntilIdle()
+        // 最大HP1000・TP20・コスト40 → 不足20 → 代替HPは200。
+        repository.updateBattleField { f -> f.copy(allies = f.allies.map { it.copy(currentTp = 20) }) }
+        runCurrent()
         viewModel.onSkillClick()
-        assertFalse(viewModel.uiState.value.skills.single().isUsable)
-        assertEquals(40, viewModel.uiState.value.skills.single().tpCost)
+        val substitutable = viewModel.uiState.value.skills.single()
+        assertEquals(40, substitutable.tpCost)
+        assertEquals(200, substitutable.substituteHpCost)
+        assertTrue(substitutable.isUsable)
+        viewModel.onCancelClick()
+
+        // 現在HPが代替HPと同じ200だと、使うとHPが0になるため使えない(代替HPの表示は残る)。
+        repository.updateBattleField { f -> f.copy(allies = f.allies.map { it.copy(currentHp = 200) }) }
+        runCurrent()
+        viewModel.onSkillClick()
+        val tooLowHp = viewModel.uiState.value.skills.single()
+        assertEquals(200, tooLowHp.substituteHpCost)
+        assertFalse(tooLowHp.isUsable)
+        viewModel.onSkillSelected(SOBAT_ID)
+        assertEquals(BattleSelection.SkillList, viewModel.uiState.value.selection)
+        viewModel.onCancelClick()
+
+        // HPが1残るなら使える。
+        repository.updateBattleField { f -> f.copy(allies = f.allies.map { it.copy(currentHp = 201) }) }
+        runCurrent()
+        viewModel.onSkillClick()
+        assertTrue(viewModel.uiState.value.skills.single().isUsable)
+        viewModel.onCancelClick()
+
+        // TPが足りていれば代替HPは0。
+        repository.updateBattleField { f -> f.copy(allies = f.allies.map { it.copy(currentTp = 40, currentHp = 1000) }) }
+        runCurrent()
+        viewModel.onSkillClick()
+        assertEquals(0, viewModel.uiState.value.skills.single().substituteHpCost)
         viewModel.onCancelClick()
 
         repository.updateBattleField { f -> f.copy(allies = f.allies.map { it.copy(currentTp = 100) }) }

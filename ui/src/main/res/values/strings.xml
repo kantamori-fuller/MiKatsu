@@ -76,6 +76,7 @@
     <string name="battle_skill_cost_mp_format">MP%1$d</string>
     <string name="battle_skill_cost_hp_format">HP%1$d</string>
     <string name="battle_skill_cost_tp_format">TP%1$d</string>
+    <string name="battle_skill_cost_tp_substitute_format">TP%1$d(HP-%2$d)</string>
     <string name="battle_skill_cost_separator">・</string>
     <string name="label_active_skills">Aスキル</string>
     <string name="label_passive_skills">Pスキル</string>

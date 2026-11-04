@@ -23,6 +23,7 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.CriticalFormula
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.HitChanceFormula
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.BattleRow
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.canAfford
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.substituteHpCostOf
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.effectiveRowOf
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.selectableTargets
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.AdvanceToNextBattleUseCase
@@ -512,6 +513,7 @@ private fun BattleField.reflectedIn(current: BattleUiState, normalAttack: Active
                     mpCost = skill.costOf(SkillCostType.MP),
                     hpCost = skill.costOf(SkillCostType.HP),
                     tpCost = skill.costOf(SkillCostType.TP),
+                    substituteHpCost = ally.substituteHpCostOf(skill),
                     targetIds = targetIds,
                     isUsable = ally.canAfford(skill) && targetIds.isNotEmpty(),
                     isSelfTargeting = skill.range == SkillRange.RANGE_0,

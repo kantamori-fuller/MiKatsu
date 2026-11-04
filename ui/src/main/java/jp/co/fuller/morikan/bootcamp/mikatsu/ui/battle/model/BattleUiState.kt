@@ -53,10 +53,12 @@ data class BattleUnitUiModel(
  * @property mpCost 使用に必要なMP。
  * @property hpCost 使用に必要なHP。消費しない場合は0。
  * @property tpCost 使用に必要なTP。消費しない場合は0。
+ * @property substituteHpCost TPが足りないときに、不足分を肩代わりして消費するHP(TP代替システム)。TPが足りている、またはTPコストがなければ0。
+ *   0より大きいとき、スキル一覧のTP表示は「TP40(HP-12)」の形になる(HPが足りず使えない場合も表示する)。
  * @property targetIds このスキルで選べる対象のFPID([BattleUnitUiModel.id])。レンジ・陣営の条件を満たす相手で、
  *   手番の味方から見たもの。
  * @property isSelfTargeting レンジ0(使用者自身だけが対象)のスキルか。`true`なら一覧で選んだ瞬間に対象選択を挟まず発動する。
- * @property isUsable 現在のMP・HP・TPですべてのコストを支払え、かつ選べる相手([targetIds])が1体以上いるかどうか。
+ * @property isUsable 現在のMP・HP・TP(不足分はHPで肩代わり)ですべてのコストを支払え、かつ選べる相手([targetIds])が1体以上いるかどうか。
  *   `false`のとき一覧で選択できない。
  */
 data class BattleSkillUiModel(
@@ -68,6 +70,7 @@ data class BattleSkillUiModel(
     val isUsable: Boolean,
     val isSelfTargeting: Boolean = false,
     val tpCost: Int = 0,
+    val substituteHpCost: Int = 0,
 )
 
 /**

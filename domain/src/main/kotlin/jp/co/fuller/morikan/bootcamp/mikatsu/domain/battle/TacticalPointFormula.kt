@@ -46,6 +46,9 @@ object TacticalPointFormula {
     /** 倍率(%)を割合へ直すための値。 */
     private const val PERCENT = 100
 
+    /** TP代替システムで、足りないTP1点につきHPで肩代わりする量(最大HPに対する%)。 */
+    const val SUBSTITUTE_HP_PERCENT_PER_TP = 1
+
     /**
      * 範囲から整数を1つ引く。両端を含む一様乱数。
      *
@@ -108,6 +111,24 @@ object TacticalPointFormula {
         if (isDefending) tp = tp * DEFENDING_DAMAGE_RATE_PERCENT / PERCENT
         if (criticalRate != null) tp = tp * criticalRate / PERCENT
         return tp
+    }
+
+    /**
+     * TPが足りないとき、その不足分をHPで肩代わりする量(TP代替システム)を求める。乱数は使わない。
+     *
+     * 不足分は`max(tpCost - currentTp, 0)`で、1点につき最大HPの[SUBSTITUTE_HP_PERCENT_PER_TP]%を、
+     * 端数を切り上げて支払う(最大HP100・不足10なら10、最大HP95・不足10なら9.5を切り上げて10)。
+     * TPが足りているとき(不足0)は0。TPのルールをここに集め、
+     * 使用可否の判定・コスト消費・スキル一覧の表示が同じ計算を共有するための関数。
+     *
+     * @param tpCost スキルのTPコスト。
+     * @param currentTp 使用者の現在TP。
+     * @param maxHp 使用者の最大HP。
+     * @return 代替で消費するHP。TPが足りているなら0。
+     */
+    fun substituteHpCost(tpCost: Int, currentTp: Int, maxHp: Int): Int {
+        val shortfall = (tpCost - currentTp).coerceAtLeast(0)
+        return ((maxHp.toLong() * shortfall * SUBSTITUTE_HP_PERCENT_PER_TP + PERCENT - 1) / PERCENT).toInt()
     }
 
     /**
