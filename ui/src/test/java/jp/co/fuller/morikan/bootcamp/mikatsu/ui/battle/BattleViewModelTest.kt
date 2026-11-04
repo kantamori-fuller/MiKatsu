@@ -41,6 +41,7 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.ExecuteEnemyTurnUseC
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.GetBattleFieldUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.GetNormalAttackUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.ObserveBattleFieldUseCase
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.ReservePreemptiveActionUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.StartBattleUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.AreaHitEntry
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleNarration
@@ -138,6 +139,7 @@ class BattleViewModelTest {
                 mapProgressRepository,
                 random,
             ),
+            reservePreemptiveActionUseCase = ReservePreemptiveActionUseCase(battleRepository),
         )
         return viewModel to battleRepository
     }
@@ -1151,6 +1153,272 @@ class BattleViewModelTest {
         assertTrue(viewModel.uiState.value.isDefendEnabled)
     }
 
+    // ---- 先制行動 ----
+
+    /** 先制スキルを設定した味方(MP100)1体で始めたViewModelを返す。味方は素早さが低く、敵2体が先に行動する。 */
+    private fun createPreemptiveViewModel(
+        allySlots: List<Int> = listOf(0),
+    ): Pair<BattleViewModel, FakeBattleRepository> =
+        createViewModel(allyMana = 100, activeSkillIds = listOf(2, QUICK_ID), allySlots = allySlots)
+
+    /** 敵の行動中に予約すると、その敵の行動の後に先制の手番が来て、「先制行動!」のあと先制スキルだけの一覧になること。 */
+    @Test
+    fun reserveDuringEnemyTurn_preemptiveTurnComesAfterThatAction() = runTest(dispatcher) {
+        val (viewModel, repository) = createPreemptiveViewModel()
+        runCurrent()
+        val allyFpid = repository.current.allies[0].fpid
+        assertFalse(viewModel.uiState.value.isPlayerTurn)
+        assertEquals(setOf(allyFpid), viewModel.uiState.value.reservableAllyIds)
+        assertTrue(viewModel.uiState.value.partySlots[0]?.canReservePreemptive == true)
+
+        viewModel.onAllyClick(allyFpid)
+        viewModel.onAllyClick(allyFpid) // 連打しても二重に予約されない
+        runCurrent()
+
+        assertEquals(listOf(allyFpid), repository.current.pendingPreemptive)
+        val waiting = viewModel.uiState.value.partySlots[0]
+        assertTrue(waiting?.isPreemptiveWaiting == true)
+        assertFalse(waiting?.canReservePreemptive == true)
+        // 予約したときのナレーションは出ない(敵の行動のナレーションのまま)。
+        assertTrue(viewModel.uiState.value.narration is BattleNarration.EnemyTurn)
+
+        // 敵の攻撃の結果を表示し終えた直後に、その敵の手番が終わって先制の手番が始まる。
+        advanceTimeBy(2000)
+        runCurrent()
+        assertEquals(allyFpid, repository.current.currentActorFpid)
+        assertTrue(viewModel.uiState.value.isPreemptiveTurn)
+        assertTrue(viewModel.uiState.value.isProcessing)
+        assertEquals(BattleNarration.PreemptiveAction("味方"), viewModel.uiState.value.narration)
+        // 先制の手番を待っていた表示は、先制の手番に入ったら外れる(いまの行動者なので)。
+        assertFalse(viewModel.uiState.value.partySlots[0]?.isPreemptiveWaiting == true)
+        // 敵2体目は、先制の手番のあとまで行動しない。
+        assertEquals(1, repository.current.enemies.count { it.turnCount == 1 })
+
+        advanceTimeBy(RESULT_MS)
+        runCurrent()
+
+        val state = viewModel.uiState.value
+        assertFalse(state.isProcessing)
+        assertEquals(BattleSelection.SkillList, state.selection)
+        assertEquals(listOf(QUICK_ID), state.skills.map { it.id })
+        assertTrue(state.skills.single().isUsable)
+        assertEquals(BattleNarration.SelectSkill, state.narration)
+    }
+
+    /** 先制の手番では、攻撃・防御・撤退が無効で、スキル一覧からはキャンセルできず、対象選びからはスキル一覧へ戻れること。 */
+    @Test
+    fun preemptiveTurn_restrictsCommands_andCancelOnlyReturnsToSkillList() = runTest(dispatcher) {
+        val (viewModel, repository) = createPreemptiveViewModel()
+        runCurrent()
+        viewModel.onAllyClick(repository.current.allies[0].fpid)
+        advanceTimeBy(2000 + RESULT_MS)
+        runCurrent()
+
+        val state = viewModel.uiState.value
+        assertTrue(state.isPreemptiveTurn)
+        assertFalse(state.isAttackEnabled)
+        assertFalse(state.isDefendEnabled)
+        assertFalse(state.isRetreatEnabled)
+        assertFalse(state.isCancelEnabled)
+
+        viewModel.onAttackClick()
+        viewModel.onDefendClick()
+        viewModel.onCancelClick() // スキル一覧からはキャンセルできない
+        assertEquals(BattleSelection.SkillList, viewModel.uiState.value.selection)
+        assertFalse(viewModel.uiState.value.isProcessing)
+
+        viewModel.onSkillSelected(QUICK_ID)
+        assertEquals(BattleSelection.SkillTarget(QUICK_ID), viewModel.uiState.value.selection)
+        assertTrue(viewModel.uiState.value.isCancelEnabled)
+        viewModel.onCancelClick() // 対象選びからはスキル一覧へ戻る
+        assertEquals(BattleSelection.SkillList, viewModel.uiState.value.selection)
+    }
+
+    /** 先制スキルを使うと通常のスキルと同じく手番が終わり、CT中は次の自分の通常の手番で一覧に出るが使えないこと。 */
+    @Test
+    fun preemptiveSkill_endsTurn_andIsOnCooldownInNextNormalTurn() = runTest(dispatcher) {
+        val (viewModel, repository) = createPreemptiveViewModel()
+        runCurrent()
+        val allyFpid = repository.current.allies[0].fpid
+        viewModel.onAllyClick(allyFpid)
+        advanceTimeBy(2000 + RESULT_MS)
+        runCurrent()
+        val enemyFpid = repository.current.enemies[0].fpid
+        val hpBefore = repository.current.enemies[0].currentHp
+
+        viewModel.onSkillSelected(QUICK_ID)
+        viewModel.onEnemyClick(enemyFpid)
+        runCurrent()
+        assertTrue(viewModel.uiState.value.isProcessing)
+        assertEquals(10, 100 - repository.current.allies[0].currentMp)
+        assertTrue(repository.current.enemies[0].currentHp < hpBefore)
+
+        advanceUntilIdle()
+
+        // 先制の手番は終わり(手番の回数+1)、先制の印も外れている。次の通常の手番では全スキルが並び、クイックシュートはCT中で使えない。
+        val ally = repository.current.allies[0]
+        assertEquals(1, ally.turnCount)
+        assertFalse(repository.current.isPreemptiveTurn)
+        val state = viewModel.uiState.value
+        assertTrue(state.isPlayerTurn)
+        assertEquals(allyFpid, state.currentActorId)
+        assertEquals(listOf(2, QUICK_ID), state.skills.map { it.id })
+        assertTrue(state.skills.first { it.id == 2 }.isUsable)
+        assertFalse(state.skills.first { it.id == QUICK_ID }.isUsable)
+        assertEquals(1, state.skills.first { it.id == QUICK_ID }.remainingCoolTime)
+        assertEquals(0, state.skills.first { it.id == 2 }.remainingCoolTime)
+        assertTrue(state.isAttackEnabled)
+        assertTrue(state.isDefendEnabled)
+    }
+
+    /** CT中のスキルは使った次の自分の手番で残り1が入り、その手番を終えて明けたら0になって使えること。 */
+    @Test
+    fun remainingCoolTime_isOneInNextOwnTurn_andZeroAfterItExpires() = runTest(dispatcher) {
+        val (viewModel, repository) = createPreemptiveViewModel()
+        advanceUntilIdle()
+        assertEquals(0, viewModel.uiState.value.skills.first { it.id == QUICK_ID }.remainingCoolTime)
+
+        // 通常の手番でクイックシュートを使う。
+        viewModel.onSkillClick()
+        viewModel.onSkillSelected(QUICK_ID)
+        viewModel.onEnemyClick(repository.current.enemies[0].fpid)
+        advanceUntilIdle()
+
+        // 次の自分の手番: CT残り1で使えない。
+        var quick = viewModel.uiState.value.skills.first { it.id == QUICK_ID }
+        assertEquals(1, quick.remainingCoolTime)
+        assertFalse(quick.isUsable)
+
+        // その手番を防御で終えると、CTが明けて0になり使える。
+        viewModel.onDefendClick()
+        advanceUntilIdle()
+        quick = viewModel.uiState.value.skills.first { it.id == QUICK_ID }
+        assertEquals(0, quick.remainingCoolTime)
+        assertTrue(quick.isUsable)
+    }
+
+    /** 攻撃・スキルの対象選択中は、味方のカードのタップを予約に使わず、キャンセルで戻れば予約できること。 */
+    @Test
+    fun cannotReserveWhileSelectingTarget() = runTest(dispatcher) {
+        val (viewModel, repository) = createPreemptiveViewModel(allySlots = listOf(0, 1))
+        advanceUntilIdle()
+        val actor = checkNotNull(viewModel.uiState.value.currentActorId)
+        val other = repository.current.allies.first { it.fpid != actor }.fpid
+        assertEquals(setOf(other), viewModel.uiState.value.reservableAllyIds)
+
+        viewModel.onAttackClick()
+        assertEquals(emptySet<Int>(), viewModel.uiState.value.reservableAllyIds)
+        viewModel.onAllyClick(other)
+        runCurrent()
+        assertTrue(repository.current.pendingPreemptive.isEmpty())
+
+        viewModel.onCancelClick()
+        viewModel.onSkillClick()
+        viewModel.onSkillSelected(QUICK_ID)
+        assertEquals(BattleSelection.SkillTarget(QUICK_ID), viewModel.uiState.value.selection)
+        assertEquals(emptySet<Int>(), viewModel.uiState.value.reservableAllyIds)
+        viewModel.onAllyClick(other)
+        runCurrent()
+        assertTrue(repository.current.pendingPreemptive.isEmpty())
+
+        viewModel.onCancelClick()
+        viewModel.onCancelClick()
+        viewModel.onAllyClick(other)
+        runCurrent()
+        assertEquals(listOf(other), repository.current.pendingPreemptive)
+    }
+
+    /** 先制の手番を待っている間に戦闘フィールドが更新されても、「先制行動!」が二重に出たり、スキル一覧が閉じたりしないこと。 */
+    @Test
+    fun preemptiveIntro_isNotRepeatedOnFieldUpdates() = runTest(dispatcher) {
+        val (viewModel, repository) = createPreemptiveViewModel(allySlots = listOf(0, 1))
+        runCurrent()
+        val first = repository.current.allies[0].fpid
+        val second = repository.current.allies[1].fpid
+        viewModel.onAllyClick(first)
+        advanceTimeBy(2000 + RESULT_MS)
+        runCurrent()
+        assertEquals(first, repository.current.currentActorFpid)
+        assertEquals(BattleSelection.SkillList, viewModel.uiState.value.selection)
+
+        // 先制の手番の最中に、もう1体が予約する(戦闘フィールドの更新が流れてくる)。
+        viewModel.onAllyClick(second)
+        runCurrent()
+        advanceTimeBy(RESULT_MS * 3)
+        runCurrent()
+
+        val state = viewModel.uiState.value
+        assertFalse(state.isProcessing)
+        assertNull(state.processingNarration)
+        assertEquals(BattleSelection.SkillList, state.selection)
+        assertEquals(BattleNarration.SelectSkill, state.narration)
+        assertTrue(state.partySlots.filterNotNull().first { it.id == second }.isPreemptiveWaiting)
+
+        // 先制の手番を終えると、予約していたもう1体が続けて先制の手番になり、改めて「先制行動!」が出る。
+        viewModel.onSkillSelected(QUICK_ID)
+        viewModel.onEnemyClick(repository.current.enemies[0].fpid)
+        advanceTimeBy(RESULT_MS)
+        runCurrent()
+        assertEquals(second, repository.current.currentActorFpid)
+        assertTrue(viewModel.uiState.value.isPreemptiveTurn)
+        assertEquals(BattleNarration.PreemptiveAction(viewModel.uiState.value.nameOf(second)), viewModel.uiState.value.narration)
+    }
+
+    /** 予約後に先制スキルが使えなくなったら、次の手番へ進む前に「先制行動できなかった!」が出て、手番を使わないこと。 */
+    @Test
+    fun cancelledPreemptiveTurn_showsFailureNarrationBeforeNextTurn() = runTest(dispatcher) {
+        val (viewModel, repository) = createPreemptiveViewModel()
+        runCurrent()
+        val allyFpid = repository.current.allies[0].fpid
+        viewModel.onAllyClick(allyFpid)
+        runCurrent()
+        // 予約したあとでMPが尽きて、先制スキルを使えなくする。
+        repository.updateBattleField { f -> f.copy(allies = f.allies.map { it.copy(currentMp = 0) }) }
+
+        advanceTimeBy(2000)
+        runCurrent()
+
+        assertEquals(BattleNarration.PreemptiveFailed("味方"), viewModel.uiState.value.narration)
+        assertTrue(viewModel.uiState.value.isProcessing)
+        assertFalse(repository.current.isPreemptiveTurn)
+        assertEquals(0, repository.current.allies[0].turnCount)
+        assertFalse(viewModel.uiState.value.isPreemptiveTurn)
+
+        advanceTimeBy(RESULT_MS)
+        runCurrent()
+
+        // 取り消しの文のあと、次の敵の手番へ進む。
+        assertTrue(viewModel.uiState.value.narration is BattleNarration.EnemyTurn)
+        assertEquals(0, repository.current.allies[0].turnCount)
+    }
+
+    /** 先制の手番でスキルを使えなかったとき(結果がnull)も、行動選択へ戻らずスキル一覧へ戻ること。 */
+    @Test
+    fun preemptiveTurn_failedUse_returnsToSkillList() = runTest(dispatcher) {
+        val (viewModel, repository) = createPreemptiveViewModel()
+        runCurrent()
+        viewModel.onAllyClick(repository.current.allies[0].fpid)
+        advanceTimeBy(2000 + RESULT_MS)
+        runCurrent()
+        viewModel.onSkillSelected(QUICK_ID)
+        // 対象を選ぶ直前にMPが尽きる(UIの状態は古いまま、ドメインが使用を拒否する)。
+        repository.updateBattleField { f -> f.copy(allies = f.allies.map { it.copy(currentMp = 0) }) }
+        runCurrent()
+        assertEquals(BattleSelection.SkillTarget(QUICK_ID), viewModel.uiState.value.selection)
+
+        viewModel.onEnemyClick(repository.current.enemies[0].fpid)
+        advanceUntilIdle()
+
+        // 使えなかったので手番は終わらず、先制の手番のまま、スキル一覧(使えないと表示される)へ戻る。
+        assertTrue(repository.current.isPreemptiveTurn)
+        assertEquals(0, repository.current.allies[0].turnCount)
+        val state = viewModel.uiState.value
+        assertFalse(state.isProcessing)
+        assertEquals(BattleSelection.SkillList, state.selection)
+        assertFalse(state.skills.single().isUsable)
+    }
+
+
     /**
      * テスト用の、通常攻撃・ディア(MP10・50回復・レンジ3・エリア全体から一体選択)・近接技・全体回復を返す[SkillRepository]。
      *
@@ -1178,7 +1446,12 @@ class BattleViewModelTest {
             id = SOBAT_ID, name = "ローリング・ソバット", costs = listOf(SkillCost(SkillCostType.TP, 40)),
             targetSide = SkillTargetSide.ENEMY, basePower = 150,
         )
-        private val all = listOf(dia, farStrike, healAll, seishin, sobat)
+        private val quick = testActiveSkill(
+            id = QUICK_ID, name = "クイックシュート", costs = listOf(SkillCost(SkillCostType.MP, 10)),
+            targetSide = SkillTargetSide.ENEMY, range = SkillRange.RANGE_3, basePower = 50,
+            coolTime = 1, preemptivePriority = 1,
+        )
+        private val all = listOf(dia, farStrike, healAll, seishin, sobat, quick)
         override suspend fun getActiveSkills(): List<ActiveSkill> = all
         override suspend fun getPassiveSkills(): List<PassiveSkill> = emptyList()
         override suspend fun getActiveSkill(id: Int): ActiveSkill? = all.firstOrNull { it.id == id }
@@ -1198,6 +1471,9 @@ class BattleViewModelTest {
 
         /** TP40を消費する、基礎威力150の単体攻撃スキル(ローリング・ソバット)のID。 */
         const val SOBAT_ID = 6
+
+        /** MP10・CT1・レンジ3の敵単体の攻撃で、先制行動の優先度1を持つスキル(クイックシュートの代わり)のID。 */
+        const val QUICK_ID = 7
 
         /** レンジ0・自分の破壊力を+1段階10ターンにするスキル(精神一到)のID。 */
         const val SEISHIN_ID = 5

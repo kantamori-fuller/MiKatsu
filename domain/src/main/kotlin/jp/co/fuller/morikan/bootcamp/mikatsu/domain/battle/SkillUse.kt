@@ -19,6 +19,7 @@ import kotlin.random.Random
  * 次のいずれかに当てはまる場合はスキルを使えないため`null`を返す。
  * - 使用者が現在の行動者ではない、味方ではない、戦闘不能である、またはブレイク中で行動できない。
  * - 使用者がそのスキルを設定していない。
+ * - そのスキルがクールタイム(CT)中である。使えたら、外れてもCTを設定する([startCooldown])。
  * - コスト(MP・HP・TP。TPは不足分をHPで肩代わりできる)を支払えない([canAfford])。
  * - 選んだ対象が選べない個体である(レンジ外・陣営違い・戦闘不能・存在しない。[selectableTargets]を参照)。
  * - 基礎威力を持つ(ダメージを与える)スキル。この適用は未対応で、
@@ -54,10 +55,11 @@ fun BattleField.performSkill(
     if (actor.isDefeated || actor.isBroken) return null
     val skill = actor.activeSkills.firstOrNull { it.id == skillId } ?: return null
     if (skill.basePower != null) return null
+    if (actor.isOnCooldown(skill.id)) return null
     if (!actor.canAfford(skill)) return null
     val targets = resolveTargets(actorFpid, skill, targetFpid) ?: return null
 
-    var field = spendCosts(actorFpid, skill)
+    var field = spendCosts(actorFpid, skill).startCooldown(actorFpid, skill)
     val tpTargets = mutableListOf<TpTargetReport>()
     val results = targets.map { target ->
         // 途中の効果で状態が変わり得るため、命中判定には対象の最新の状態を使う。

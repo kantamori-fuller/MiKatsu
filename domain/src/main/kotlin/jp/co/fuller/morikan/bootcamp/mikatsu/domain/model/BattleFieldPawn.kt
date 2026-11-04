@@ -34,10 +34,10 @@ sealed interface BattleFieldPawn {
     /** 耐久力(B)。ダメージ計算で被攻撃者側として使う。 */
     val defense: Int
 
-    /** マナ出力(C)の基礎値。現状、戦闘では使わない。 */
+    /** マナ出力(C)の基礎値。特殊型攻撃のダメージ計算で攻撃者側として使う。 */
     val manaOutput: Int
 
-    /** マナ耐性(D)の基礎値。現状、戦闘では使わない。 */
+    /** マナ耐性(D)の基礎値。特殊型攻撃のダメージ計算で被攻撃者側として使う。 */
     val manaResistance: Int
 
     /** 素早さ(S)の基礎値。行動順を決める速度の元になる値([jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.ActionSpeedFormula])。 */
@@ -117,6 +117,20 @@ sealed interface BattleFieldPawn {
      * 同じ仕組みで適用するために共通で持つ。持たない個体は空。
      */
     val passiveSkills: List<PassiveSkill>
+
+    /**
+     * クールタイム(CT)中のスキルの記録。使うと[SkillCooldown]が加わり、本人の手番が終わるたびに進み、明けると消える。
+     * 戦闘中だけの値で、`Character`・`Enemy`には持たず、次の戦闘へは持ち越さない。
+     */
+    val skillCooldowns: List<SkillCooldown>
+
+    /**
+     * スキルがクールタイム中(まだ使えない)かどうか。
+     *
+     * @param skillId 調べるアクティブスキルのID。
+     * @return CTが残っていれば`true`。
+     */
+    fun isOnCooldown(skillId: Int): Boolean = skillCooldowns.any { it.skillId == skillId }
 
     /**
      * ステータスの基礎値(バフ・デバフを反映しない値)を返す。基礎ステータス6種と各プロパティの対応表。

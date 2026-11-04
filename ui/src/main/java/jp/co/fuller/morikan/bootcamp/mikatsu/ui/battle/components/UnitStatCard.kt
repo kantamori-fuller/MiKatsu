@@ -56,6 +56,9 @@ private val SELECTABLE_BORDER_WIDTH = 5.dp
 /** 選べる相手の枠線の色。選択中(primary)やMPゲージ(tertiary)と区別できるよう、固定の目立つ色にする。 */
 private val SELECTABLE_BORDER_COLOR = Color(0xFFFFB300)
 
+/** 先制行動を予約できるカードに表示する枠線の太さ。対象選びの点滅する太い枠線と見分けがつくよう細くする。 */
+private val RESERVABLE_BORDER_WIDTH = 1.5.dp
+
 /** 選べる相手の枠線が点滅するときの、最も薄いときの不透明度。 */
 private const val SELECTABLE_BLINK_MIN_ALPHA = 0.35f
 
@@ -72,6 +75,7 @@ private const val SELECTABLE_BLINK_DURATION_MS = 700
  * [onClick]を指定した場合はタップ可能なカードとなり、[isSelected]が`true`のときは
  * 選択中(手番中の個体)であることを示す枠線を表示する。[isSelectable]が`true`のとき(いま選べる相手)は、
  * それより太く目立つ色で点滅する枠線を表示し、[isSelected]の枠線よりも優先する。
+ * [isReservable]が`true`のとき(いま先制行動を予約できる味方)は、[TacticalPointOrange]の細い枠線を表示する(対象選び・選択中の枠線がある間は出さない)。
  * [onClick]が`null`の場合はタップしても何も起きない。[BattleUnitUiModel.isDefeated]のときは半透明にしてグレーアウトし、
  * [onClick]があってもタップしても何も起きない。[onLongClick]は、戦闘不能や選べない状態に関わらず長押しで呼ばれる。
  *
@@ -79,6 +83,7 @@ private const val SELECTABLE_BLINK_DURATION_MS = 700
  * @param modifier このComposableに適用する[Modifier]。
  * @param isSelected 選択中(手番中の個体)として強調表示するかどうか。
  * @param isSelectable 行動の対象として選べる相手として、点滅する太い枠線で強調表示するかどうか。
+ * @param isReservable 先制行動を予約できるカードとして、細いオレンジの枠線で表示するかどうか。
  * @param onClick カードがタップされたときに呼ばれるコールバック。タップ不可にする場合は`null`。
  * @param onLongClick カードが長押しされたときに呼ばれるコールバック。長押しを受け付けない場合は`null`。
  */
@@ -89,12 +94,14 @@ internal fun UnitStatCard(
     modifier: Modifier = Modifier,
     isSelected: Boolean = false,
     isSelectable: Boolean = false,
+    isReservable: Boolean = false,
     onClick: (() -> Unit)? = null,
     onLongClick: (() -> Unit)? = null,
 ) {
     val border = when {
         isSelectable -> BorderStroke(SELECTABLE_BORDER_WIDTH, SELECTABLE_BORDER_COLOR.copy(alpha = rememberBlinkAlpha()))
         isSelected -> BorderStroke(SELECTED_BORDER_WIDTH, MaterialTheme.colorScheme.primary)
+        isReservable -> BorderStroke(RESERVABLE_BORDER_WIDTH, TacticalPointOrange)
         else -> null
     }
     val cardModifier = if (unit.isDefeated) modifier.alpha(DEFEATED_ALPHA) else modifier
@@ -133,6 +140,7 @@ private fun rememberBlinkAlpha(): Float {
  * [UnitStatCard]の中身となる、名前・HP・MP・ブレイクゲージと、右上のTP円ゲージの表示部分。
  *
  * ブレイクゲージは数値を表示せず黄色のバーだけで示し、ブレイク中・立ち上がり中は状態のラベルを添える。
+ * 先制行動を予約済み(または先制の手番待ち)の個体には、オレンジの「先制待ち」ラベルを添える。
  *
  * タップ可能なカードと表示専用のカードで同じ中身を共有するために切り出している。
  *
@@ -182,6 +190,13 @@ private fun UnitStatContent(unit: BattleUnitUiModel) {
                     style = MaterialTheme.typography.labelSmall,
                 )
                 BreakState.NONE -> Unit
+            }
+            if (unit.isPreemptiveWaiting) {
+                Text(
+                    stringResource(R.string.battle_preemptive_waiting),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = TacticalPointOrange,
+                )
             }
         }
         TacticalPointGauge(unit = unit, modifier = Modifier.align(Alignment.TopEnd))
@@ -248,4 +263,20 @@ private fun UnitStatCardBrokenPreview() {
 @Composable
 private fun UnitStatCardHighTpPreview() {
     UnitStatCardPreviewFrame { UnitStatCard(unit = previewAlly().copy(tp = 95), modifier = it) }
+}
+
+/** 先制行動を予約できる(細いオレンジの枠)味方カードを確認するためのPreview。 */
+@Preview(showBackground = true, name = "カード(先制予約できる)")
+@Composable
+private fun UnitStatCardReservablePreview() {
+    UnitStatCardPreviewFrame {
+        UnitStatCard(unit = previewAlly(isActive = false).copy(canReservePreemptive = true), modifier = it, isReservable = true, onClick = {})
+    }
+}
+
+/** 先制行動を予約済み(「先制待ち」のラベル)の味方カードを確認するためのPreview。 */
+@Preview(showBackground = true, name = "カード(先制待ち)")
+@Composable
+private fun UnitStatCardPreemptiveWaitingPreview() {
+    UnitStatCardPreviewFrame { UnitStatCard(unit = previewAlly(isActive = false).copy(isPreemptiveWaiting = true), modifier = it) }
 }

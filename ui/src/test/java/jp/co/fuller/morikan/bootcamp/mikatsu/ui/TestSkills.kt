@@ -25,6 +25,8 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillTargetSide
  * @param activationCount 発動回数。
  * @param accuracy 命中率。`null`は必中。
  * @param effects 効果。
+ * @param coolTime クールタイム。
+ * @param preemptivePriority 先制行動の優先度。`null`は通常のスキル。
  * @return 生成したアクティブスキル。
  */
 fun testActiveSkill(
@@ -39,6 +41,8 @@ fun testActiveSkill(
     activationCount: Int = 1,
     accuracy: Int? = null,
     effects: List<ActiveSkillEffect> = emptyList(),
+    coolTime: Int = 0,
+    preemptivePriority: Int? = null,
 ) = ActiveSkill(
     id = id,
     name = name,
@@ -46,7 +50,7 @@ fun testActiveSkill(
     categories = setOf(SkillCategory.HEAL),
     physicalAttribute = null,
     costs = costs,
-    coolTime = 0,
+    coolTime = coolTime,
     contactType = SkillContactType.NON_CONTACT,
     range = range,
     area = area,
@@ -56,4 +60,5 @@ fun testActiveSkill(
     accuracy = accuracy,
     effects = effects,
     targetSide = targetSide,
+    preemptivePriority = preemptivePriority,
 )

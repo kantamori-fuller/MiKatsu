@@ -36,7 +36,9 @@ import kotlin.random.Random
  * 結果には、使った技のIDと名前を持たせる。ダメージのあるスキルを使う場合も、この関数が命中・ダメージ・クリティカル・ブレイク・防御・軽減を担う。
  * スキルを設定済みかどうかの確認は呼び出し側([performActiveSkill])が行う。
  *
- * なお特殊型攻撃(C・Dのステータスを使うダメージ式)は未実装で、現状は物理型と同じ式を使う(将来対応)。
+ * 特殊型攻撃(スキルタイプに特殊型攻撃を含み、物理型攻撃を含まない。[ActiveSkill.usesSpecialDamage])は、
+ * ダメージ計算の破壊力・耐久力の代わりにマナ出力C・マナ耐性D(どちらもバフ・デバフ反映後)を渡す。式は同じ。
+ * 攻撃者がそのスキルのクールタイム(CT)中なら攻撃できず`null`を返す。使えたら、外れてもCTを設定する([startCooldown])。
  *
  * @receiver 攻撃前の戦闘フィールド。
  * @param attackerFpid 攻撃者のFPID。
@@ -55,10 +57,14 @@ fun BattleField.performAttack(
     val power = attackSkill.basePower ?: return null
     val attacker = allPawns.firstOrNull { it.fpid == attackerFpid } ?: return null
     if (attacker.isDefeated || attacker.isBroken) return null
+    if (attacker.isOnCooldown(attackSkill.id)) return null
     if (attacker is BattleAlly && !attacker.canAfford(attackSkill)) return null
     val targets = resolveTargets(attackerFpid, attackSkill, targetFpid) ?: return null
 
-    var field = spendCosts(attackerFpid, attackSkill)
+    // 特殊型攻撃(特殊型を含み物理型を含まないスキル)は、破壊力・耐久力の代わりにマナ出力C・マナ耐性Dを使う(式は同じ)。
+    val offenseStat = if (attackSkill.usesSpecialDamage) BattleStat.MANA_OUTPUT else BattleStat.ATTACK
+    val defenseStat = if (attackSkill.usesSpecialDamage) BattleStat.MANA_RESISTANCE else BattleStat.DEFENSE
+    var field = spendCosts(attackerFpid, attackSkill).startCooldown(attackerFpid, attackSkill)
     // 使用者のTP(条件1)の材料。命中したヒットごとに集める。
     var anyHit = false
     var allHitsOnDefending = true
@@ -84,8 +90,8 @@ fun BattleField.performAttack(
             }
             val base = DamageFormula.calculate(
                 power,
-                attacker.effectiveStat(BattleStat.ATTACK),
-                current.effectiveStat(BattleStat.DEFENSE),
+                attacker.effectiveStat(offenseStat),
+                current.effectiveStat(defenseStat),
             )
             val judged = CriticalFormula.judge(attacker.effectiveStage(BattleStat.CRITICAL_RATE), random)
             val damageStage = attacker.effectiveStage(BattleStat.CRITICAL_DAMAGE)

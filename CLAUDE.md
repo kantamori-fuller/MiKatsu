@@ -123,10 +123,11 @@ ui/<screenName>/
 
 キャラクターには、戦闘中に自分で使うアクティブスキル(Aスキル)と、設定しているだけで常に効果を発揮するパッシブスキル(Pスキル)を設定できる。モデルは`domain/model/skill/`、効果の適用は`domain/battle/`に置く。
 
-- **スキルID**: `Skill.id`。マスターデータのID(敵のEIDと同じ位置づけ)で、AスキルとPスキルはそれぞれ独立して採番する(通常攻撃=Aスキル1、ディア=Aスキル2、精神一到=Aスキル3、覇気=Aスキル4、ローリング・ソバット=Aスキル5、研ぎ澄ます=Aスキル6、鋼の体=Pスキル1)。同じ数値でもAスキル1とPスキル1は別のスキルであり、IDは必ず種別(A/P)とセットで扱う。種別を決めずにIDだけでスキルを探さないこと。戦闘中の個体を識別するFPIDとも別物で、Aスキルは`Character.activeSkillIds`、Pスキルは`passiveSkillIds`に分けて保存する(`characters.json`にキーがない旧データは空リスト、存在しないIDは解決時に無視)。マスターデータは`SkillRepositoryImpl`が保持する。
+- **スキルID**: `Skill.id`。マスターデータのID(敵のEIDと同じ位置づけ)で、AスキルとPスキルはそれぞれ独立して採番する(通常攻撃=Aスキル1、ディア=Aスキル2、精神一到=Aスキル3、覇気=Aスキル4、ローリング・ソバット=Aスキル5、研ぎ澄ます=Aスキル6、クイックシュート=Aスキル7、鋼の体=Pスキル1)。同じ数値でもAスキル1とPスキル1は別のスキルであり、IDは必ず種別(A/P)とセットで扱う。種別を決めずにIDだけでスキルを探さないこと。戦闘中の個体を識別するFPIDとも別物で、Aスキルは`Character.activeSkillIds`、Pスキルは`passiveSkillIds`に分けて保存する(`characters.json`にキーがない旧データは空リスト、存在しないIDは解決時に無視)。マスターデータは`SkillRepositoryImpl`が保持する。
 - **スキル一覧とテンプレート**: スキルの正本は`data/スキル一覧.xlsx`(Aスキルは属性ごとのシート、Pスキル、項目の定義など)。`ActiveSkill`はシートの列と1対1で対応する(ID、名前、属性`SkillElement`(シートのタブ)、スキルタイプ`SkillCategory`(物理型攻撃/特殊型攻撃/回復/変化/バフ/デバフ/ポジティブエフェクト/ネガティブエフェクト/トラップ。複数可・空もあり)、物理属性`PhysicalAttribute`(衝撃/斬撃/刺突)、コストタイプ+コスト消費`costs: List<SkillCost>`(MP/HP。例: MP30&HP10)、CT`coolTime`、接触`SkillContactType`、レンジ`SkillRange`、範囲`SkillArea`、対象選択`SkillTargetSelection`、基礎威力`basePower`、発動回数`activationCount`(旧称「攻撃回数」)、命中率`accuracy`(0〜100。空欄=`null`は必中)、効果`effects`)。`PassiveSkill`はID、名前、スキルタイプ、効果。シートの1行をコードへ書き写す雛形は`SkillRepositoryImpl`のKDocにあるので、スキルを追加するときはそれに従う。
-- **シートに無い項目**: `ActiveSkill.targetSide`(`SkillTargetSide`: 敵/味方)はシートに列が無いが、狙う陣営を表すために暫定で持つ。
-- **データだけの項目**: CTは現状データとして持つだけで、クールタイムとしてはまだ効いていない。基礎威力・発動回数・命中率・コスト・効果・レンジ・範囲・対象選択は戦闘で使われる。
+- **シートに無い項目**: `ActiveSkill.targetSide`(`SkillTargetSide`: 敵/味方)はシートに列が無いが、狙う陣営を表すために暫定で持つ。`ActiveSkill.preemptivePriority`(`Int?`)も列が無く、`null`が通常のスキル、値ありが先制行動スキル(数値が大きいほど優先。「先制行動」の節を参照)。
+- **戦闘で使われる項目**: 基礎威力・発動回数・命中率・コスト・CT・効果・レンジ・範囲・対象選択・スキルタイプ(特殊型攻撃かどうか)は戦闘で使われる。
+- **CT(クールタイム)**: 全スキル共通の仕組みで、`domain/battle/SkillCooldownFormula.kt`が唯一の実装箇所。`BattleFieldPawn.skillCooldowns`(`SkillCooldown`: スキルID・残り・手番中に作られたか)に持つ戦闘中だけの値で、`Character`・`characters.json`には持たず、次の戦闘へは持ち越さない(`createNextBattleField`で空から始まる)。`coolTime > 0`のスキルを使ったら(外れても)設定する(`performAttack`/`performSkill`が`startCooldown`)。**本人の手番が終わるたびに1減り、使った手番の終わりでは減らない**(バフ・デバフの`grantedDuringOwnTurn`と同じ考え方で、使った手番に作られた記録は終了時にフラグを下ろすだけ。これがないとCT1が使った手番の終わりに明けてしまう)ため、CT1は「使った後、次の自分の手番が終わるまで使えない」。数えるのは`endTurn`(`progressCooldowns`)で、先制の手番も1手番として数える。CT中のスキルは`performAttack`/`performSkill`が`null`を返し、スキル一覧では無効(`isUsable=false`)。通常攻撃はCT0なので影響しない。スキル一覧では、CT中のスキルのコストの後ろに「CT残り1」を付ける(`BattleSkillUiModel.remainingCoolTime`に`remainingTurns`をそのまま入れ、Screenは整形するだけ。例: 「クイックシュート　MP20・TP10　CT残り1」)。
 - **前衛/後衛と配置**: 味方・敵とも2行×3列(スロット0〜5)。`slot / 3`が0なら前衛、1なら後衛、列は`slot % 3`。味方は`Formation`のスロット(画面の上段=敵に近い側が前衛)、敵は`GetBattleFieldUseCase`が出現順にスロット0から詰めて割り当てる(画面では前衛を下側=味方側に表示)。陣営の前衛に生存個体がいなければ、その陣営の後衛は前衛として扱う(繰り上がり。`effectiveRowOf`)。
 - **対象の決め方**: `domain/battle/SkillTargeting.kt`の`selectableTargets` / `resolveTargets`が唯一の判定箇所。
   - **レンジ0**: 使用者自身だけが対象(`SkillRange.RANGE_0`)。陣営・範囲・対象選択に関係なく、`selectableTargets`/`resolveTargets`は生存している使用者自身だけを返す。画面ではスキル一覧で押した瞬間に、対象選択を挟まず自分を対象に発動する。
@@ -134,7 +135,7 @@ ui/<screenName>/
   - **陣営**: `targetSide`(使用者から見た相対。ENEMY=反対陣営、ALLY=自分を含む自陣営)。範囲が`FIELD`のときだけ両陣営。
   - **範囲×対象選択**: タップした1体(アンカー)が選べる相手であること。一体選択(`ONE`)と`SINGLE`はアンカーのみ。全て対象(`ALL`)はアンカーの属するまとまりの生存個体全員(陣=同じ陣営の同じ有効な段、列=同じ陣営の同じ列、エリア全体=アンカーの陣営全員、フィールド全体=全員)で、まとまりの他のメンバーはレンジ外でも対象になる。
   - 選べる相手がいない行動は使えない(「攻撃」ボタン・スキル一覧が無効)。敵は届く相手がいなければ何もせず手番を終える。画面では選べる相手のカードに点滅する太い枠を付け、そのカードだけタップできる。
-- **通常攻撃**: Aスキル1。全キャラクター・全敵が標準で持つ特別なスキルで、スキル枠を使わず、キャラ編集画面の一覧にもバトルの「スキル」一覧にも出ない(`SkillRepository.getNormalAttack()`で取得し、`getActiveSkills()`/`getActiveSkill(id)`には含まれない)。「攻撃」ボタンと敵の手番は`AttackUseCase`/`ExecuteEnemyTurnUseCase`がこのデータを`performAttack`へ渡して実行する。対象は`resolveTargets`で決め(範囲攻撃なら対象ごとに)、威力は基礎威力、発動回数の分だけ1回ずつ命中判定・ダメージ計算・軽減を行い(命中率は100)、対象が戦闘不能になったらその対象への攻撃を打ち切る。特殊型攻撃の計算式(C/Dを使う)は未実装。
+- **通常攻撃**: Aスキル1。全キャラクター・全敵が標準で持つ特別なスキルで、スキル枠を使わず、キャラ編集画面の一覧にもバトルの「スキル」一覧にも出ない(`SkillRepository.getNormalAttack()`で取得し、`getActiveSkills()`/`getActiveSkill(id)`には含まれない)。「攻撃」ボタンと敵の手番は`AttackUseCase`/`ExecuteEnemyTurnUseCase`がこのデータを`performAttack`へ渡して実行する。対象は`resolveTargets`で決め(範囲攻撃なら対象ごとに)、威力は基礎威力、発動回数の分だけ1回ずつ命中判定・ダメージ計算・軽減を行い(命中率は100)、対象が戦闘不能になったらその対象への攻撃を打ち切る。
 - **スロット数**: Aスキル・Pスキルともに最大8個(暫定。`SkillLimits`)。同じスキルの重複設定は不可。キャラ編集画面(`CharacterCreateViewModel`)で追加・削除する。
 - **戦闘での解決**: `GetBattleFieldUseCase`がスキルIDを解決して`BattleAlly.activeSkills` / `passiveSkills`に持たせる(FPIDの採番には影響しない)。`BattleFieldPawn.passiveSkills`は敵では空。
 - **Aスキルの使用**: 入口は`BattleField.performActiveSkill`(`UseSkillUseCase`経由。結果は`SkillUseResult`の`Attack`/`Effect`)。基礎威力のあるスキルは`performAttack`(通常攻撃と同じ計算。味方ならコストの確認と消費も行う)へ、基礎威力のないスキルは`performSkill`へ渡す。以下は`performSkill`の内容。使用者が現在の行動者の味方・戦闘不能でない・スキルを設定済み・コスト(MP・HP・TP。HPコストは支払い後にHPが1以上残る場合のみ。TPは足りない分をHPで肩代わりでき、HPコストとの合計でHPが1以上残る場合のみ。TPの「代替システム」を参照)を払える・選んだ対象が選べる相手(`selectableTargets`)のときだけ成立し、コスト消費と、`resolveTargets`で決めた全対象への効果適用を行う。命中率が`null`でないスキルは対象ごとに1回だけ命中判定をし(`HitChanceFormula`。使用者の命中率・対象の回避率、対象がブレイク中なら必中)、外れた対象にはそのスキルの効果が一切かからない。命中率`null`は乱数を引かず必ず成功する。コストは外れても消費する。発動回数が2以上でも効果の適用は1回(現状すべて1回)。手番の終了は通常攻撃と同じく呼び出し側が`EndTurnUseCase`で行う。対象は必ずFPIDで指定する。
@@ -144,6 +145,8 @@ ui/<screenName>/
 - **研ぎ澄ます**: 無属性/バフ/非接触/HP30&MP50/レンジ0・単体・一体選択/命中率`null`。自分の命中率・クリティカル発生率・クリティカル倍率を1段階ずつ上げる(永続)。
 - **Pスキルの適用**: ダメージ軽減は`domain/battle/PassiveSkillEffects.kt`の`reduceDamage`が唯一の適用箇所で、`performAttack`が`DamageFormula`の最終結果(+2の後)に、1ヒットごとに対象のPスキルの軽減合計を適用する。軽減が1以上あるときは`max(ダメージ - 軽減合計, 1)`。鋼の体は受けるダメージを20減らす(タイプは空)。
 - **MP**: 最大MPは`Character.mana`。戦闘開始時は満タンで、`BattleAlly.currentMp`がスキル使用で減る。次の戦闘へは現在HPと同様に持ち越す(`createNextBattleField`)。敵のMPは現状使わない。
+- **特殊型攻撃**: スキルタイプに特殊型攻撃を含み、物理型攻撃を含まないスキル(`ActiveSkill.usesSpecialDamage`)は、`performAttack`が`DamageFormula.calculate`へ破壊力・耐久力の代わりに`effectiveStat(MANA_OUTPUT)`(C)・`effectiveStat(MANA_RESISTANCE)`(D)を渡す(式は同じ)。物理型攻撃と併せ持つスキル、特殊型を含まないスキルは今までどおり破壊力・耐久力。
+- **クイックシュート**: Aスキル7。無属性/特殊型攻撃/刺突/MP20&TP10/CT1/非接触/レンジ2・列・全て対象/基礎威力50/2回/命中率80/効果なし/対象は敵/`preemptivePriority=1`(先制行動スキル)。通常のスキルとして自分の手番のスキル一覧からも使える。
 - **ローリング・ソバット**: 無属性/物理型攻撃/衝撃/TP40/接触/レンジ1・単体・一体選択/基礎威力150/1回/命中率90。通常攻撃と同じ計算でダメージを与える。説明文の「押し出す」は効果なし。ナレーションは通常攻撃の「攻撃!」の部分を技名にした形(「AがBにローリング・ソバット! 45ダメージ」、範囲なら「Aのローリング・ソバット!」。`AttackResult.skillId`/`skillName`)。
 
 ## TP(タクティカルポイント)
@@ -236,8 +239,21 @@ TPコストが現在TPより大きいとき、不足分をHPで肩代わりし�
 - **永続**: `StatModifier.remainingTurns`(`StatChange.durationTurns`)が`null`のエントリは手番終了で減らず、その戦闘の終わりまで切れない(次の戦闘へは持ち越さない)。
 - **持続**: かけられた本人の手番終了時(`endTurn`→`progressStatModifiers`)に残りターンを1減らし、0で消える。本人の手番中にかけられた分(自分にかけた精神一到)はその手番の終了では減らさない(`grantedDuringOwnTurn`)。
 - **戦闘中だけの値**: `Character`・`Enemy`・`characters.json`には持たない。次の戦闘へは持ち越さない。ブレイクゲージは貯めない。
-- **使う箇所**: 基礎値のプロパティ(`attack`等)は基礎値のまま。戦闘の計算は必ず`effectiveStat(BattleStat)`を使う。命中率・回避率には使えない(4基準の表で誤った値になるため例外を投げる。段階は`effectiveStage`で取り、`HitChanceFormula`へ渡す)(ダメージ計算の破壊力・耐久力、行動速度の敏捷、同時手番の幸運比較)。マナ出力・マナ耐性は現状戦闘で使わない。確定済みの`turnQueue`は幸運が変わっても引き直さない。
+- **使う箇所**: 基礎値のプロパティ(`attack`等)は基礎値のまま。戦闘の計算は必ず`effectiveStat(BattleStat)`を使う。命中率・回避率には使えない(4基準の表で誤った値になるため例外を投げる。段階は`effectiveStage`で取り、`HitChanceFormula`へ渡す)(ダメージ計算の破壊力・耐久力、行動速度の敏捷、同時手番の幸運比較)。マナ出力・マナ耐性は特殊型攻撃のダメージ計算で使う。確定済みの`turnQueue`は幸運が変わっても引き直さない。
 - **ナレーション**: `SkillResult.toNarrations`(`ui/battle/model/SkillNarrations.kt`)。「Aの精神一到!」→「Aの破壊力が1段階上がった!」(命中率・回避率も同じ形)。外れたら「Aの覇気! しかし外れた!」の1文だけ。±12で頭打ちでも文面は同じ。
+
+## 先制行動
+
+カードをタップして「予約」しておくと、現在の行動者の手番が終わったところで行動順に割り込み、先制スキル(`ActiveSkill.preemptivePriority`がある=クイックシュートなど)を使える。用語: **予約** = カードをタップした時点の記録、**先制の手番** = 行動順に割り込んだ手番。判定と割り込みは`domain/battle/PreemptiveAction.kt`、手番の進行への組み込みは`ActionTimeline.kt`(`endTurnWithCancellations` / `advanceToNextTurnWithCancellations`)が唯一の実装箇所。
+
+- **状態**: `BattleField.pendingPreemptive`(まだ割り込んでいない予約のFPIDの列)・`preemptiveTurns`(`turnQueue`の中で先制の手番になっているFPIDの集合)・`isPreemptiveTurn`(現在の手番が先制の手番か)。戦闘中だけの値で、次の戦闘へは持ち越さない。先制の手番は常に`turnQueue`の先頭側にまとまる。
+- **予約できる条件**(`canReservePreemptive`が唯一の判定箇所で、UIも使う。`ReservePreemptiveActionUseCase`経由で保存): 味方 / 戦闘不能でない / ブレイク中でない / まだ予約しておらず先制の手番として行動順にも入っていない / 勝敗が決まっていない / 現在の行動者ではない / 先制スキルのうち1つ以上が「CTが明けている・`canAfford`・`selectableTargets`が空でない」(`isSkillUsable`。スキル一覧の使用可否と同じ基準)。
+- **割り込み**: `endTurn`が、手番を進める`advanceToNextTurn`の**前**に、その時点の予約をすべて取り出して並べ(`applyPreemptiveReservations`)、`turnQueue`の先頭(残っている同時手番より前)に入れて先制の印を付け、予約を空にする。並び順は、優先度(その個体の先制スキルの中で一番高い値)の高い順 → `effectiveStat(AGILITY)`の高い順 → `effectiveStat(LUCK)`の高い順 → それでも同じなら`random`でくじ(手番開始のTPの乱数より前に引く)。先制の手番の最中に入った予約は、その手番の`endTurn`で同じように先頭に入るので、残っている先制の手番より前に来る。予約した個体がすでに通常の手番として`turnQueue`に並んでいたら、その通常の手番は取り除く(前借り)。
+- **先制の手番の扱い**: 通常の手番とまったく同じ(`advanceToNextTurn`による防御の解除・手番開始のTP、`endTurn`による残り距離のリセット・`turnCount`+1・ブレイク状態/バフ・デバフ/CTの経過)。`endTurn`では先制の印も外す。
+- **取り消し**: 先制の手番が先頭に来た時点(手番開始のTP・防御の解除をする**前**。`cancelInvalidPreemptiveTurns`)で、その個体が戦闘不能・ブレイク中・使える先制スキルが無い(CT/コスト/対象)のどれかなら、先制の手番を行動順から外す。手番は使わない(TP・防御・距離・CTはそのまま)。外れた後の行動順は普通に決まる(行動ゲージが0のままなら、普通に手番が来る)。取り消したFPIDは`EndTurnUseCase`の戻り値(`List<Int>`)で呼び出し側に返す(戦闘フィールドにイベントは残さない)。
+- **勝敗が決まったら**、予約と先制の印を破棄する(`advanceToNextTurn`)。敵は先制を使わない。
+- **UI**: 味方カードのタップは、選択状態が`AttackTarget`/`SkillTarget`のときは対象選びだけに使い(その間は予約できない。`BattleUiState.reservableAllyIds`が空になる)、それ以外のときは予約できる個体なら予約する(確認も取り消しもない)。敵・味方どちらの行動中でも、演出中でも予約できる。勝敗の表示中や詳細ポップアップを開いている間はできない。予約できるカードには細いオレンジ(`TacticalPointOrange`)の枠(`BattleUnitUiModel.canReservePreemptive`)、予約済み・先制の手番待ちのカードには「先制待ち」(`isPreemptiveWaiting`)を出す。予約したときのナレーションは出さない。
+- **先制の手番の流れ**(`BattleViewModel`): 先制の手番が始まったら「Aの先制行動!」(`BattleNarration.PreemptiveAction`。演出中扱いで、ナレーション欄のタップで進められる)を出し、選択状態を自動で`SkillList`にして**先制スキルだけ**を一覧に出す(有効/無効の判定は通常と同じ)。攻撃・防御・撤退は無効、スキル一覧からはキャンセルできない(対象選びのキャンセルはスキル一覧に戻るだけ)。スキルを使えなかったとき(`null`)もスキル一覧へ戻る。同じ先制の手番に二重に出ないよう`announcedPreemptiveFpid`で目印を持つ(戦闘フィールドの更新は何度も流れてくるため)。取り消し(`EndTurnUseCase`の戻り値)のときは、次の手番に進む前に「〜は先制行動できなかった!」(`PreemptiveFailed`)を出す。普段の手番のスキル一覧には、先制スキルも通常のスキルとして出る。
 
 ## 個体の詳細ポップアップ
 

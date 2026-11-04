@@ -35,6 +35,8 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillCostType
  * @param activeSkills 使えるアクティブスキル。
  * @param passiveSkills 発揮しているパッシブスキル。
  * @param statModifiers かけられているバフ・デバフ。
+ * @param manaOutput マナ出力(C)。
+ * @param manaResistance マナ耐性(D)。
  * @return 生成した味方個体。
  */
 fun testAlly(
@@ -49,11 +51,13 @@ fun testAlly(
     activeSkills: List<ActiveSkill> = emptyList(),
     passiveSkills: List<PassiveSkill> = emptyList(),
     statModifiers: List<StatModifier> = emptyList(),
+    manaOutput: Int = 0,
+    manaResistance: Int = 0,
 ) = BattleAlly(
     fpid = fpid,
     character = Character(
         id = fpid, name = "味方$fpid", hp = hp, mana = mp, attack = attack, defense = defense,
-        manaOutput = 0, manaResistance = 0, agility = agility, luck = luck,
+        manaOutput = manaOutput, manaResistance = manaResistance, agility = agility, luck = luck,
     ),
     currentHp = hp,
     currentMp = mp,
@@ -76,6 +80,8 @@ fun testAlly(
  * @param defense 耐久力。
  * @param slot 敵陣営のスロット番号。省略時は0(前衛の左端)。
  * @param statModifiers かけられているバフ・デバフ。
+ * @param manaOutput マナ出力(C)。
+ * @param manaResistance マナ耐性(D)。
  * @return 生成した敵個体。
  */
 fun testEnemy(
@@ -87,11 +93,13 @@ fun testEnemy(
     defense: Int = 100,
     slot: Int = 0,
     statModifiers: List<StatModifier> = emptyList(),
+    manaOutput: Int = 0,
+    manaResistance: Int = 0,
 ) = BattleEnemy(
     fpid = fpid,
     enemy = Enemy(
         id = 1, name = "敵", hp = hp, mana = 0, attack = attack, defense = defense,
-        manaOutput = 0, manaResistance = 0, agility = agility, luck = luck,
+        manaOutput = manaOutput, manaResistance = manaResistance, agility = agility, luck = luck,
     ),
     currentHp = hp,
     slot = slot,
@@ -114,6 +122,9 @@ fun testEnemy(
  * @param activationCount 発動回数。
  * @param accuracy 命中率。`null`は必中。
  * @param effects 効果。
+ * @param coolTime クールタイム。
+ * @param preemptivePriority 先制行動の優先度。`null`は通常のスキル。
+ * @param categories スキルタイプ。
  * @return 生成したアクティブスキル。
  */
 fun testActiveSkill(
@@ -128,14 +139,17 @@ fun testActiveSkill(
     activationCount: Int = 1,
     accuracy: Int? = null,
     effects: List<ActiveSkillEffect> = emptyList(),
+    coolTime: Int = 0,
+    preemptivePriority: Int? = null,
+    categories: Set<SkillCategory> = setOf(SkillCategory.HEAL),
 ) = ActiveSkill(
     id = id,
     name = name,
     element = SkillElement.NONE,
-    categories = setOf(SkillCategory.HEAL),
+    categories = categories,
     physicalAttribute = null,
     costs = costs,
-    coolTime = 0,
+    coolTime = coolTime,
     contactType = SkillContactType.NON_CONTACT,
     range = range,
     area = area,
@@ -145,6 +159,7 @@ fun testActiveSkill(
     accuracy = accuracy,
     effects = effects,
     targetSide = targetSide,
+    preemptivePriority = preemptivePriority,
 )
 
 /** テスト用の通常攻撃(Aスキル1。基礎威力100・1回攻撃)。マスターデータと同じ内容。 */
@@ -227,3 +242,22 @@ val TEST_SOBAT = testActiveSkill(
     basePower = 150,
     accuracy = 90,
 ).copy(categories = setOf(SkillCategory.PHYSICAL_ATTACK), physicalAttribute = PhysicalAttribute.IMPACT, contactType = SkillContactType.CONTACT)
+
+/**
+ * テスト用の「クイックシュート」(Aスキル7・MP20とTP10・CT1・レンジ2・列・全て対象・基礎威力50・2回・命中率80・特殊型攻撃・先制優先度1)。マスターデータと同じ内容。
+ */
+val TEST_QUICK_SHOT = testActiveSkill(
+    id = 7,
+    name = "クイックシュート",
+    targetSide = SkillTargetSide.ENEMY,
+    range = SkillRange.RANGE_2,
+    area = SkillArea.COLUMN,
+    targetSelection = SkillTargetSelection.ALL,
+    costs = listOf(SkillCost(SkillCostType.MP, 20), SkillCost(SkillCostType.TP, 10)),
+    basePower = 50,
+    activationCount = 2,
+    accuracy = 80,
+    coolTime = 1,
+    preemptivePriority = 1,
+    categories = setOf(SkillCategory.SPECIAL_ATTACK),
+).copy(physicalAttribute = PhysicalAttribute.PIERCE)

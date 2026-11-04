@@ -150,4 +150,38 @@ class SkillRepositoryImplTest {
         assertEquals(SkillTargetSide.ENEMY, skill.targetSide)
         assertTrue(repository.getActiveSkills().any { it.id == 5 })
     }
+
+    /** クイックシュート(Aスキル7)が仕様どおりのデータで、先制行動スキルとして設定可能な一覧に出ること。 */
+    @Test
+    fun quickShot_matchesSpec() = runBlocking {
+        val skill = checkNotNull(repository.getActiveSkill(7))
+
+        assertEquals("クイックシュート", skill.name)
+        assertEquals(SkillElement.NONE, skill.element)
+        assertEquals(setOf(SkillCategory.SPECIAL_ATTACK), skill.categories)
+        assertEquals(PhysicalAttribute.PIERCE, skill.physicalAttribute)
+        assertEquals(listOf(SkillCost(SkillCostType.MP, 20), SkillCost(SkillCostType.TP, 10)), skill.costs)
+        assertEquals(1, skill.coolTime)
+        assertEquals(SkillContactType.NON_CONTACT, skill.contactType)
+        assertEquals(SkillRange.RANGE_2, skill.range)
+        assertEquals(SkillArea.COLUMN, skill.area)
+        assertEquals(SkillTargetSelection.ALL, skill.targetSelection)
+        assertEquals(50, skill.basePower)
+        assertEquals(2, skill.activationCount)
+        assertEquals(80, skill.accuracy)
+        assertEquals(emptyList<ActiveSkillEffect>(), skill.effects)
+        assertEquals(SkillTargetSide.ENEMY, skill.targetSide)
+        assertEquals(1, skill.preemptivePriority)
+        assertTrue(skill.isPreemptive)
+        assertTrue(skill.usesSpecialDamage)
+        assertTrue(repository.getActiveSkills().any { it.id == 7 })
+    }
+
+    /** クイックシュート以外のスキル(通常攻撃を含む)は、先制行動スキルではないこと。 */
+    @Test
+    fun otherSkills_areNotPreemptive() = runBlocking {
+        val others = repository.getActiveSkills().filter { it.id != 7 } + repository.getNormalAttack()
+
+        assertTrue(others.all { it.preemptivePriority == null && !it.isPreemptive })
+    }
 }

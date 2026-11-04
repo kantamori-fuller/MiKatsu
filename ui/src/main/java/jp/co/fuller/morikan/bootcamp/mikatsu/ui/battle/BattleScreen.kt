@@ -110,6 +110,8 @@ fun BattleScreen(
  * 点滅する太い枠線で強調され、敵・味方どちらのカードでもタップできる(それ以外のカードはタップできない)。戦闘不能のカードはグレーアウトされる。勝敗が決まると
  * 画面全体に結果を重ねて表示する。勝利時は「次に進む」ボタンで[onNextBattleClick]を呼び、
  * 敗北時はオーバーレイのタップで[onDefeat]を呼ぶ。敵カードの下の空きには進行度を表示する。
+ * 先制行動を予約できる味方のカードは細いオレンジの枠で示し、タップで予約する(予約済みのカードには「先制待ち」を表示する)。
+ * 先制の手番では、スキル一覧に先制スキルだけを出し、攻撃・防御・撤退を無効にする。
  * カードを長押しすると[UnitDetailPopup]で個体の詳細を重ねて表示する。
  * 他の画面と異なりトップバーは表示しない。
  *
@@ -119,7 +121,7 @@ fun BattleScreen(
  * @param onDefeat 敗北表示がタップされたときに呼ばれるコールバック。
  *   メインメニューへの遷移をNavHost側に委ねる。
  * @param onEnemyClick 選べる敵のカードがタップされたときに、敵のFPIDを引数に呼ばれる。
- * @param onAllyClick 選べる味方のカードがタップされたときに、味方のFPIDを引数に呼ばれる。
+ * @param onAllyClick 選べる味方(対象選び中)または先制行動を予約できる味方のカードがタップされたときに、味方のFPIDを引数に呼ばれる。
  * @param onUnitLongPress カードが長押しされたときに、個体のFPIDを引数に呼ばれる。
  * @param onNarrationClick ナレーション欄がタップされたときに呼ばれる。
  * @param onAttackClick 「攻撃」ボタンが押されたときに呼ばれる。
@@ -192,12 +194,14 @@ internal fun BattleScreenContent(
                         val member = uiState.partySlots[slot]
                         if (member != null) {
                             val isSelectable = member.id in uiState.selectableTargetIds
+                            val isReservable = member.id in uiState.reservableAllyIds
                             UnitStatCard(
                                 unit = member,
                                 modifier = slotModifier,
                                 isSelected = member.isActive,
                                 isSelectable = isSelectable,
-                                onClick = if (isSelectable) {
+                                isReservable = isReservable,
+                                onClick = if (isSelectable || isReservable) {
                                     { onAllyClick(member.id) }
                                 } else {
                                     null
@@ -256,7 +260,7 @@ internal fun BattleScreenContent(
                     val isSelecting = uiState.selection != BattleSelection.None
                     Button(
                         onClick = if (isSelecting) onCancelClick else onRetreat,
-                        enabled = isSelecting || (!uiState.isProcessing && uiState.outcome == null),
+                        enabled = if (isSelecting) uiState.isCancelEnabled else uiState.isRetreatEnabled,
                         modifier = Modifier.weight(1f),
                     ) {
                         Text(
@@ -284,7 +288,7 @@ internal fun BattleScreenContent(
  * 手番の味方が使えるアクティブスキルを、名前とコスト(MP、HPコストがあればHPも)つきで縦に並べて表示する。
  *
  * 現在のMP・HPでコストを支払えないスキルは選択できない(無効表示になる)。TPが足りない分はHPで肩代わりでき、
- * 肩代わりするHPがあるとき(使えない場合も)、TPの表示は「TP40(HP-12)」の形になる。数が多い場合は
+ * 肩代わりするHPがあるとき(使えない場合も)、TPの表示は「TP40(HP-12)」の形になる。CT中のスキルは、コストの後ろに「CT残り1」を付ける(無効のまま)。数が多い場合は
  * [SKILL_LIST_MAX_HEIGHT]の中でスクロールする。
  *
  * @param skills 表示するスキルの一覧。
@@ -321,15 +325,24 @@ private fun SkillList(
                         }
                     },
                 )
+                val nameWithCosts = if (costs.isEmpty()) {
+                    skill.name
+                } else {
+                    stringResource(
+                        R.string.battle_skill_item_format,
+                        skill.name,
+                        costs.joinToString(stringResource(R.string.battle_skill_cost_separator)),
+                    )
+                }
                 Text(
-                    if (costs.isEmpty()) {
-                        skill.name
-                    } else {
+                    if (skill.remainingCoolTime > 0) {
                         stringResource(
                             R.string.battle_skill_item_format,
-                            skill.name,
-                            costs.joinToString(stringResource(R.string.battle_skill_cost_separator)),
+                            nameWithCosts,
+                            stringResource(R.string.battle_skill_cooldown_format, skill.remainingCoolTime),
                         )
+                    } else {
+                        nameWithCosts
                     },
                 )
             }
@@ -494,6 +507,8 @@ private fun BattleNarration.toText(): String = when (this) {
     is BattleNarration.AreaBadCritical -> stringResource(R.string.battle_narration_area_bad_critical, targetName)
     is BattleNarration.AreaCriticalBlocked -> stringResource(R.string.battle_narration_area_critical_blocked, targetName)
     is BattleNarration.Defend -> stringResource(R.string.battle_narration_defend, actorName)
+    is BattleNarration.PreemptiveAction -> stringResource(R.string.battle_narration_preemptive_action, actorName)
+    is BattleNarration.PreemptiveFailed -> stringResource(R.string.battle_narration_preemptive_failed, actorName)
     is BattleNarration.Broke -> stringResource(R.string.battle_narration_broke, targetName)
     is BattleNarration.BreakStunned -> stringResource(R.string.battle_narration_break_stunned, actorName)
     is BattleNarration.BreakRecovered -> stringResource(R.string.battle_narration_break_recovered, actorName)
@@ -529,7 +544,7 @@ private fun BattleScreenPlayerTurnPreview() {
     BattleContentPreview(previewBattleUiState())
 }
 
-/** スキル一覧を開いた状態(TP代替で使えるスキルと、HPが足りず使えないスキルの「TP40(HP-12)」表示を含む)を確認するためのPreview。 */
+/** スキル一覧を開いた状態(TP代替で使えるスキルと、HPが足りず使えないスキルの「TP40(HP-12)」表示と、CT中で使えないスキルの「CT残り1」表示を含む)を確認するためのPreview。 */
 @Preview(showBackground = true, name = "戦闘(スキル一覧)")
 @Composable
 private fun BattleScreenSkillListPreview() {
@@ -547,6 +562,35 @@ private fun BattleScreenTargetSelectionPreview() {
             attackTargetIds = base.enemySlots.filterNotNull().filter { !it.isDefeated }.map { it.id }.toSet(),
         ),
     )
+}
+
+/** 先制の手番(先制スキルだけの一覧。攻撃・防御・撤退は無効)を確認するためのPreview。 */
+@Preview(showBackground = true, name = "戦闘(先制の手番のスキル一覧)")
+@Composable
+private fun BattleScreenPreemptiveSkillListPreview() {
+    val base = previewBattleUiState()
+    BattleContentPreview(
+        base.copy(
+            isPreemptiveTurn = true,
+            selection = BattleSelection.SkillList,
+            skills = listOf(previewPreemptiveSkill()),
+        ),
+    )
+}
+
+/** 手番ではない味方が先制行動を予約できる(細いオレンジの枠)状態を確認するためのPreview。 */
+@Preview(showBackground = true, name = "戦闘(先制の予約)")
+@Composable
+private fun BattleScreenPreemptiveReservationPreview() {
+    val base = previewBattleUiState()
+    val party = base.partySlots.map { unit ->
+        when (unit?.id) {
+            1 -> unit
+            2 -> unit.copy(canReservePreemptive = true)
+            else -> unit
+        }
+    }
+    BattleContentPreview(base.copy(partySlots = party))
 }
 
 /** 個体の詳細ポップアップを表示している状態を確認するためのPreview。 */

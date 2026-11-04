@@ -171,6 +171,20 @@ sealed interface BattleNarration {
     data class Defend(val actorName: String) : BattleNarration
 
     /**
+     * 先制の手番が始まったことを伝える(「Aの先制行動!」)。
+     *
+     * @property actorName 先制行動する味方の表示名。
+     */
+    data class PreemptiveAction(val actorName: String) : BattleNarration
+
+    /**
+     * 先制の手番が、戦闘不能・ブレイク・使える先制スキルが無いなどで取り消されたことを伝える(「Aは先制行動できなかった!」)。
+     *
+     * @property actorName 先制行動できなかった味方の表示名。
+     */
+    data class PreemptiveFailed(val actorName: String) : BattleNarration
+
+    /**
      * 攻撃を受けた個体がブレイクしたことを伝える。
      *
      * @property targetName ブレイクした個体の表示名。
