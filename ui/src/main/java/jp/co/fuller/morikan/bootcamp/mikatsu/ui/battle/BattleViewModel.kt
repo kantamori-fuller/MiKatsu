@@ -12,6 +12,7 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleField
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleFieldPawn
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.AttackResult
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleOutcome
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.ElementResistances
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.Formation
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleStat
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.SkillUseResult
@@ -43,6 +44,7 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleSelection
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleSkillUiModel
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleUiState
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleUnitDetailUiModel
+import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.ElementResistanceDetail
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleUnitPosition
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleUnitUiModel
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.resolveDisplayNames
@@ -677,6 +679,7 @@ private fun BattleField.detailOf(pawn: BattleFieldPawn, displayName: String): Ba
                 )
             }
         },
+        elementResistances = ElementResistances.ORDER.map { ElementResistanceDetail(it, pawn.elementResistances.of(it)) },
     )
 }
 

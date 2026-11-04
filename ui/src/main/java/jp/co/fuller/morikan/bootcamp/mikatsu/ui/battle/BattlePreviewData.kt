@@ -2,6 +2,8 @@ package jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle
 
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleStat
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BreakState
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.ElementResistances
+import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.ElementResistanceDetail
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleSkillUiModel
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleUiState
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleUnitDetailUiModel
@@ -83,7 +85,7 @@ internal fun previewPreemptiveSkill(): BattleSkillUiModel = BattleSkillUiModel(
     isUsable = true, tpCost = 10,
 )
 
-/** Previewで使う、ステータス変化・防御中を含む個体の詳細ポップアップの内容。 */
+/** Previewで使う、ステータス変化・防御中・属性耐性(倍率・無効・反射・吸収を含む)を持つ個体の詳細ポップアップの内容。 */
 internal fun previewUnitDetail(): BattleUnitDetailUiModel = BattleUnitDetailUiModel(
     id = 1, name = "アリス", hp = 90, maxHp = 120, mp = 40, maxMp = 50, tp = 30, maxTp = 100,
     breakGauge = 25, breakState = BreakState.NONE, position = BattleUnitPosition.FRONT,
@@ -99,4 +101,7 @@ internal fun previewUnitDetail(): BattleUnitDetailUiModel = BattleUnitDetailUiMo
         ),
         StatChangeDetail(stat = BattleStat.AGILITY, totalStage = -1, entries = listOf(StatChangeEntry(-1, 3))),
     ),
+    elementResistances = ElementResistances.ORDER.zip(
+        listOf(50, 150, 100, 0, 100, 100, 100, 100, -1, 100, -999, 100),
+    ) { element, value -> ElementResistanceDetail(element, value) },
 )

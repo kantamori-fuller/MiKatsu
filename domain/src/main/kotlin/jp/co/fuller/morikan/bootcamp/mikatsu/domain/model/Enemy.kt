@@ -16,6 +16,7 @@ package jp.co.fuller.morikan.bootcamp.mikatsu.domain.model
  * @property manaResistance D. マナ耐性のステータス値。
  * @property agility S. 敏捷のステータス値。
  * @property luck L. 幸運のステータス値。
+ * @property elementResistances 12属性の耐性([ElementResistances])。既定はすべて等倍(100)。
  */
 data class Enemy(
     val id: Int,
@@ -28,4 +29,5 @@ data class Enemy(
     val manaResistance: Int,
     val agility: Int,
     val luck: Int,
+    val elementResistances: ElementResistances = ElementResistances(),
 )

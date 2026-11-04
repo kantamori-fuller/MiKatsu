@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import dagger.hilt.android.qualifiers.ApplicationContext
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.Character
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.CharacterDraft
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.ElementResistances
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -71,6 +72,7 @@ class CharacterLocalDataSource @Inject constructor(@ApplicationContext context: 
             luck = draft.luck,
             activeSkillIds = draft.activeSkillIds.distinct(),
             passiveSkillIds = draft.passiveSkillIds.distinct(),
+            elementResistances = draft.elementResistances,
         )
         val index = characters.indexOfFirst { it.id == resolvedId }
         if (index >= 0) characters[index] = character else characters.add(character)
@@ -136,6 +138,7 @@ class CharacterLocalDataSource @Inject constructor(@ApplicationContext context: 
         luck = getInt("luck"),
         activeSkillIds = getIntList("activeSkillIds"),
         passiveSkillIds = getIntList("passiveSkillIds"),
+        elementResistances = optJSONObject("elementResistances").toElementResistances(),
     )
 
     /**
@@ -150,6 +153,29 @@ class CharacterLocalDataSource @Inject constructor(@ApplicationContext context: 
     private fun JSONObject.getIntList(key: String): List<Int> {
         val array = optJSONArray(key) ?: return emptyList()
         return (0 until array.length()).map { array.getInt(it) }
+    }
+
+    /**
+     * JSONオブジェクトを[ElementResistances]へ変換する。
+     *
+     * 旧データ(キーなし)の互換は[ElementResistancesStorageMapper.fromMap]が担う。
+     *
+     * @receiver 変換元のJSONオブジェクト。キーが存在しなければ`null`。
+     * @return 変換後の耐性。
+     */
+    private fun JSONObject?.toElementResistances(): ElementResistances {
+        val values = this?.let { json -> json.keys().asSequence().associateWith { key -> json.getInt(key) } }
+        return ElementResistancesStorageMapper.fromMap(values)
+    }
+
+    /**
+     * [ElementResistances]をファイル保存用のJSONオブジェクトへ変換する。
+     *
+     * @receiver 変換元の耐性。
+     * @return 変換後のJSONオブジェクト。
+     */
+    private fun ElementResistances.toJson() = JSONObject().apply {
+        ElementResistancesStorageMapper.toMap(this@toJson).forEach { (key, value) -> put(key, value) }
     }
 
     /**
@@ -171,6 +197,7 @@ class CharacterLocalDataSource @Inject constructor(@ApplicationContext context: 
         put("luck", luck)
         put("activeSkillIds", JSONArray(activeSkillIds))
         put("passiveSkillIds", JSONArray(passiveSkillIds))
+        put("elementResistances", elementResistances.toJson())
     }
 
     companion object {

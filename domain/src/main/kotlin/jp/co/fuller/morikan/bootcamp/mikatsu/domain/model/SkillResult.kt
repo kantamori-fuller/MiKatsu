@@ -30,11 +30,28 @@ data class SkillResult(
  * @property healedAmount 実際に回復したHP量。最大HPで頭打ちになるため、スキルの回復量より小さくなり得る。外れた対象は0。
  * @property isHit スキルが対象に命中したか。外れた対象には効果が一切かからない。命中率のないスキルは常に`true`。
  * @property statChanges かかったステータス変化(外れたときは空)。段階の上限で頭打ちになる場合も、記録はされるため「かかった」扱い。
+ *   無効・反射になった対象は空(反射された分は[reflected]に持つ)。
+ * @property resistance 対象の属性耐性による扱い(デバフ・ネガティブエフェクトのスキルのみ)。無効と吸収はどちらも
+ *   効果がかからないため[ResistanceOutcome.NULLIFIED]として記録する。無効・反射になった対象も命中した扱い([isHit]は`true`)。
+ * @property reflected [resistance]が[ResistanceOutcome.REFLECTED]のとき、使用者に跳ね返った効果の結果。それ以外は`null`。
  */
 data class SkillTargetResult(
     val targetFpid: Int,
     val healedAmount: Int,
     val isHit: Boolean = true,
+    val statChanges: List<StatChangeResult> = emptyList(),
+    val resistance: ResistanceOutcome = ResistanceOutcome.NONE,
+    val reflected: ReflectedEffect? = null,
+)
+
+/**
+ * 反射によって、使用者に跳ね返った効果の結果。
+ *
+ * @property isNullified 使用者の耐性(無効・反射・吸収)によって使用者にもかからなかったか(再反射はしない)。
+ * @property statChanges 使用者にかかったステータス変化。[isNullified]のときは空。
+ */
+data class ReflectedEffect(
+    val isNullified: Boolean,
     val statChanges: List<StatChangeResult> = emptyList(),
 )
 

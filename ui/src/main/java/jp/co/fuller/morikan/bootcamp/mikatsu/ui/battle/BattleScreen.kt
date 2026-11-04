@@ -520,6 +520,23 @@ private fun BattleNarration.toText(): String = when (this) {
         stringResource(stat.labelRes),
         abs(stages),
     )
+    is BattleNarration.AttackNullified -> stringResource(R.string.battle_narration_attack_nullified, attackerName, targetName, skillName ?: stringResource(R.string.action_attack))
+    is BattleNarration.AttackLead -> stringResource(R.string.battle_narration_attack_lead, attackerName, targetName, skillName ?: stringResource(R.string.action_attack))
+    is BattleNarration.ShotLanded -> stringResource(R.string.battle_narration_shot_landed, shotNumber)
+    is BattleNarration.ShotNullified -> stringResource(R.string.battle_narration_shot_nullified, shotNumber)
+    is BattleNarration.AreaNullified -> stringResource(
+        R.string.battle_narration_area_nullified,
+        targetNames.joinToString(stringResource(R.string.battle_narration_area_missed_separator)),
+    )
+    is BattleNarration.AttackAbsorbed -> stringResource(R.string.battle_narration_attack_absorbed, targetName, healedAmount)
+    is BattleNarration.AttackReflected -> stringResource(R.string.battle_narration_attack_reflected, targetName, attackerName, damage)
+    is BattleNarration.AttackReflectedNullified -> stringResource(R.string.battle_narration_attack_reflected_nullified, targetName, attackerName)
+    is BattleNarration.AttackReflectedAbsorbed ->
+        stringResource(R.string.battle_narration_attack_reflected_absorbed, targetName, attackerName, healedAmount)
+    is BattleNarration.SkillNullified -> stringResource(R.string.battle_narration_skill_nullified, actorName, skillName, targetName)
+    is BattleNarration.EffectNullified -> stringResource(R.string.battle_narration_effect_nullified, targetName)
+    is BattleNarration.EffectReflected -> stringResource(R.string.battle_narration_effect_reflected, targetName)
+    is BattleNarration.EffectReflectedNullified -> stringResource(R.string.battle_narration_effect_reflected_nullified, actorName)
     is BattleNarration.MultiSkillResult ->
         stringResource(R.string.battle_narration_multi_skill_result, actorName, skillName, targetCount, totalHealed)
 }

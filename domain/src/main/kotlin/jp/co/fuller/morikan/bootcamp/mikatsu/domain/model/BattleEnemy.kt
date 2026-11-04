@@ -53,5 +53,6 @@ data class BattleEnemy(
     override val manaResistance: Int get() = enemy.manaResistance
     override val agility: Int get() = enemy.agility
     override val luck: Int get() = enemy.luck
+    override val elementResistances: ElementResistances get() = enemy.elementResistances
     override val passiveSkills: List<PassiveSkill> get() = emptyList()
 }

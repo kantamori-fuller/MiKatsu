@@ -37,6 +37,7 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleUnitDetailUiM
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.StatChangeDetail
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.labelRes
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.previewUnitDetail
+import jp.co.fuller.morikan.bootcamp.mikatsu.ui.components.labelRes
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleUnitPosition
 
 /** 裏の戦闘画面にかける黒いフェードの不透明度。 */
@@ -171,6 +172,11 @@ private fun UnitDetailContent(detail: BattleUnitDetailUiModel) {
         R.string.battle_detail_remaining_distance,
         stringResource(R.string.battle_detail_distance_format, detail.remainingDistance, ActionTimeline.BASE_DISTANCE.toInt()),
     )
+
+    SectionTitle(R.string.section_element_resistances)
+    detail.elementResistances.forEach { resistance ->
+        ValueRow(resistance.element.labelRes, resistance.value.toString())
+    }
 
     SectionTitle(R.string.label_active_skills)
     SkillNames(detail.activeSkillNames)

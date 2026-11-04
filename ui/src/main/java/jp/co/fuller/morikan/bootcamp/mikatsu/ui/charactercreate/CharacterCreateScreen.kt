@@ -17,6 +17,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -27,11 +28,15 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import jp.co.fuller.morikan.bootcamp.mikatsu.core.theme.MiKatsuTheme
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.ElementResistances
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillElement
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.R
+import jp.co.fuller.morikan.bootcamp.mikatsu.ui.components.labelRes
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillLimits
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.charactercreate.components.SkillSection
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.charactercreate.components.StatField
@@ -76,6 +81,7 @@ fun CharacterCreateScreen(
         onManaResistanceChange = viewModel::onManaResistanceChange,
         onAgilityChange = viewModel::onAgilityChange,
         onLuckChange = viewModel::onLuckChange,
+        onElementResistanceChange = viewModel::onElementResistanceChange,
         onAddActiveSkillClick = viewModel::onAddActiveSkillClick,
         onAddPassiveSkillClick = viewModel::onAddPassiveSkillClick,
         onRemoveActiveSkill = viewModel::onRemoveActiveSkill,
@@ -102,6 +108,7 @@ fun CharacterCreateScreen(
  * @param onManaResistanceChange マナ耐性の入力が変化したときに呼ばれる。
  * @param onAgilityChange 敏捷の入力が変化したときに呼ばれる。
  * @param onLuckChange 幸運の入力が変化したときに呼ばれる。
+ * @param onElementResistanceChange 属性耐性の入力が変化したときに、属性と入力後の文字列を引数に呼ばれる。
  * @param onAddActiveSkillClick Aスキルの「スキルを追加」が押されたときに呼ばれる。
  * @param onAddPassiveSkillClick Pスキルの「スキルを追加」が押されたときに呼ばれる。
  * @param onRemoveActiveSkill 設定済みAスキルの「削除」が押されたときに、スキルIDを引数に呼ばれる。
@@ -125,6 +132,7 @@ internal fun CharacterCreateScreenContent(
     onManaResistanceChange: (String) -> Unit,
     onAgilityChange: (String) -> Unit,
     onLuckChange: (String) -> Unit,
+    onElementResistanceChange: (SkillElement, String) -> Unit,
     onAddActiveSkillClick: () -> Unit,
     onAddPassiveSkillClick: () -> Unit,
     onRemoveActiveSkill: (Int) -> Unit,
@@ -199,6 +207,17 @@ internal fun CharacterCreateScreenContent(
             )
             StatField(label = stringResource(R.string.label_agility), value = uiState.agility, onValueChange = onAgilityChange)
             StatField(label = stringResource(R.string.label_luck), value = uiState.luck, onValueChange = onLuckChange)
+            Spacer(Modifier.height(16.dp))
+            Text(stringResource(R.string.section_element_resistances), style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(8.dp))
+            ElementResistances.ORDER.forEach { element ->
+                StatField(
+                    label = stringResource(R.string.label_element_resistance, stringResource(element.labelRes)),
+                    value = uiState.elementResistances[element].orEmpty(),
+                    onValueChange = { onElementResistanceChange(element, it) },
+                    keyboardType = KeyboardType.Text,
+                )
+            }
             Spacer(Modifier.height(16.dp))
             SkillSection(
                 title = stringResource(R.string.label_active_skills),
@@ -286,6 +305,7 @@ private val previewEditingState = CharacterCreateUiState(
     manaResistance = "10",
     agility = "25",
     luck = "5",
+    elementResistances = ElementResistances.ORDER.zip(listOf("50", "150", "100", "0", "100", "100", "100", "100", "-1", "100", "-999", "100")).toMap(),
     activeSkillIds = listOf(2),
     passiveSkillIds = listOf(1),
     activeSkillCatalog = previewActiveCatalog,
@@ -301,7 +321,8 @@ private fun CharacterCreateContentPreview(uiState: CharacterCreateUiState) {
             uiState = uiState,
             onBack = {}, onNameChange = {}, onHpChange = {}, onManaChange = {}, onAttackChange = {},
             onDefenseChange = {}, onManaOutputChange = {}, onManaResistanceChange = {},
-            onAgilityChange = {}, onLuckChange = {}, onAddActiveSkillClick = {},
+            onAgilityChange = {}, onLuckChange = {}, onElementResistanceChange = { _, _ -> },
+            onAddActiveSkillClick = {},
             onAddPassiveSkillClick = {}, onRemoveActiveSkill = {}, onRemovePassiveSkill = {},
             onSkillPicked = {}, onSkillPickerDismiss = {}, onSaveClick = {},
         )

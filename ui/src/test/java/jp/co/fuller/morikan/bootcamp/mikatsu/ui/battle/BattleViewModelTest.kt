@@ -7,6 +7,7 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BreakState
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.Character
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.CharacterDraft
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleStat
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.ElementResistances
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.Enemy
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.StatModifier
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.Formation
@@ -926,6 +927,33 @@ class BattleViewModelTest {
         runCurrent()
         assertEquals(400, viewModel.uiState.value.unitDetail?.hp)
         assertEquals(5, viewModel.uiState.value.unitDetail?.mp)
+    }
+
+    /** 詳細に12属性の耐性が表示順(炎・崩・水…)で入り、キャラクターの耐性がそのまま反映されること。 */
+    @Test
+    fun detail_elementResistances_followCharacter() = runTest(dispatcher) {
+        val (viewModel, repository) = createViewModel()
+        advanceUntilIdle()
+        val ally = repository.current.allies.first()
+        repository.updateBattleField { f ->
+            f.copy(
+                allies = f.allies.map {
+                    if (it.fpid == ally.fpid) {
+                        it.copy(character = it.character.copy(elementResistances = ElementResistances(fire = 0, collapse = -1, erosion = -999)))
+                    } else {
+                        it
+                    }
+                },
+            )
+        }
+        runCurrent()
+
+        val resistances = viewModel.uiState.value.unitDetails.getValue(ally.fpid).elementResistances
+        assertEquals(ElementResistances.ORDER, resistances.map { it.element })
+        assertEquals(0, resistances.first().value)
+        assertEquals(-1, resistances[1].value)
+        assertEquals(-999, resistances.last().value)
+        assertEquals(100, resistances[2].value)
     }
 
     /** 後衛は「後衛」、前衛が全滅した陣営の後衛は「後衛(前衛扱い)」になること。 */

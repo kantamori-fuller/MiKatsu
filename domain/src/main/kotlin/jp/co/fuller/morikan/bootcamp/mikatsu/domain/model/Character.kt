@@ -21,6 +21,7 @@ package jp.co.fuller.morikan.bootcamp.mikatsu.domain.model
  *   設定順に並び、重複しない。マスターデータのIDであり、バトル中のFPIDとは別物。存在しないIDは解決時に無視される。
  * @property passiveSkillIds 設定しているパッシブスキル(Pスキル)のID。パッシブスキルの採番で解決する。
  *   アクティブとは独立した採番なので、同じ数値でもアクティブスキルとは別のスキルを指す。設定順に並び、重複しない。
+ * @property elementResistances 12属性の耐性([ElementResistances])。既定はすべて等倍(100)。
  */
 data class Character(
     val id: Int,
@@ -35,4 +36,5 @@ data class Character(
     val luck: Int,
     val activeSkillIds: List<Int> = emptyList(),
     val passiveSkillIds: List<Int> = emptyList(),
+    val elementResistances: ElementResistances = ElementResistances(),
 )
