@@ -164,6 +164,23 @@ sealed interface BattleNarration {
     data class AreaCriticalBlocked(val targetName: String) : BattleNarration
 
     /**
+     * 範囲の多段攻撃で、回ごとに報告する文へ「N回目: 」を付けるための汎用ラッパー。
+     * 中身の文の文言は[narration]に委ね、表示側が「N回目: 」と組み合わせて描画する。
+     *
+     * @property shotNumber 何回目か(1始まり)。
+     * @property narration 「N回目: 」を付ける中身の文。
+     */
+    data class InRound(val shotNumber: Int, val narration: BattleNarration) : BattleNarration
+
+    /**
+     * 範囲の多段攻撃のまとめ(対象ごとの合計ダメージ。「AがBに合計30、Cに合計53ダメージ」)を伝える。
+     *
+     * @property attackerName 攻撃した個体の表示名。
+     * @property entries ダメージを与えた相手ごとの、全回の合計ダメージ。
+     */
+    data class AreaAttackTotal(val attackerName: String, val entries: List<AreaHitEntry>) : BattleNarration
+
+    /**
      * 味方が防御したことを伝える(「〇〇は防御している!」)。
      *
      * @property actorName 防御した個体の表示名。
@@ -380,7 +397,7 @@ sealed interface BattleNarration {
  * 範囲攻撃で命中した1体分の、表示名と与えたダメージ。
  *
  * @property targetName 命中した相手の表示名。
- * @property damage その相手に与えたダメージ量(全ヒットの合計)。
+ * @property damage その相手に与えたダメージ量(範囲の多段攻撃では、回ごとの文ではその回の分、まとめの文では全回の合計)。
  */
 data class AreaHitEntry(
     val targetName: String,

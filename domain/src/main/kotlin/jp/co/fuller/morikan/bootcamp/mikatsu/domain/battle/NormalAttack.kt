@@ -34,6 +34,9 @@ import kotlin.random.Random
  * 受けた側のHPは減らないので、ブレイクゲージもTP(条件2)も増えない(反射された攻撃者自身は、受けたダメージに応じて増える)。
  * 防御中の対象では、最終的にクリティカルになるヒットを通常ヒット扱いにする([DefenseFormula.blocksCritical]。乱数は通常どおり引く)。
  * 発動回数だけ繰り返し、途中で対象が戦闘不能になったら、その対象への残りのヒットは行わない。
+ * 処理順は回数優先(1回目の全対象 → 2回目の全対象 …)で、結果の[AttackHit]・TPの対象は[resolveTargets]の順に組み立てる(TPの乱数順序を変えないため)。
+ * 結果には、ナレーションと表示を連動させるための表示用スナップショットとして、ヒットごとの[AttackShot.fieldAfter]、
+ * 1発目の前の[AttackResult.fieldBeforeShots]、TP加算後の[AttackResult.fieldAfter]を持たせる。
  * ダメージは1ヒットごとにフィールドへ適用してブレイクゲージを加算し([accumulateBreakGauge])、次のヒットは
  * 更新後の対象の状態で計算する。そのため多段攻撃の途中でブレイクすると、残りのヒットからすぐに被ダメージ増加と被必中が効く。
  * 味方・敵の攻撃が同じダメージ処理を共有し、重複させないために切り出している。
@@ -85,16 +88,20 @@ fun BattleField.performAttack(
     var attackerTpFromReflect = 0.0
     // 反射ダメージで攻撃者が戦闘不能になったら、残りのヒット・対象をすべて打ち切る。
     var aborted = false
-    val tpTargets = mutableListOf<TpTargetReport>()
     val hits = mutableListOf<AttackHit>()
-    for (target in targets) {
-        if (aborted) break
-        val shots = mutableListOf<AttackShot>()
-        var tpFromDamage = 0.0
-        while (shots.size < attackSkill.activationCount && !aborted) {
+    val fieldBeforeShots = field
+    val tpTargets = mutableListOf<TpTargetReport>()
+    // 対象ごとの結果。回数優先で処理するため、対象ごとに保持してループ後にresolveTargetsの順で組み立てる。
+    val shotsByTarget = targets.associate { it.fpid to mutableListOf<AttackShot>() }
+    val tpFromDamageByTarget = targets.associate { it.fpid to 0.0 }.toMutableMap()
+    // 回数優先(1回目の全対象 → 2回目の全対象 …)で処理する。戦闘不能の対象はその後の回を飛ばす。
+    rounds@ for (round in 0 until attackSkill.activationCount) {
+        for (target in targets) {
+            if (aborted) break@rounds
+            val shots = shotsByTarget.getValue(target.fpid)
             // 途中でブレイクした効果を残りのヒットに効かせるため、ヒットごとに最新の対象の状態を読む。
-            val current = field.allPawns.firstOrNull { it.fpid == target.fpid } ?: break
-            if (current.isDefeated) break
+            val current = field.allPawns.firstOrNull { it.fpid == target.fpid } ?: continue
+            if (current.isDefeated) continue
             val isHit = HitChanceFormula.isHit(
                 skillAccuracy = attackSkill.accuracy,
                 accuracyStage = attacker.effectiveStage(BattleStat.ACCURACY),
@@ -103,7 +110,7 @@ fun BattleField.performAttack(
                 isTargetGuaranteedHit = current.isBroken,
             )
             if (!isHit) {
-                shots += AttackShot(isHit = false, damage = 0)
+                shots += AttackShot(isHit = false, damage = 0, fieldAfter = field)
                 continue
             }
             val base = DamageFormula.calculate(
@@ -140,7 +147,7 @@ fun BattleField.performAttack(
             anyHit = true
             if (!current.isDefending) allHitsOnDefending = false
             if (criticalRate != null) maxCriticalRate = maxOf(maxCriticalRate ?: 0, criticalRate)
-            tpFromDamage += TacticalPointFormula.damageTaken(hpLoss, current.maxHp, current.isDefending, criticalRate)
+            tpFromDamageByTarget[target.fpid] = tpFromDamageByTarget.getValue(target.fpid) + TacticalPointFormula.damageTaken(hpLoss, current.maxHp, current.isDefending, criticalRate)
             var causedBreak = false
             var resistance = ResistanceOutcome.NONE
             var absorbedAmount = 0
@@ -188,14 +195,20 @@ fun BattleField.performAttack(
                 resistance = resistance,
                 absorbedAmount = absorbedAmount,
                 reflected = reflected,
+                fieldAfter = field,
             )
         }
+    }
+    for (target in targets) {
+        val shots = shotsByTarget.getValue(target.fpid)
+        // 反射で攻撃者が倒れて打ち切られ、1発も行わなかった対象は結果に含めない。
+        if (shots.isEmpty()) continue
         tpTargets += TpTargetReport(
             fpid = target.fpid,
-            tpFromDamage = tpFromDamage,
+            tpFromDamage = tpFromDamageByTarget.getValue(target.fpid),
             evaded = shots.any { !it.isHit },
         )
-        hits += AttackHit(targetFpid = target.fpid, shots = shots)
+        hits += AttackHit(targetFpid = target.fpid, shots = shots.toList())
     }
     // 反射で攻撃者自身が受けたダメージのTPは、乱数を引かない対象として最後に加える(乱数の順序を変えない)。
     if (attackerTpFromReflect > 0.0) {
@@ -213,6 +226,8 @@ fun BattleField.performAttack(
         hits = hits.toList(),
         skillId = attackSkill.id,
         skillName = attackSkill.name,
+        fieldBeforeShots = fieldBeforeShots,
+        fieldAfter = field,
     )
 }
 
