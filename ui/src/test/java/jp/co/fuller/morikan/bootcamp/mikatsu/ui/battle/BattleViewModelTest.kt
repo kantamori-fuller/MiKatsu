@@ -1,6 +1,7 @@
 package jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle
 
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.RandomEnemyTargetSelector
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.AilmentState
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleField
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleOutcome
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BreakState
@@ -10,6 +11,7 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleStat
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.ElementResistances
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.Enemy
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.StatModifier
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.StatusAilment
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.Formation
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.repository.BattleRepository
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.repository.CharacterRepository
@@ -751,6 +753,72 @@ class BattleViewModelTest {
         val skipped = repository.current.enemies.first { it.fpid == skippedFpid }
         assertEquals(BreakState.RECOVERING, skipped.breakState)
         assertEquals(2, skipped.turnCount) // 味方の手番の前に1回行動済み
+    }
+
+    /** スタンの味方の手番は操作を受け付けず、「〇〇はスタンで動けない!」のあと手番を終え、その手番終了時の毒ダメージと解除が1文ずつ表示されること。 */
+    @Test
+    fun stunnedAlly_turnIsSkipped_andTurnEndEventsAreNarrated() = runTest(dispatcher) {
+        val (viewModel, repository) = createViewModel()
+        advanceUntilIdle()
+        assertTrue(viewModel.uiState.value.isAttackEnabled)
+        val hpBefore = repository.current.allies[0].currentHp
+
+        repository.updateBattleField { f ->
+            f.copy(
+                allies = f.allies.map {
+                    it.copy(ailments = listOf(AilmentState(StatusAilment.POISON, 3), AilmentState(StatusAilment.STUN, 1)))
+                },
+            )
+        }
+        runCurrent()
+
+        assertTrue(viewModel.uiState.value.isProcessing)
+        assertFalse(viewModel.uiState.value.isAttackEnabled)
+        assertEquals(BattleNarration.AilmentIncapacitated("味方", StatusAilment.STUN), viewModel.uiState.value.narration)
+        assertEquals(listOf(StatusAilment.POISON, StatusAilment.STUN), viewModel.uiState.value.partySlots[0]?.ailments)
+        viewModel.onAttackClick()
+        assertEquals(BattleSelection.None, viewModel.uiState.value.selection)
+
+        advanceTimeBy(1_200)
+        runCurrent()
+        // 状態異常はenum順(スタン→毒)に処理される。スタンは残り1なので手番終了で治り、その後に毒のダメージ(最大HP1000の1/8)が
+        // 直後のフィールドの表示と一緒に出る。
+        assertEquals(BattleNarration.AilmentCured("味方", StatusAilment.STUN), viewModel.uiState.value.narration)
+        assertEquals(hpBefore, viewModel.uiState.value.partySlots[0]?.hp)
+
+        advanceTimeBy(1_200)
+        runCurrent()
+        assertEquals(BattleNarration.AilmentHpDamage("味方", StatusAilment.POISON, 125), viewModel.uiState.value.narration)
+        assertEquals(hpBefore - 125, viewModel.uiState.value.partySlots[0]?.hp)
+
+        advanceUntilIdle()
+        val ally = repository.current.allies[0]
+        assertEquals(1, ally.turnCount)
+        assertEquals(listOf(StatusAilment.POISON), ally.ailments.map { it.ailment })
+        assertEquals(2, ally.ailments.single().remainingTurns)
+    }
+
+    /** 睡眠の敵は攻撃せず、動けない旨のナレーションのあと手番を飛ばされること(ブレイクより状態異常の文は後順位)。 */
+    @Test
+    fun sleepingEnemy_doesNotAttack_andTurnIsSkipped() = runTest(dispatcher) {
+        val (viewModel, repository) = createViewModel()
+        advanceUntilIdle()
+        val allyHp = repository.current.allies[0].currentHp
+        repository.updateBattleField { f ->
+            f.copy(enemies = f.enemies.map { it.copy(ailments = listOf(AilmentState(StatusAilment.SLEEP, 5))) })
+        }
+
+        // 防御して手番を終えると、敵の手番になる。眠っている敵は攻撃せず、動けない旨を表示する。
+        viewModel.onDefendClick()
+        runCurrent()
+        advanceTimeBy(1_200)
+        runCurrent()
+        val skippedFpid = checkNotNull(repository.current.currentActorFpid)
+        val skippedName = viewModel.uiState.value.nameOf(skippedFpid)
+
+        assertEquals(BattleNarration.AilmentIncapacitated(skippedName, StatusAilment.SLEEP), viewModel.uiState.value.narration)
+        assertEquals(allyHp, repository.current.allies[0].currentHp)
+        advanceUntilIdle()
     }
 
     /** 全て対象の回復スキルは、味方全員に効き、複数対象のナレーションになること。 */

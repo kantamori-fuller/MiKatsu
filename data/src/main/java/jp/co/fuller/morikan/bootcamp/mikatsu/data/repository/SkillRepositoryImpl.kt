@@ -1,6 +1,7 @@
 package jp.co.fuller.morikan.bootcamp.mikatsu.data.repository
 
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleStat
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.StatusAilment
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.ActiveSkill
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.ActiveSkillEffect
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.PassiveSkill
@@ -21,7 +22,7 @@ import javax.inject.Inject
 /**
  * [SkillRepository]の暫定実装。スキル一覧(`data/スキル一覧.xlsx`)を書き写した固定のマスターデータを返す。
  *
- * スキルIDはアクティブ・パッシブで独立して採番する(Aスキル1=通常攻撃、Aスキル2=ディア、Aスキル3=精神一到、Aスキル4=覇気、Aスキル5=ローリング・ソバット、Aスキル6=研ぎ澄ます、Aスキル7=クイックシュート、Pスキル1=鋼の体)。
+ * スキルIDはアクティブ・パッシブで独立して採番する(Aスキル1=通常攻撃、Aスキル2=ディア、Aスキル3=精神一到、Aスキル4=覇気、Aスキル5=ローリング・ソバット、Aスキル6=研ぎ澄ます、Aスキル7=クイックシュート、Aスキル8=カオスリズム、Aスキル9=命頂戴、Pスキル1=鋼の体)。
  * 同じ数値でも種別が違えば別のスキルなので、IDは必ず種別とセットで扱う。
  * 通常攻撃(Aスキル1)は全キャラクター・全敵が標準で持つため、設定可能な一覧や設定済みスキルの解決には含めない。
  *
@@ -216,6 +217,57 @@ class SkillRepositoryImpl @Inject constructor() : SkillRepository {
                 effects = emptyList(),
                 targetSide = SkillTargetSide.ENEMY,
                 preemptivePriority = 1,
+            ),
+            // カオスリズム: 状態異常を12種まとめて与えるネガティブエフェクト(各5ターン・成功率100)。HPとTPを消費する
+            ActiveSkill(
+                id = 8,
+                name = "カオスリズム",
+                element = SkillElement.NONE,
+                categories = setOf(SkillCategory.NEGATIVE_EFFECT),
+                physicalAttribute = null,
+                costs = listOf(SkillCost(SkillCostType.HP, 50), SkillCost(SkillCostType.TP, 10)),
+                coolTime = 0,
+                contactType = SkillContactType.NON_CONTACT,
+                range = SkillRange.RANGE_3,
+                area = SkillArea.FORMATION,
+                targetSelection = SkillTargetSelection.ONE,
+                basePower = null,
+                activationCount = 1,
+                accuracy = 70,
+                effects = listOf(
+                    StatusAilment.POISON,
+                    StatusAilment.BURN,
+                    StatusAilment.INFECTION,
+                    StatusAilment.BLEED,
+                    StatusAilment.PARALYSIS,
+                    StatusAilment.SHOCK,
+                    StatusAilment.CONTAMINATION,
+                    StatusAilment.CURSE,
+                    StatusAilment.MP_SEAL,
+                    StatusAilment.TP_SEAL,
+                    StatusAilment.DIZZINESS,
+                    StatusAilment.BRAND,
+                ).map { ActiveSkillEffect.InflictAilment(it, durationTurns = 5, successRate = 100) },
+                targetSide = SkillTargetSide.ENEMY,
+            ),
+            // 命頂戴: 敵全体に3回、成功率30%の即死を試みるネガティブエフェクト
+            ActiveSkill(
+                id = 9,
+                name = "命頂戴",
+                element = SkillElement.NONE,
+                categories = setOf(SkillCategory.NEGATIVE_EFFECT),
+                physicalAttribute = null,
+                costs = listOf(SkillCost(SkillCostType.MP, 10)),
+                coolTime = 0,
+                contactType = SkillContactType.NON_CONTACT,
+                range = SkillRange.RANGE_3,
+                area = SkillArea.AREA,
+                targetSelection = SkillTargetSelection.ALL,
+                basePower = null,
+                activationCount = 3,
+                accuracy = 100,
+                effects = listOf(ActiveSkillEffect.InstantDeath(successRate = 30)),
+                targetSide = SkillTargetSide.ENEMY,
             ),
         )
 

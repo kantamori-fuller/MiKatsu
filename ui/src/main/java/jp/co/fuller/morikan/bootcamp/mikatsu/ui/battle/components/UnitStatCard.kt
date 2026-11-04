@@ -36,6 +36,8 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.core.theme.BreakGaugeYellow
 import jp.co.fuller.morikan.bootcamp.mikatsu.core.theme.MiKatsuTheme
 import jp.co.fuller.morikan.bootcamp.mikatsu.core.theme.TacticalPointOrange
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BreakState
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.StatusAilment
+import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.shortLabelRes
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.R
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleUnitUiModel
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.previewAlly
@@ -140,6 +142,7 @@ private fun rememberBlinkAlpha(): Float {
  * [UnitStatCard]の中身となる、名前・HP・MP・ブレイクゲージと、右上のTP円ゲージの表示部分。
  *
  * ブレイクゲージは数値を表示せず黄色のバーだけで示し、ブレイク中・立ち上がり中は状態のラベルを添える。
+ * かかっている状態異常は短いラベルを並べて表示する。
  * 先制行動を予約済み(または先制の手番待ち)の個体には、オレンジの「先制待ち」ラベルを添える。
  *
  * タップ可能なカードと表示専用のカードで同じ中身を共有するために切り出している。
@@ -190,6 +193,14 @@ private fun UnitStatContent(unit: BattleUnitUiModel) {
                     style = MaterialTheme.typography.labelSmall,
                 )
                 BreakState.NONE -> Unit
+            }
+            if (unit.ailments.isNotEmpty()) {
+                Text(
+                    text = unit.ailments.map { stringResource(it.shortLabelRes) }
+                        .joinToString(stringResource(R.string.battle_ailment_label_separator)),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
             }
             if (unit.isPreemptiveWaiting) {
                 Text(
@@ -279,4 +290,23 @@ private fun UnitStatCardReservablePreview() {
 @Composable
 private fun UnitStatCardPreemptiveWaitingPreview() {
     UnitStatCardPreviewFrame { UnitStatCard(unit = previewAlly(isActive = false).copy(isPreemptiveWaiting = true), modifier = it) }
+}
+
+/** 状態異常が複数かかっている(短いラベルが並ぶ)味方カードを確認するためのPreview。 */
+@Preview(showBackground = true, name = "カード(状態異常あり)")
+@Composable
+private fun UnitStatCardAilmentsPreview() {
+    UnitStatCardPreviewFrame {
+        UnitStatCard(
+            unit = previewAlly().copy(ailments = listOf(StatusAilment.POISON, StatusAilment.PARALYSIS, StatusAilment.MP_SEAL)),
+            modifier = it,
+        )
+    }
+}
+
+/** 行動不能の状態異常(睡眠)がかかっている敵カードを確認するためのPreview。 */
+@Preview(showBackground = true, name = "カード(睡眠)")
+@Composable
+private fun UnitStatCardSleepPreview() {
+    UnitStatCardPreviewFrame { UnitStatCard(unit = previewEnemy().copy(ailments = listOf(StatusAilment.SLEEP)), modifier = it) }
 }

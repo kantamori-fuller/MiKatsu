@@ -3,6 +3,7 @@ package jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleField
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleFieldPawn
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleStat
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.EndTurnResult
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.updatePawn
 import kotlin.math.max
 import kotlin.random.Random
@@ -121,18 +122,13 @@ fun BattleField.advanceToNextTurnWithCancellations(random: Random): Pair<BattleF
  * @param random 予約の並びと次の手番の同順位を決めるための乱数。
  * @return 手番を終えた戦闘フィールド。
  */
-fun BattleField.endTurn(fpid: Int, random: Random): BattleField = endTurnWithCancellations(fpid, random).first
+fun BattleField.endTurn(fpid: Int, random: Random): BattleField = endTurnWithEvents(fpid, random).first
 
 /**
  * 現在の行動者の手番を終え、次の手番が来る個体を決める。取り消された先制の手番も返す。
  *
- * [fpid]が現在の行動者でなければ何もしない。一致すれば、その個体を手番待ちから外し(先制の手番なら先制の印も外し)、
- * 残り距離を[ActionTimeline.BASE_DISTANCE]に戻して自身の手番の回数を1増やし、ブレイクの状態を1段階進め
- * ([progressBreakState])、バフ・デバフ([progressStatModifiers])とスキルのCT([progressCooldowns])を1手番分進める。
- * 先制の手番も通常の手番とまったく同じ扱いなので、これらはすべて同様に行う。
- * そのうえで、手番を進める処理([advanceToNextTurnWithCancellations])の**前**に、その時点の予約をすべて行動順の先頭へ割り込ませる
- * ([applyPreemptiveReservations])。先制の手番の最中に入った予約も、その手番の終了でここを通るため、残っている先制の手番より前に入る。
- * 割り込みのくじは、手番開始のTPの乱数より前に引かれる。
+ * 手番終了時の状態異常の出来事([TurnEndEvent])を知りたい呼び出し側は[endTurnWithEvents]を使う。こちらはその結果のうち
+ * 戦闘フィールドと、取り消された先制の手番だけを返す。詳細は[endTurnWithEvents]を参照。
  *
  * @receiver 更新前の戦闘フィールド。
  * @param fpid 手番を終える個体のFPID。
@@ -140,7 +136,30 @@ fun BattleField.endTurn(fpid: Int, random: Random): BattleField = endTurnWithCan
  * @return 手番を終えた戦闘フィールドと、取り消された先制の手番の個体のFPIDの組。現在の行動者でなければ、更新前のフィールドと空の組。
  */
 fun BattleField.endTurnWithCancellations(fpid: Int, random: Random): Pair<BattleField, List<Int>> {
-    if (fpid != currentActorFpid) return this to emptyList()
+    val (field, result) = endTurnWithEvents(fpid, random)
+    return field to result.cancelledPreemptive
+}
+
+/**
+ * 現在の行動者の手番を終え、次の手番が来る個体を決める。取り消された先制の手番と、手番終了時の状態異常の出来事も返す。
+ *
+ * [fpid]が現在の行動者でなければ何もしない。一致すれば、その個体を手番待ちから外し(先制の手番なら先制の印も外し)、
+ * 残り距離を[ActionTimeline.BASE_DISTANCE]に戻して自身の手番の回数を1増やし、ブレイクの状態を1段階進め
+ * ([progressBreakState])、バフ・デバフ([progressStatModifiers])とスキルのCT([progressCooldowns])を1手番分進め、
+ * 状態異常を処理する([processTurnEndAilments]。ダメージ・伝染・解除。行動不能で飛ばされた手番も1手番として数える)。
+ * 先制の手番も通常の手番とまったく同じ扱いなので、これらはすべて同様に行う。
+ * 状態異常のダメージで戦闘不能になっても、勝敗の判定は[advanceToNextTurnWithCancellations]が既存どおり行う。
+ * そのうえで、手番を進める処理([advanceToNextTurnWithCancellations])の**前**に、その時点の予約をすべて行動順の先頭へ割り込ませる
+ * ([applyPreemptiveReservations])。先制の手番の最中に入った予約も、その手番の終了でここを通るため、残っている先制の手番より前に入る。
+ * 乱数は、状態異常の感染の伝染 → 割り込みのくじ → 手番開始のTPの順に引く。
+ *
+ * @receiver 更新前の戦闘フィールド。
+ * @param fpid 手番を終える個体のFPID。
+ * @param random 感染の伝染・予約の並び・次の手番の同順位を決めるための乱数。
+ * @return 手番を終えた戦闘フィールドと、取り消された先制の手番・状態異常の出来事の組([EndTurnResult])。現在の行動者でなければ、更新前のフィールドと空の結果。
+ */
+fun BattleField.endTurnWithEvents(fpid: Int, random: Random): Pair<BattleField, EndTurnResult> {
+    if (fpid != currentActorFpid) return this to EndTurnResult()
     val ended = updatePawn(
         fpid = fpid,
         transformAlly = { it.copy(remainingDistance = ActionTimeline.BASE_DISTANCE, turnCount = it.turnCount + 1) },
@@ -149,7 +168,9 @@ fun BattleField.endTurnWithCancellations(fpid: Int, random: Random): Pair<Battle
         .progressBreakState(fpid)
         .progressStatModifiers(fpid)
         .progressCooldowns(fpid)
-    return ended.applyPreemptiveReservations(random).advanceToNextTurnWithCancellations(random)
+    val (afterAilments, events) = ended.processTurnEndAilments(fpid, random)
+    val (next, cancelled) = afterAilments.applyPreemptiveReservations(random).advanceToNextTurnWithCancellations(random)
+    return next to EndTurnResult(cancelledPreemptive = cancelled, events = events)
 }
 
 /**

@@ -1,6 +1,7 @@
 package jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill
 
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleStat
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.StatusAilment
 
 /**
  * アクティブスキルが発動したときの効果。
@@ -24,4 +25,25 @@ sealed interface ActiveSkillEffect {
      * @property durationTurns 持続ターン数(対象本人の手番を数える。`null`は永続で、その戦闘の終わりまで切れない。詳細は[jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.StatModifier])。
      */
     data class StatChange(val stat: BattleStat, val stages: Int, val durationTurns: Int?) : ActiveSkillEffect
+
+    /**
+     * 対象に状態異常を付与する(ネガティブエフェクト)。対象ごと・効果ごとに成功判定を1回行い(成功率100なら乱数を引かない)、
+     * 成功しても排他・石化のルールで弾かれることがある(付与のルールは`StatusAilmentFormula`)。
+     *
+     * @property ailment 付与する状態異常。
+     * @property durationTurns 持続ターン数(対象本人の手番を数える)。
+     * @property successRate 成功率(0〜100)。補正は受けず固定。
+     */
+    data class InflictAilment(
+        val ailment: StatusAilment,
+        val durationTurns: Int,
+        val successRate: Int = 100,
+    ) : ActiveSkillEffect
+
+    /**
+     * 対象を即死させる(HPを0にして戦闘不能にする)。対象ごと・効果ごとに成功判定を1回行う(成功率100なら乱数を引かない)。石化中の対象にも効く。
+     *
+     * @property successRate 成功率(0〜100)。補正は受けず固定。
+     */
+    data class InstantDeath(val successRate: Int = 100) : ActiveSkillEffect
 }

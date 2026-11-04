@@ -79,7 +79,7 @@ internal fun BattleField.updatePawn(
  * 指定したFPIDの個体にダメージを与えた、新しい[BattleField]を返す。
  *
  * 味方・敵のどちらが対象でも、FPIDが一致する個体の現在HPだけを減らす。
- * 現在HPは0未満にならない。
+ * 現在HPは0未満にならない。HPが0になって戦闘不能になったら、かかっている状態異常はすべて解除する。
  *
  * @receiver ダメージを与える前の戦闘フィールド。
  * @param targetFpid ダメージを受ける個体のFPID。
@@ -88,6 +88,12 @@ internal fun BattleField.updatePawn(
  */
 fun BattleField.applyDamage(targetFpid: Int, damage: Int): BattleField = updatePawn(
     fpid = targetFpid,
-    transformAlly = { it.copy(currentHp = (it.currentHp - damage).coerceAtLeast(0)) },
-    transformEnemy = { it.copy(currentHp = (it.currentHp - damage).coerceAtLeast(0)) },
+    transformAlly = {
+        val hp = (it.currentHp - damage).coerceAtLeast(0)
+        it.copy(currentHp = hp, ailments = if (hp == 0) emptyList() else it.ailments)
+    },
+    transformEnemy = {
+        val hp = (it.currentHp - damage).coerceAtLeast(0)
+        it.copy(currentHp = hp, ailments = if (hp == 0) emptyList() else it.ailments)
+    },
 )

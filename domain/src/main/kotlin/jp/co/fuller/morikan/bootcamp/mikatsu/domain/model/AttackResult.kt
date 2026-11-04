@@ -73,6 +73,7 @@ data class AttackHit(
  * @property resistance 対象の属性耐性によるヒットの扱い。無効・反射・吸収のヒットは命中した扱いで、[damage]は0(対象のHPは減らない)。
  * @property absorbedAmount [resistance]が[ResistanceOutcome.ABSORBED]のとき、対象が実際に回復したHP量(最大HPで頭打ち)。それ以外は0。
  * @property reflected [resistance]が[ResistanceOutcome.REFLECTED]のとき、攻撃者に跳ね返ったダメージの結果。それ以外は`null`。
+ * @property curedAilments このヒットで解除された状態異常(ダメージを受けた睡眠・凍結)。なければ空。
  * @property fieldAfter このヒットを反映した直後(ダメージ・ブレイク・吸収・反射の反映後)の戦闘フィールド。外れたヒットは直前と同じフィールド。
  *   ナレーションと表示を連動させるための表示用スナップショットで、`performAttack`が必ず埋める。`null`はテストでの組み立て用。
  */
@@ -85,6 +86,7 @@ data class AttackShot(
     val resistance: ResistanceOutcome = ResistanceOutcome.NONE,
     val absorbedAmount: Int = 0,
     val reflected: ReflectedDamage? = null,
+    val curedAilments: List<StatusAilment> = emptyList(),
     val fieldAfter: BattleField? = null,
 )
 
@@ -118,6 +120,7 @@ enum class ResistanceOutcome {
  * @property critical 反射されたヒットのクリティカルの種別(攻撃者の防御でクリティカルが無効になったときは[CriticalType.NONE])。
  * @property isCriticalBlocked 攻撃者の防御によってクリティカルが無効になったか。
  * @property causedBreak 反射ダメージで攻撃者がブレイクしたか。
+ * @property curedAilments 反射ダメージで攻撃者から解除された状態異常(睡眠・凍結)。なければ空。
  */
 data class ReflectedDamage(
     val damage: Int,
@@ -126,4 +129,5 @@ data class ReflectedDamage(
     val critical: CriticalType = CriticalType.NONE,
     val isCriticalBlocked: Boolean = false,
     val causedBreak: Boolean = false,
+    val curedAilments: List<StatusAilment> = emptyList(),
 )

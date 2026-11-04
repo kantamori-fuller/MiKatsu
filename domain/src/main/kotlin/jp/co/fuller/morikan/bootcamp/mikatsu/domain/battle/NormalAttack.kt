@@ -9,11 +9,15 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleStat
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.CriticalType
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.ReflectedDamage
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.ResistanceOutcome
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.StatusAilment
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.updatePawn
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.applyDamage
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.ActiveSkill
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillElement
 import kotlin.random.Random
+
+/** 石化中の対象が受けるダメージ(属性耐性・軽減に関係なく固定)。 */
+private const val PETRIFIED_HIT_DAMAGE = 1
 
 /**
  * 現在の行動者による通常攻撃を実行し、対象にダメージを与えた[BattleField]と結果を返す。
@@ -24,6 +28,11 @@ import kotlin.random.Random
  * 対象ごとに、1ヒットずつ[HitChanceFormula]で命中判定を行い、命中したヒットだけ[DamageFormula]の結果へ
  * クリティカル判定([CriticalFormula]。命中後に1回、乱数を引く)と倍率の適用(ヒットの種別は最終的な倍率で決める)、続けてブレイク中の被ダメージ増加([BreakFormula.boostDamage])、対象が防御中なら30%カット([DefenseFormula.reduceDamage])、さらに対象のパッシブスキルによるダメージ軽減
  * ([reduceDamage])を適用する。外れたヒットはダメージ0で軽減も適用せず、発動回数は1回消費する。
+ *
+ * 状態異常による補正: 攻撃者が行動不能(スタン・凍結・感電・石化・睡眠)なら攻撃できない。攻撃者が目眩なら最終命中率が0.4倍。
+ * 睡眠中の対象へのヒットは判定の乱数を引かずクリティカル扱い(倍率は攻撃者の倍率、種別は最終倍率で分類。防御中ならCRITICALは無効)。
+ * ダメージの計算順は、[DamageFormula] → クリティカル → ブレイク中×1.3 → 凍結中×2 → 流血中×1.2 → 防御中×0.7 → 属性耐性 → [reduceDamage] → 石化中なら1に固定
+ * (石化中は無効・吸収・反射も起きず常にダメージ1)。HPが実際に減ったヒットの直後に、対象の睡眠・凍結を解除する([releaseOnDamage]。反射ダメージの攻撃者も同様)。
  *
  * 属性耐性([ElementResistanceFormula])は、防御の30%カットの後・パッシブスキルの軽減の前に、対象の耐性値(スキルの属性に対する値)で適用する。
  * 倍率(1〜999)は`floor(ダメージ × 耐性 / 100)`(最低1)の後に軽減をかける。無効(0など)はダメージ0で軽減も通さない。
@@ -71,7 +80,7 @@ fun BattleField.performAttack(
     if (attackerFpid != currentActorFpid) return null
     val power = attackSkill.basePower ?: return null
     val attacker = allPawns.firstOrNull { it.fpid == attackerFpid } ?: return null
-    if (attacker.isDefeated || attacker.isBroken) return null
+    if (attacker.isDefeated || attacker.isBroken || attacker.isIncapacitated) return null
     if (attacker.isOnCooldown(attackSkill.id)) return null
     if (attacker is BattleAlly && !attacker.canAfford(attackSkill)) return null
     val targets = resolveTargets(attackerFpid, attackSkill, targetFpid) ?: return null
@@ -108,6 +117,7 @@ fun BattleField.performAttack(
                 evasionStage = current.effectiveStage(BattleStat.EVASION),
                 random = random,
                 isTargetGuaranteedHit = current.isBroken,
+                isAttackerDizzy = attacker.hasAilment(StatusAilment.DIZZINESS),
             )
             if (!isHit) {
                 shots += AttackShot(isHit = false, damage = 0, fieldAfter = field)
@@ -118,7 +128,12 @@ fun BattleField.performAttack(
                 attacker.effectiveStat(offenseStat),
                 current.effectiveStat(defenseStat),
             )
-            val judged = CriticalFormula.judge(attacker.effectiveStage(BattleStat.CRITICAL_RATE), random)
+            // 睡眠中の対象への攻撃は必ずクリティカル(判定の乱数を引かない)。倍率・種別は通常のクリティカルと同じ規則で決める。
+            val judged = if (current.hasAilment(StatusAilment.SLEEP)) {
+                CriticalType.CRITICAL
+            } else {
+                CriticalFormula.judge(attacker.effectiveStage(BattleStat.CRITICAL_RATE), random)
+            }
             val damageStage = attacker.effectiveStage(BattleStat.CRITICAL_DAMAGE)
             val actualCriticalRate = CriticalFormula.damageRate(
                 attacker.criticalDamageRate,
@@ -132,12 +147,20 @@ fun BattleField.performAttack(
             val appliedJudge = if (isCriticalBlocked) CriticalType.NONE else judged
             val criticalDamage = CriticalFormula.applyDamage(base, appliedJudge, attacker.criticalDamageRate, damageStage)
             val boosted = BreakFormula.boostDamage(criticalDamage, current.isBroken)
+            // 凍結中は2倍(そのヒットで凍結が解ける最初の被弾だけ)、流血中は1.2倍。ブレイクの後・防御の前に適用する。
+            val statusBoosted = StatusAilmentFormula.boostForBleed(
+                StatusAilmentFormula.boostForFreeze(boosted, current.hasAilment(StatusAilment.FREEZE)),
+                current.hasAilment(StatusAilment.BLEED),
+            )
             // 属性耐性とパッシブスキルの軽減の前までのダメージ(吸収の回復量・反射の元にもなる)。
-            val defended = DefenseFormula.reduceDamage(boosted, current.isDefending)
+            val defended = DefenseFormula.reduceDamage(statusBoosted, current.isDefending)
             val resistanceValue = current.resistanceTo(attackSkill.element)
-            val kind = ElementResistanceFormula.classify(resistanceValue)
-            val damage = when (kind) {
-                ElementResistanceFormula.Kind.MULTIPLIER ->
+            // 石化中は属性耐性に関係なく常にダメージ1(無効・吸収・反射も起きない)。
+            val isPetrified = current.hasAilment(StatusAilment.PETRIFY)
+            val kind = if (isPetrified) ElementResistanceFormula.Kind.MULTIPLIER else ElementResistanceFormula.classify(resistanceValue)
+            val damage = when {
+                isPetrified -> PETRIFIED_HIT_DAMAGE
+                kind == ElementResistanceFormula.Kind.MULTIPLIER ->
                     current.reduceDamage(ElementResistanceFormula.scaleDamage(defended, resistanceValue))
                 else -> 0
             }
@@ -152,6 +175,7 @@ fun BattleField.performAttack(
             var resistance = ResistanceOutcome.NONE
             var absorbedAmount = 0
             var reflected: ReflectedDamage? = null
+            var curedAilments: List<StatusAilment> = emptyList()
             when (kind) {
                 ElementResistanceFormula.Kind.MULTIPLIER -> {
                     val (broken, broke) = field
@@ -159,6 +183,12 @@ fun BattleField.performAttack(
                         .accumulateBreakGauge(attacker.breakPointRate, target.fpid, hpLoss)
                     field = broken
                     causedBreak = broke
+                    // HPが実際に減ったら、そのヒットの直後に睡眠・凍結を解除する。
+                    if (hpLoss > 0) {
+                        val (released, cured) = field.releaseOnDamage(target.fpid)
+                        field = released
+                        curedAilments = cured
+                    }
                 }
                 ElementResistanceFormula.Kind.NULLIFY -> resistance = ResistanceOutcome.NULLIFIED
                 ElementResistanceFormula.Kind.ABSORB -> {
@@ -195,6 +225,7 @@ fun BattleField.performAttack(
                 resistance = resistance,
                 absorbedAmount = absorbedAmount,
                 reflected = reflected,
+                curedAilments = curedAilments,
                 fieldAfter = field,
             )
         }
@@ -285,21 +316,34 @@ private fun BattleField.reflectOntoAttacker(
     val appliedJudge = if (isBlocked) CriticalType.NONE else judged
     val criticalDamage = CriticalFormula.applyDamage(base, appliedJudge, self.criticalDamageRate, damageStage)
     val boosted = BreakFormula.boostDamage(criticalDamage, self.isBroken)
-    val defended = DefenseFormula.reduceDamage(boosted, self.isDefending)
+    val statusBoosted = StatusAilmentFormula.boostForBleed(
+        StatusAilmentFormula.boostForFreeze(boosted, self.hasAilment(StatusAilment.FREEZE)),
+        self.hasAilment(StatusAilment.BLEED),
+    )
+    val defended = DefenseFormula.reduceDamage(statusBoosted, self.isDefending)
     val value = self.resistanceTo(element)
+    // 攻撃者が石化中なら、耐性に関係なく反射ダメージは常に1。
+    val isPetrified = self.hasAilment(StatusAilment.PETRIFY)
+    val resolvedKind = if (isPetrified) ElementResistanceFormula.Kind.MULTIPLIER else ElementResistanceFormula.classify(value)
     var field = this
     var damage = 0
     var outcome = ResistanceOutcome.NONE
     var absorbed = 0
     var causedBreak = false
-    when (ElementResistanceFormula.classify(value)) {
+    var curedAilments: List<StatusAilment> = emptyList()
+    when (resolvedKind) {
         ElementResistanceFormula.Kind.MULTIPLIER -> {
-            damage = self.reduceDamage(ElementResistanceFormula.scaleDamage(defended, value))
+            damage = if (isPetrified) PETRIFIED_HIT_DAMAGE else self.reduceDamage(ElementResistanceFormula.scaleDamage(defended, value))
             val (broken, broke) = field
                 .applyDamage(targetFpid = attackerFpid, damage = damage)
                 .accumulateBreakGauge(self.breakPointRate, attackerFpid, minOf(damage, self.currentHp))
             field = broken
             causedBreak = broke
+            if (minOf(damage, self.currentHp) > 0) {
+                val (released, cured) = field.releaseOnDamage(attackerFpid)
+                field = released
+                curedAilments = cured
+            }
         }
         // 攻撃者も反射の耐性なら、再反射せず無効扱いにする。
         ElementResistanceFormula.Kind.NULLIFY, ElementResistanceFormula.Kind.REFLECT -> outcome = ResistanceOutcome.NULLIFIED
@@ -322,6 +366,7 @@ private fun BattleField.reflectOntoAttacker(
             critical = critical,
             isCriticalBlocked = isBlocked,
             causedBreak = causedBreak,
+            curedAilments = curedAilments,
         ),
         tpFromDamage = tp,
         attackerDefeated = defeated,

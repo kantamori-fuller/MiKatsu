@@ -1,6 +1,7 @@
 package jp.co.fuller.morikan.bootcamp.mikatsu.domain.model
 
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.StatStageFormula
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.StatusAilmentFormula
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.TacticalPointFormula
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.PassiveSkill
 
@@ -24,6 +25,12 @@ sealed interface BattleFieldPawn {
 
     /** 現在のHP。ダメージを受けると減少し、0未満にはならない。 */
     val currentHp: Int
+
+    /** 現在のMP。スキルのコストや状態異常(汚染・呪怨)で減少し、0未満にはならない。敵も持つ(戦闘開始時は最大MPと同じ)。 */
+    val currentMp: Int
+
+    /** 最大MP。 */
+    val maxMp: Int
 
     /** 最大HP。 */
     val maxHp: Int
@@ -51,6 +58,13 @@ sealed interface BattleFieldPawn {
      * 戦闘中だけの値で、戦闘ごとに空から始まり、次の戦闘へは持ち越さない。
      */
     val statModifiers: List<StatModifier>
+
+    /**
+     * かかっている状態異常。同じ状態異常は1エントリだけで、種類ごとの効果と処理は
+     * [jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.StatusAilmentFormula]が唯一の実装箇所。
+     * 戦闘中だけの値で、戦闘ごとに空から始まり、次の戦闘へは持ち越さない。戦闘不能になると全解除される。
+     */
+    val ailments: List<AilmentState>
 
     /**
      * ブレイクゲージ(0〜100)。攻撃でダメージを受けるたびに貯まり、100に達するとブレイク状態になって0に戻る。
@@ -170,7 +184,23 @@ sealed interface BattleFieldPawn {
      * @param stat 取得するステータス。命中率・回避率・クリティカル関連は6種用の倍率表で値を出すと誤りになるため渡せない(例外)。
      * @return `floor(基礎値 × 段階の倍率)`。
      */
-    fun effectiveStat(stat: BattleStat): Int = StatStageFormula.apply(baseStat(stat), effectiveStage(stat))
+    fun effectiveStat(stat: BattleStat): Int =
+        StatusAilmentFormula.adjustStat(stat, StatStageFormula.apply(baseStat(stat), effectiveStage(stat)), ailments)
+
+    /**
+     * 指定した状態異常にかかっているか。
+     *
+     * @param ailment 調べる状態異常。
+     * @return かかっていれば`true`。
+     */
+    fun hasAilment(ailment: StatusAilment): Boolean = ailments.any { it.ailment == ailment }
+
+    /** 行動不能にする状態異常(スタン・凍結・感電・石化・睡眠)のうち、enum順で先頭のもの。かかっていなければ`null`。 */
+    val incapacitatingAilment: StatusAilment?
+        get() = StatusAilmentFormula.incapacitatingAilmentOf(ailments)
+
+    /** 状態異常で行動不能か。ブレイクとは別で、行動不能の個体は攻撃・スキル・防御ができず、手番が来たら飛ばされる。 */
+    val isIncapacitated: Boolean get() = incapacitatingAilment != null
 
     /** ブレイク状態([BreakState.BROKEN])かどうか。 */
     val isBroken: Boolean get() = breakState == BreakState.BROKEN

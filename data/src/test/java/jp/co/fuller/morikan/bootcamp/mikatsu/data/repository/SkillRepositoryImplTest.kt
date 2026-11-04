@@ -1,6 +1,7 @@
 package jp.co.fuller.morikan.bootcamp.mikatsu.data.repository
 
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleStat
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.StatusAilment
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.ActiveSkillEffect
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.PhysicalAttribute
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillArea
@@ -183,5 +184,50 @@ class SkillRepositoryImplTest {
         val others = repository.getActiveSkills().filter { it.id != 7 } + repository.getNormalAttack()
 
         assertTrue(others.all { it.preemptivePriority == null && !it.isPreemptive })
+    }
+
+    /** カオスリズム(Aスキル8)がスキル一覧どおり、12種の状態異常を各5ターン・成功率100で与えるネガティブエフェクトであること。 */
+    @Test
+    fun chaosRhythm_isActiveSkill8_withSheetValues() = runBlocking {
+        val skill = checkNotNull(repository.getActiveSkill(8))
+
+        assertEquals("カオスリズム", skill.name)
+        assertEquals(setOf(SkillCategory.NEGATIVE_EFFECT), skill.categories)
+        assertEquals(listOf(SkillCost(SkillCostType.HP, 50), SkillCost(SkillCostType.TP, 10)), skill.costs)
+        assertEquals(0, skill.coolTime)
+        assertEquals(SkillContactType.NON_CONTACT, skill.contactType)
+        assertEquals(SkillRange.RANGE_3, skill.range)
+        assertEquals(SkillArea.FORMATION, skill.area)
+        assertEquals(SkillTargetSelection.ONE, skill.targetSelection)
+        assertNull(skill.basePower)
+        assertEquals(1, skill.activationCount)
+        assertEquals(70, skill.accuracy)
+        assertEquals(SkillTargetSide.ENEMY, skill.targetSide)
+        assertEquals(
+            listOf(
+                StatusAilment.POISON, StatusAilment.BURN, StatusAilment.INFECTION, StatusAilment.BLEED,
+                StatusAilment.PARALYSIS, StatusAilment.SHOCK, StatusAilment.CONTAMINATION, StatusAilment.CURSE,
+                StatusAilment.MP_SEAL, StatusAilment.TP_SEAL, StatusAilment.DIZZINESS, StatusAilment.BRAND,
+            ).map { ActiveSkillEffect.InflictAilment(it, durationTurns = 5, successRate = 100) },
+            skill.effects,
+        )
+    }
+
+    /** 命頂戴(Aスキル9)がスキル一覧どおり、敵全体へ3回、成功率30の即死を試みるネガティブエフェクトであること。 */
+    @Test
+    fun lifeTaker_isActiveSkill9_withSheetValues() = runBlocking {
+        val skill = checkNotNull(repository.getActiveSkill(9))
+
+        assertEquals("命頂戴", skill.name)
+        assertEquals(setOf(SkillCategory.NEGATIVE_EFFECT), skill.categories)
+        assertEquals(listOf(SkillCost(SkillCostType.MP, 10)), skill.costs)
+        assertEquals(SkillRange.RANGE_3, skill.range)
+        assertEquals(SkillArea.AREA, skill.area)
+        assertEquals(SkillTargetSelection.ALL, skill.targetSelection)
+        assertNull(skill.basePower)
+        assertEquals(3, skill.activationCount)
+        assertEquals(100, skill.accuracy)
+        assertEquals(SkillTargetSide.ENEMY, skill.targetSide)
+        assertEquals(listOf<ActiveSkillEffect>(ActiveSkillEffect.InstantDeath(successRate = 30)), skill.effects)
     }
 }
