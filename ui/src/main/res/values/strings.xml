@@ -56,6 +56,9 @@
     <string name="battle_narration_shot_bad_critical">%1$d回目: バッドクリティカル… %2$dダメージ</string>
     <string name="action_defend">防御</string>
     <string name="battle_narration_defend">%1$sは防御している!</string>
+    <string name="battle_narration_preemptive_action">%1$sの先制行動!</string>
+    <string name="battle_narration_preemptive_failed">%1$sは先制行動できなかった!</string>
+    <string name="battle_preemptive_waiting">先制待ち</string>
     <string name="battle_narration_attack_result_critical_blocked">%1$sが%2$sに%4$s! 防御でクリティカルを防いだ! %3$dダメージ</string>
     <string name="battle_narration_shot_critical_blocked">%1$d回目: 防御でクリティカルを防いだ! %2$dダメージ</string>
     <string name="battle_narration_area_critical_blocked">%1$sは防御でクリティカルを防いだ!</string>
@@ -78,6 +81,7 @@
     <string name="battle_skill_cost_tp_format">TP%1$d</string>
     <string name="battle_skill_cost_tp_substitute_format">TP%1$d(HP-%2$d)</string>
     <string name="battle_skill_cost_separator">・</string>
+    <string name="battle_skill_cooldown_format">CT残り%1$d</string>
     <string name="label_active_skills">Aスキル</string>
     <string name="label_passive_skills">Pスキル</string>
     <string name="skill_none_set">未設定</string>

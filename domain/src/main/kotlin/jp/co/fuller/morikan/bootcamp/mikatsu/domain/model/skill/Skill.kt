@@ -32,7 +32,7 @@ sealed interface Skill {
  * @property categories スキルタイプ(列「スキルタイプ」)。複数持てる。
  * @property physicalAttribute 物理属性(列「物理属性」)。空欄は`null`。
  * @property costs コスト(列「コストタイプ」「コスト消費」)。「MP30&HP10」は2要素。コストなし(0)は空リスト。
- * @property coolTime クールタイム(列「CT」)。ターン数。「1t」なら1。現段階では値を持つだけで制限には使わない。
+ * @property coolTime クールタイム(列「CT」)。ターン数。「1t」なら1。使った後、使用者の手番がこの回数終わるまで使えない(使った手番は数えない)。0はCTなし。
  * @property contactType 接触タイプ(列「接触」)。
  * @property range レンジ(列「レンジ」)。使用者から届く距離で、選べる相手を制限する。
  * @property area 範囲(列「範囲」)。対象選択と組み合わせて、選んだ相手から実際の対象を決める。
@@ -42,6 +42,8 @@ sealed interface Skill {
  * @property accuracy 命中率(列「命中率」)。0〜100の整数。空欄(命中が関係しない)は`null`で、必中を表し命中判定をしない。
  * @property effects 効果(列「効果」)。「なし」は空リスト。
  * @property targetSide 対象にする陣営。シートにはまだない列(詳細は[SkillTargetSide])。
+ * @property preemptivePriority 先制行動の優先度。シートにはない項目(`targetSide`と同じ)。`null`は通常のスキルで、
+ *   値があれば先制行動スキル(カードをタップして行動順に割り込んで使える)。数値が大きいほど優先される。
  */
 data class ActiveSkill(
     override val id: Int,
@@ -60,7 +62,19 @@ data class ActiveSkill(
     val accuracy: Int?,
     val effects: List<ActiveSkillEffect>,
     val targetSide: SkillTargetSide,
+    val preemptivePriority: Int? = null,
 ) : Skill {
+
+    /** 先制行動スキルかどうか([preemptivePriority]があるか)。 */
+    val isPreemptive: Boolean get() = preemptivePriority != null
+
+    /**
+     * 特殊型攻撃のダメージ式(破壊力・耐久力の代わりにマナ出力C・マナ耐性Dを使う)を使うかどうか。
+     *
+     * スキルタイプに特殊型攻撃を含み、物理型攻撃を含まないときだけ`true`。両方を含む場合は物理型として扱う。
+     */
+    val usesSpecialDamage: Boolean
+        get() = SkillCategory.SPECIAL_ATTACK in categories && SkillCategory.PHYSICAL_ATTACK !in categories
 
     /**
      * 指定した種類のコストの合計消費量を返す。

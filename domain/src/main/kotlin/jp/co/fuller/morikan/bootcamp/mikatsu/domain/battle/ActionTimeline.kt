@@ -37,38 +37,59 @@ private fun BattleFieldPawn.timeToTurn(): Double = remainingDistance / ActionSpe
 /**
  * 次に行動する個体が決まるまで時間を進め、手番が来た個体を[BattleField.turnQueue]に確定させる。
  *
- * 1. 勝敗が決まっていれば手番を空にして返す。
- * 2. 手番待ちの個体から戦闘不能の個体を除き、まだ誰か残っていればそのまま返す(誰かの手番中)。
- * 3. 誰もいなければ、生きている個体の次の手番までの時間の最小値だけ全員の距離を進め、
- *    最小値と同時とみなせる個体を幸運値の高い順(同値の中はランダム)に並べて手番とする。
- *
- * 新たに現在の行動者になった個体(キューの先頭)の防御状態は、どちらの経路でもここで解除する([releaseDefense])。
- * 現在の行動者が決まったところで、その個体に手番開始のTP(6〜8)を加える([gainTurnStartTp])。ブレイクで自動的に飛ばされる手番でも受け取る。
- * 乱数は同時手番のくじの後に引く。勝敗が決まっていれば加えない。
- * 一度決めた順番は[BattleField.turnQueue]に保存されるため、再度呼んでもくじは引き直さない(ただし新しい手番として呼ぶたびにTPは加わるため、1回の手番につき1回だけ呼ぶこと)。
+ * 取り消された先制の手番を知る必要がない呼び出し側(戦闘開始・次の戦闘へ進むとき)向けに、[advanceToNextTurnWithCancellations]の結果のうち
+ * 戦闘フィールドだけを返す。詳細はそちらを参照。
  *
  * @receiver 更新前の戦闘フィールド。
  * @param random 幸運値が同じ個体の順番を決めるための乱数。
  * @return 手番を進めた戦闘フィールド。
  */
-fun BattleField.advanceToNextTurn(random: Random): BattleField {
-    if (outcome != null) return copy(turnQueue = emptyList())
+fun BattleField.advanceToNextTurn(random: Random): BattleField = advanceToNextTurnWithCancellations(random).first
 
-    val aliveFpids = allPawns.filterNot { it.isDefeated }.map { it.fpid }.toSet()
-    val remainingQueue = turnQueue.filter { it in aliveFpids }
-    if (remainingQueue.isNotEmpty()) {
-        val actor = remainingQueue.first()
-        return copy(turnQueue = remainingQueue).releaseDefense(actor).gainTurnStartTp(actor, random)
+/**
+ * 次に行動する個体が決まるまで時間を進め、手番が来た個体を[BattleField.turnQueue]に確定させる。取り消された先制の手番も返す。
+ *
+ * 1. 勝敗が決まっていれば手番を空にし、予約と先制の印も破棄して返す。
+ * 2. 先頭が先制の手番で、その個体が行動できなければ取り消す([cancelInvalidPreemptiveTurns])。手番開始のTPと防御の解除より前に行う。
+ * 3. 手番待ちの個体から戦闘不能の個体を除き(先制の手番は取り消しの判定のため除かない)、まだ誰か残っていればそのまま返す(誰かの手番中)。
+ * 4. 誰もいなければ、生きている個体の次の手番までの時間の最小値だけ全員の距離を進め、
+ *    最小値と同時とみなせる個体を幸運値の高い順(同値の中はランダム)に並べて手番とする。
+ *
+ * 新たに現在の行動者になった個体(キューの先頭)の防御状態は、どちらの経路でもここで解除する([releaseDefense])。
+ * 現在の行動者が決まったところで、その個体に手番開始のTP(6〜8)を加える([gainTurnStartTp])。ブレイクで自動的に飛ばされる手番でも受け取る。
+ * 先制の手番も通常の手番と同じく、ここで防御の解除と手番開始のTPを受け取る。
+ * 乱数は同時手番のくじの後に引く。勝敗が決まっていれば加えない。
+ * 一度決めた順番は[BattleField.turnQueue]に保存されるため、再度呼んでもくじは引き直さない(ただし新しい手番として呼ぶたびにTPは加わるため、1回の手番につき1回だけ呼ぶこと)。
+ *
+ * @receiver 更新前の戦闘フィールド。
+ * @param random 幸運値が同じ個体の順番を決めるための乱数。
+ * @return 手番を進めた戦闘フィールドと、取り消された先制の手番の個体のFPID(取り消した順)の組。
+ */
+fun BattleField.advanceToNextTurnWithCancellations(random: Random): Pair<BattleField, List<Int>> {
+    if (outcome != null) {
+        return copy(turnQueue = emptyList(), pendingPreemptive = emptyList(), preemptiveTurns = emptySet()) to emptyList()
     }
 
-    val alive = allPawns.filterNot { it.isDefeated }
+    val (settled, cancelled) = cancelInvalidPreemptiveTurns()
+    val aliveFpids = settled.allPawns.filterNot { it.isDefeated }.map { it.fpid }.toSet()
+    val remainingQueue = settled.turnQueue.filter { it in aliveFpids || it in settled.preemptiveTurns }
+    if (remainingQueue.isNotEmpty()) {
+        val actor = remainingQueue.first()
+        val next = settled
+            .copy(turnQueue = remainingQueue, preemptiveTurns = settled.preemptiveTurns.filter { it in remainingQueue }.toSet())
+            .releaseDefense(actor)
+            .gainTurnStartTp(actor, random)
+        return next to cancelled
+    }
+
+    val alive = settled.allPawns.filterNot { it.isDefeated }
     val minTime = alive.minOf { it.timeToTurn() }
     val arrivals = alive
         .filter { it.timeToTurn() - minTime <= ActionTimeline.TIME_EPSILON * max(1.0, minTime) }
         .map { it.fpid }
         .toSet()
 
-    val advanced = alive.fold(this) { field, pawn ->
+    val advanced = alive.fold(settled) { field, pawn ->
         val distance = (pawn.remainingDistance - minTime * ActionSpeedFormula.speedOf(pawn.effectiveStat(BattleStat.AGILITY)))
             .coerceAtLeast(0.0)
             .let { if (pawn.fpid in arrivals) 0.0 else it }
@@ -86,29 +107,49 @@ fun BattleField.advanceToNextTurn(random: Random): BattleField {
         .values
         .flatMap { group -> group.map { it.fpid }.shuffled(random) }
     // 手番開始のTPは、同時手番のくじ(shuffle)の後に引く。
-    return advanced.copy(turnQueue = queue).releaseDefense(queue.first()).gainTurnStartTp(queue.first(), random)
+    val next = advanced.copy(turnQueue = queue, preemptiveTurns = emptySet()).releaseDefense(queue.first()).gainTurnStartTp(queue.first(), random)
+    return next to cancelled
 }
 
 /**
- * 現在の行動者の手番を終え、次の手番が来る個体を決める。
+ * 現在の行動者の手番を終え、次の手番が来る個体を決める。取り消された先制の手番は捨てる。
  *
- * [fpid]が現在の行動者でなければ何もしない。一致すれば、その個体を手番待ちから外し、
- * 残り距離を[ActionTimeline.BASE_DISTANCE]に戻して自身の手番の回数を1増やし、ブレイクの状態を1段階進め
- * ([progressBreakState])、バフ・デバフを1手番分進めたうえで([progressStatModifiers])、[advanceToNextTurn]で次の手番を決める。
+ * 取り消された先制の手番を知りたい呼び出し側は[endTurnWithCancellations]を使う。こちらはその結果のうち戦闘フィールドだけを返す。
  *
  * @receiver 更新前の戦闘フィールド。
  * @param fpid 手番を終える個体のFPID。
- * @param random 次の手番の同順位を決めるための乱数。
+ * @param random 予約の並びと次の手番の同順位を決めるための乱数。
  * @return 手番を終えた戦闘フィールド。
  */
-fun BattleField.endTurn(fpid: Int, random: Random): BattleField {
-    if (fpid != currentActorFpid) return this
+fun BattleField.endTurn(fpid: Int, random: Random): BattleField = endTurnWithCancellations(fpid, random).first
+
+/**
+ * 現在の行動者の手番を終え、次の手番が来る個体を決める。取り消された先制の手番も返す。
+ *
+ * [fpid]が現在の行動者でなければ何もしない。一致すれば、その個体を手番待ちから外し(先制の手番なら先制の印も外し)、
+ * 残り距離を[ActionTimeline.BASE_DISTANCE]に戻して自身の手番の回数を1増やし、ブレイクの状態を1段階進め
+ * ([progressBreakState])、バフ・デバフ([progressStatModifiers])とスキルのCT([progressCooldowns])を1手番分進める。
+ * 先制の手番も通常の手番とまったく同じ扱いなので、これらはすべて同様に行う。
+ * そのうえで、手番を進める処理([advanceToNextTurnWithCancellations])の**前**に、その時点の予約をすべて行動順の先頭へ割り込ませる
+ * ([applyPreemptiveReservations])。先制の手番の最中に入った予約も、その手番の終了でここを通るため、残っている先制の手番より前に入る。
+ * 割り込みのくじは、手番開始のTPの乱数より前に引かれる。
+ *
+ * @receiver 更新前の戦闘フィールド。
+ * @param fpid 手番を終える個体のFPID。
+ * @param random 予約の並びと次の手番の同順位を決めるための乱数。
+ * @return 手番を終えた戦闘フィールドと、取り消された先制の手番の個体のFPIDの組。現在の行動者でなければ、更新前のフィールドと空の組。
+ */
+fun BattleField.endTurnWithCancellations(fpid: Int, random: Random): Pair<BattleField, List<Int>> {
+    if (fpid != currentActorFpid) return this to emptyList()
     val ended = updatePawn(
         fpid = fpid,
         transformAlly = { it.copy(remainingDistance = ActionTimeline.BASE_DISTANCE, turnCount = it.turnCount + 1) },
         transformEnemy = { it.copy(remainingDistance = ActionTimeline.BASE_DISTANCE, turnCount = it.turnCount + 1) },
-    ).copy(turnQueue = turnQueue.drop(1)).progressBreakState(fpid).progressStatModifiers(fpid)
-    return ended.advanceToNextTurn(random)
+    ).copy(turnQueue = turnQueue.drop(1), preemptiveTurns = preemptiveTurns - fpid)
+        .progressBreakState(fpid)
+        .progressStatModifiers(fpid)
+        .progressCooldowns(fpid)
+    return ended.applyPreemptiveReservations(random).advanceToNextTurnWithCancellations(random)
 }
 
 /**

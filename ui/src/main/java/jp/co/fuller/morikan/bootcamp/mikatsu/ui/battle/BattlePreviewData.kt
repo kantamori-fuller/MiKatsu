@@ -66,11 +66,22 @@ internal fun previewBattleUiState(): BattleUiState {
                 id = 7, name = "渾身の一撃", mpCost = 0, hpCost = 0, targetIds = setOf(3, 5),
                 isUsable = false, tpCost = 100, substituteHpCost = 120,
             ),
+            // CT中(「クイックシュート　MP20・TP10　CT残り1」の表示で、無効のまま)。
+            BattleSkillUiModel(
+                id = 8, name = "クイックシュート", mpCost = 20, hpCost = 0, targetIds = setOf(3, 5),
+                isUsable = false, tpCost = 10, remainingCoolTime = 1,
+            ),
         ),
         attackTargetIds = setOf(3, 5),
         progress = 3,
     )
 }
+
+/** Previewで使う、先制行動スキル(クイックシュート)1件分のスキル一覧の項目。 */
+internal fun previewPreemptiveSkill(): BattleSkillUiModel = BattleSkillUiModel(
+    id = 7, name = "クイックシュート", mpCost = 20, hpCost = 0, targetIds = setOf(3, 5),
+    isUsable = true, tpCost = 10,
+)
 
 /** Previewで使う、ステータス変化・防御中を含む個体の詳細ポップアップの内容。 */
 internal fun previewUnitDetail(): BattleUnitDetailUiModel = BattleUnitDetailUiModel(

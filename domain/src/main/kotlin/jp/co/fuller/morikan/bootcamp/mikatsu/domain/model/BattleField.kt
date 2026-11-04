@@ -12,11 +12,17 @@ package jp.co.fuller.morikan.bootcamp.mikatsu.domain.model
  * @property turnQueue 手番が来ていて、まだ行動していない個体のFPIDを行動順に並べたもの。
  *   同時に手番が来た個体の順番は決定時にここへ確定して保存され、計算し直してもくじを引き直さない。
  *   先頭が現在の行動者([currentActorFpid])となる。
+ * @property pendingPreemptive 先制行動を予約した(カードをタップした)が、まだ行動順に割り込んでいない個体のFPIDを、予約した順に並べたもの。
+ *   現在の行動者の手番が終わるとき(`endTurn`)に、すべて[turnQueue]の先頭へ入り、空になる。
+ * @property preemptiveTurns [turnQueue]の中で、通常の手番ではなく先制の手番になっているFPIDの集合。
+ *   先制の手番は常に[turnQueue]の先頭側にまとまり、手番が終わるとここからも外れる。
  */
 data class BattleField(
     val allies: List<BattleAlly>,
     val enemies: List<BattleEnemy>,
     val turnQueue: List<Int> = emptyList(),
+    val pendingPreemptive: List<Int> = emptyList(),
+    val preemptiveTurns: Set<Int> = emptySet(),
 ) {
     /**
      * 味方・敵を問わず、フィールド上の全個体をまとめた一覧。
@@ -29,6 +35,10 @@ data class BattleField(
     /** 現在の行動者のFPID。手番が来ている個体がいない場合は`null`。 */
     val currentActorFpid: Int?
         get() = turnQueue.firstOrNull()
+
+    /** 現在の手番が先制の手番(行動順に割り込んだ手番)かどうか。 */
+    val isPreemptiveTurn: Boolean
+        get() = currentActorFpid?.let { it in preemptiveTurns } == true
 
     /**
      * 戦闘の勝敗。

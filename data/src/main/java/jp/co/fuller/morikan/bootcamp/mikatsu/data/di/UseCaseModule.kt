@@ -24,6 +24,7 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.GetNormalAttackUseCa
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.GetSkillsUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.ObserveBattleFieldUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.ObserveCharactersUseCase
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.ReservePreemptiveActionUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.SaveCharacterUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.StartBattleUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.UseSkillUseCase
@@ -168,6 +169,14 @@ object UseCaseModule {
      */
     @Provides
     fun provideDefendUseCase(battleRepository: BattleRepository): DefendUseCase = DefendUseCase(battleRepository)
+
+    /**
+     * @param battleRepository 注入される[BattleRepository]。
+     * @return 味方の先制行動を予約する[ReservePreemptiveActionUseCase]。
+     */
+    @Provides
+    fun provideReservePreemptiveActionUseCase(battleRepository: BattleRepository): ReservePreemptiveActionUseCase =
+        ReservePreemptiveActionUseCase(battleRepository)
 
     /**
      * @param skillRepository 注入される[SkillRepository]。

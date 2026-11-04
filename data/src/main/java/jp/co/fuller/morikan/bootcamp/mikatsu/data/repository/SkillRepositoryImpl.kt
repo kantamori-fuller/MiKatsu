@@ -21,7 +21,7 @@ import javax.inject.Inject
 /**
  * [SkillRepository]の暫定実装。スキル一覧(`data/スキル一覧.xlsx`)を書き写した固定のマスターデータを返す。
  *
- * スキルIDはアクティブ・パッシブで独立して採番する(Aスキル1=通常攻撃、Aスキル2=ディア、Aスキル3=精神一到、Aスキル4=覇気、Aスキル5=ローリング・ソバット、Aスキル6=研ぎ澄ます、Pスキル1=鋼の体)。
+ * スキルIDはアクティブ・パッシブで独立して採番する(Aスキル1=通常攻撃、Aスキル2=ディア、Aスキル3=精神一到、Aスキル4=覇気、Aスキル5=ローリング・ソバット、Aスキル6=研ぎ澄ます、Aスキル7=クイックシュート、Pスキル1=鋼の体)。
  * 同じ数値でも種別が違えば別のスキルなので、IDは必ず種別とセットで扱う。
  * 通常攻撃(Aスキル1)は全キャラクター・全敵が標準で持つため、設定可能な一覧や設定済みスキルの解決には含めない。
  *
@@ -46,6 +46,7 @@ import javax.inject.Inject
  *     accuracy = 100,                              // 命中率(0〜100。空欄=命中が関係しないスキルはnull)
  *     effects = emptyList(),                       // 効果(なしならemptyList())
  *     targetSide = SkillTargetSide.ENEMY,          // 対象の陣営(シートにまだない列。敵ならENEMY、味方ならALLY)
+ *     preemptivePriority = null,                   // 先制行動の優先度(シートにない項目。通常のスキルはnull、先制行動スキルは数値。大きいほど優先)
  * )
  * ```
  * Pスキルは、列が少ない次の雛形に当てはめる。
@@ -195,6 +196,26 @@ class SkillRepositoryImpl @Inject constructor() : SkillRepository {
                 accuracy = 90,
                 effects = emptyList(),
                 targetSide = SkillTargetSide.ENEMY,
+            ),
+            // クイックシュート: 先制行動スキル(優先度1)の特殊型攻撃。列を貫く2回攻撃で、CT1
+            ActiveSkill(
+                id = 7,
+                name = "クイックシュート",
+                element = SkillElement.NONE,
+                categories = setOf(SkillCategory.SPECIAL_ATTACK),
+                physicalAttribute = PhysicalAttribute.PIERCE,
+                costs = listOf(SkillCost(SkillCostType.MP, 20), SkillCost(SkillCostType.TP, 10)),
+                coolTime = 1,
+                contactType = SkillContactType.NON_CONTACT,
+                range = SkillRange.RANGE_2,
+                area = SkillArea.COLUMN,
+                targetSelection = SkillTargetSelection.ALL,
+                basePower = 50,
+                activationCount = 2,
+                accuracy = 80,
+                effects = emptyList(),
+                targetSide = SkillTargetSide.ENEMY,
+                preemptivePriority = 1,
             ),
         )
 

@@ -22,7 +22,8 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.BreakFormula
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.CriticalFormula
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.HitChanceFormula
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.BattleRow
-import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.canAfford
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.canReservePreemptive
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.isSkillUsable
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.substituteHpCostOf
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.effectiveRowOf
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.selectableTargets
@@ -34,6 +35,7 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.ExecuteEnemyTurnUseC
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.GetNormalAttackUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.ObserveBattleFieldUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.ObserveMapProgressUseCase
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.ReservePreemptiveActionUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.StartBattleUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.UseSkillUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleNarration
@@ -76,6 +78,9 @@ private const val RESULT_DISPLAY_MS = 1200L
  * 求めた「選べる相手」だけで、敵・味方どちらのカードからでも選べる。
  * 手番が敵のときは、間とナレーションを挟みながら[executeEnemyTurnUseCase]で自動的に攻撃させる。
  * 行動のたびに[endTurnUseCase]で手番を終える。
+ * 味方のカードのタップ([onAllyClick])は、対象選択中でなければ[reservePreemptiveActionUseCase]で先制行動の予約になる。予約は行動中(敵・味方・演出中)でも
+ * でき、現在の行動者の手番の終了([endTurnUseCase])で行動順に割り込む。先制の手番が始まったら「〇〇の先制行動!」を表示してから先制スキルだけの一覧を開き、
+ * 取り消された先制の手番は、次の手番へ進む前に「〇〇は先制行動できなかった!」を表示する。
  * 演出中のナレーションは複数の文の列として1文ずつ順に表示し、ナレーション欄のタップ([onNarrationClick])で
  * 表示時間の待ちを打ち切って次の文へ進められる。
  * 勝利後は「次に進む」で[advanceToNextBattleUseCase]により同じ編成のまま次の戦闘へ進み、
@@ -92,6 +97,7 @@ private const val RESULT_DISPLAY_MS = 1200L
  * @property endTurnUseCase 現在の行動者の手番を終えるUseCase。
  * @property observeMapProgressUseCase マップの進行度を購読するUseCase。
  * @property advanceToNextBattleUseCase 勝利後に次の戦闘へ進めるUseCase。
+ * @property reservePreemptiveActionUseCase 味方の先制行動を予約するUseCase。
  */
 @HiltViewModel(assistedFactory = BattleViewModel.Factory::class)
 class BattleViewModel @AssistedInject constructor(
@@ -106,6 +112,7 @@ class BattleViewModel @AssistedInject constructor(
     private val endTurnUseCase: EndTurnUseCase,
     private val observeMapProgressUseCase: ObserveMapProgressUseCase,
     private val advanceToNextBattleUseCase: AdvanceToNextBattleUseCase,
+    private val reservePreemptiveActionUseCase: ReservePreemptiveActionUseCase,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(BattleUiState())
@@ -121,6 +128,12 @@ class BattleViewModel @AssistedInject constructor(
 
     /** 次の戦闘へ進める処理のジョブ。連打で二重に進まないための目印として保持する。 */
     private var nextBattleJob: Job? = null
+
+    /**
+     * 「先制行動!」を表示した、いまの先制の手番の個体のFPID。戦闘フィールドの更新は何度も流れてくるため、
+     * 同じ先制の手番に対して二重に表示・開始しないための目印として保持する。先制の手番でなくなったら`null`に戻す。
+     */
+    private var announcedPreemptiveFpid: Int? = null
 
     /**
      * 演出中のナレーション1文の表示時間の待ちを打ち切るための合図。待っている間だけ非`null`で、
@@ -253,9 +266,16 @@ class BattleViewModel @AssistedInject constructor(
      *
      * 攻撃の対象選択・スキル一覧・スキルの対象選択のいずれの状態からも、選択状態を解除して
      * 行動選択に戻す。選択状態でなければ何も行わない。
+     * 先制の手番では、スキルの対象選択からスキル一覧に戻るだけで、スキル一覧からはキャンセルできない(先制はやめられない)。
      */
     fun onCancelClick() {
-        _uiState.update { it.copy(selection = BattleSelection.None) }
+        _uiState.update {
+            when {
+                !it.isPreemptiveTurn -> it.copy(selection = BattleSelection.None)
+                it.selection is BattleSelection.SkillTarget -> it.copy(selection = BattleSelection.SkillList)
+                else -> it
+            }
+        }
     }
 
     /**
@@ -270,11 +290,22 @@ class BattleViewModel @AssistedInject constructor(
     /**
      * 味方のカードがタップされたときに呼ばれる。
      *
-     * 対象選択の処理は敵のカードのタップと共通で、[onTargetClick]に委ねる。
+     * 通常攻撃・スキルの対象選択中は、敵のカードのタップと共通の対象選びとして[onTargetClick]に委ねる(その間は予約できない)。
+     * それ以外のときは、タップされた味方が先制行動を予約できる個体([BattleUiState.reservableAllyIds])なら、
+     * [reservePreemptiveActionUseCase]で予約する(確認はなく、取り消しもできない)。敵・味方どちらの行動中でも、演出中でも予約できる。
+     * 予約を受け付けるかの最終判断はドメインが行い、通らなければ何も起きない。
      *
      * @param fpid タップされた味方のFPID([BattleUnitUiModel.id])。
      */
-    fun onAllyClick(fpid: Int) = onTargetClick(fpid)
+    fun onAllyClick(fpid: Int) {
+        val state = _uiState.value
+        if (state.selection == BattleSelection.AttackTarget || state.selection is BattleSelection.SkillTarget) {
+            onTargetClick(fpid)
+            return
+        }
+        if (state.outcome != null || fpid !in state.reservableAllyIds) return
+        viewModelScope.launch { reservePreemptiveActionUseCase(fpid) }
+    }
 
     /**
      * 敵・味方どちらのカードがタップされたときにも共通の、対象選択の処理。
@@ -318,9 +349,16 @@ class BattleViewModel @AssistedInject constructor(
             val narrations = execute()
             if (narrations != null) {
                 narrations.forEach { showNarration(it, RESULT_DISPLAY_MS) }
-                endTurnUseCase(actorFpid)
+                endTurnAndAnnounceCancellations(actorFpid)
             }
-            _uiState.update { it.copy(isProcessing = false, processingNarration = null) }
+            _uiState.update {
+                // 先制の手番は行動しないと終われないため、実行できなかったときは行動選択ではなくスキル一覧へ戻す。
+                it.copy(
+                    isProcessing = false,
+                    processingNarration = null,
+                    selection = if (narrations == null && it.isPreemptiveTurn) BattleSelection.SkillList else it.selection,
+                )
+            }
             playerActionJob = null
             startAutoTurnIfNeeded(observeBattleFieldUseCase().first())
         }
@@ -356,11 +394,17 @@ class BattleViewModel @AssistedInject constructor(
      * @param field 判断に用いる、最新の戦闘フィールド。
      */
     private fun startAutoTurnIfNeeded(field: BattleField) {
+        // 先制の手番でなくなった(または別の個体の手番になった)ら、次に同じ個体が先制の手番になったときにまた表示できるよう目印を戻す。
+        if (!(field.isPreemptiveTurn && field.currentActorFpid == announcedPreemptiveFpid)) announcedPreemptiveFpid = null
         if (isBusy || field.outcome != null) return
         val actorFpid = field.currentActorFpid ?: return
         val actor = field.allPawns.firstOrNull { it.fpid == actorFpid } ?: return
         if (actor.isBroken) {
             startBrokenTurnSkip(actorFpid)
+            return
+        }
+        if (field.isPreemptiveTurn) {
+            if (announcedPreemptiveFpid != actorFpid) startPreemptiveIntro(actorFpid)
             return
         }
         if (field.enemies.none { it.fpid == actorFpid }) return
@@ -373,10 +417,45 @@ class BattleViewModel @AssistedInject constructor(
             val narrations = result?.let(::attackNarrations)
                 ?: listOf(BattleNarration.EnemyCannotReach(_uiState.value.nameOf(actorFpid)))
             narrations.forEach { showNarration(it, RESULT_DISPLAY_MS) }
-            endTurnUseCase(actorFpid)
+            endTurnAndAnnounceCancellations(actorFpid)
             _uiState.update { it.copy(isProcessing = false, processingNarration = null) }
             autoTurnJob = null
             startAutoTurnIfNeeded(observeBattleFieldUseCase().first())
+        }
+    }
+
+    /**
+     * 先制の手番が始まったときの演出ジョブを開始する。
+     *
+     * 演出中にして「〇〇の先制行動!」を表示し、そのあと選択状態を自動でスキル一覧([BattleSelection.SkillList])にする
+     * (一覧には先制スキルだけが並ぶ)。同じ先制の手番に対して二重に始まらないよう、開始時に[announcedPreemptiveFpid]へ記録する。
+     *
+     * @param actorFpid 先制の手番に入った味方のFPID。
+     */
+    private fun startPreemptiveIntro(actorFpid: Int) {
+        announcedPreemptiveFpid = actorFpid
+        val name = _uiState.value.nameOf(actorFpid)
+        _uiState.update { it.copy(isProcessing = true, selection = BattleSelection.None) }
+        autoTurnJob = viewModelScope.launch {
+            showNarration(BattleNarration.PreemptiveAction(name), RESULT_DISPLAY_MS)
+            _uiState.update {
+                it.copy(isProcessing = false, processingNarration = null, selection = BattleSelection.SkillList)
+            }
+            autoTurnJob = null
+        }
+    }
+
+    /**
+     * 現在の行動者の手番を[endTurnUseCase]で終え、取り消された先制の手番があれば「〇〇は先制行動できなかった!」を1文ずつ表示する。
+     *
+     * 取り消しはナレーションを次の手番へ進む前に出すため、手番を終えた直後(演出中のまま、次の個体の処理を始める前)に表示する。
+     * 呼び出し元は演出ジョブの中で呼ぶこと。
+     *
+     * @param actorFpid 手番を終える個体のFPID。
+     */
+    private suspend fun endTurnAndAnnounceCancellations(actorFpid: Int) {
+        endTurnUseCase(actorFpid).forEach { cancelledFpid ->
+            showNarration(BattleNarration.PreemptiveFailed(_uiState.value.nameOf(cancelledFpid)), RESULT_DISPLAY_MS)
         }
     }
 
@@ -394,7 +473,7 @@ class BattleViewModel @AssistedInject constructor(
         autoTurnJob = viewModelScope.launch {
             showNarration(BattleNarration.BreakStunned(name), RESULT_DISPLAY_MS)
             showNarration(BattleNarration.BreakRecovered(name), RESULT_DISPLAY_MS)
-            endTurnUseCase(actorFpid)
+            endTurnAndAnnounceCancellations(actorFpid)
             _uiState.update { it.copy(isProcessing = false, processingNarration = null) }
             autoTurnJob = null
             startAutoTurnIfNeeded(observeBattleFieldUseCase().first())
@@ -475,8 +554,9 @@ class BattleViewModel @AssistedInject constructor(
  *
  * 同名の個体には[resolveDisplayNames]で表示名を付け、演出中の状態(演出フラグ・一時ナレーション)や
  * 選択状態は維持する。手番の個体が変わって味方の手番でなくなった場合は選択状態を解除する。
- * 手番の味方が使えるスキルと、その時点のMPで使えるかどうか、通常攻撃・各スキルで選べる相手
- * ([selectableTargets])も反映する。全個体の詳細([BattleUnitDetailUiModel])も組み立て直し、
+ * 手番の味方が使えるスキルと、その時点のコスト・CT・選べる相手で使えるかどうか([isSkillUsable])、通常攻撃・各スキルで選べる相手
+ * ([selectableTargets])も反映する。先制の手番では先制スキルだけを一覧にする。味方のカードには、先制行動を予約できるか([canReservePreemptive])と
+ * 予約済み・先制の手番待ちかも反映する。全個体の詳細([BattleUnitDetailUiModel])も組み立て直し、
  * 勝敗が決まったか、開いていた詳細の個体がいなくなったときは詳細ポップアップを閉じる。
  *
  * @receiver 最新の戦闘フィールド。
@@ -499,13 +579,22 @@ private fun BattleField.reflectedIn(current: BattleUiState, normalAttack: Active
             enemiesBySlot[slot]?.let { it.toUiModel(names.getValue(it.fpid), it.fpid == actor) }
         },
         partySlots = List(Formation.SLOT_COUNT) { slot ->
-            alliesBySlot[slot]?.let { it.toUiModel(names.getValue(it.fpid), it.fpid == actor) }
+            alliesBySlot[slot]?.let {
+                it.toUiModel(
+                    displayName = names.getValue(it.fpid),
+                    isActive = it.fpid == actor,
+                    canReservePreemptive = canReservePreemptive(it.fpid),
+                    isPreemptiveWaiting = it.fpid in pendingPreemptive || (it.fpid in preemptiveTurns && it.fpid != actor),
+                )
+            }
         },
         currentActorId = actor,
         isPlayerTurn = isPlayerTurn,
+        isPreemptiveTurn = isPreemptiveTurn,
         selection = if (isPlayerTurn) current.selection else BattleSelection.None,
         skills = actorAlly?.let { ally ->
-            ally.activeSkills.map { skill ->
+            // 先制の手番では、先制スキルだけを一覧に出す。
+            ally.activeSkills.filter { !isPreemptiveTurn || it.isPreemptive }.map { skill ->
                 val targetIds = selectableTargetIds(ally.fpid, skill)
                 BattleSkillUiModel(
                     id = skill.id,
@@ -514,8 +603,9 @@ private fun BattleField.reflectedIn(current: BattleUiState, normalAttack: Active
                     hpCost = skill.costOf(SkillCostType.HP),
                     tpCost = skill.costOf(SkillCostType.TP),
                     substituteHpCost = ally.substituteHpCostOf(skill),
+                    remainingCoolTime = ally.skillCooldowns.firstOrNull { it.skillId == skill.id }?.remainingTurns ?: 0,
                     targetIds = targetIds,
-                    isUsable = ally.canAfford(skill) && targetIds.isNotEmpty(),
+                    isUsable = isSkillUsable(ally.fpid, skill),
                     isSelfTargeting = skill.range == SkillRange.RANGE_0,
                 )
             }
@@ -628,9 +718,16 @@ private fun BattleEnemy.toUiModel(displayName: String, isActive: Boolean) = Batt
  * @receiver 変換元のフィールド上の味方個体。
  * @param displayName 同名個体の区別を付けた表示名。
  * @param isActive 現在の手番の個体かどうか。
+ * @param canReservePreemptive いま先制行動を予約できるかどうか(`domain`の`canReservePreemptive`の結果)。
+ * @param isPreemptiveWaiting 先制行動を予約済み、または先制の手番を待っているかどうか。
  * @return 変換後の[BattleUnitUiModel]。
  */
-private fun BattleAlly.toUiModel(displayName: String, isActive: Boolean) = BattleUnitUiModel(
+private fun BattleAlly.toUiModel(
+    displayName: String,
+    isActive: Boolean,
+    canReservePreemptive: Boolean,
+    isPreemptiveWaiting: Boolean,
+) = BattleUnitUiModel(
     id = fpid,
     name = displayName,
     hp = currentHp,
@@ -643,6 +740,8 @@ private fun BattleAlly.toUiModel(displayName: String, isActive: Boolean) = Battl
     breakState = breakState,
     tp = currentTp,
     maxTp = maxTp,
+    canReservePreemptive = canReservePreemptive,
+    isPreemptiveWaiting = isPreemptiveWaiting,
 )
 
 /**

@@ -29,6 +29,9 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.Formation
  * @property breakState ブレイクの状態。ブレイク中・立ち上がり中はカードにラベルを表示する。
  * @property tp 現在のTP(0〜[maxTp])。カードの右上に円ゲージと数値で表示する。
  * @property maxTp 最大TP。円ゲージの割合(`tp / maxTp`)の分母。
+ * @property canReservePreemptive いま先制行動を予約できる個体か(`canReservePreemptive`の結果)。`true`ならカードに細いオレンジの枠を付ける
+ *   (対象選択中は予約できないため[BattleUiState.reservableAllyIds]で除かれる)。
+ * @property isPreemptiveWaiting 先制行動を予約済み、または先制の手番を待っている(いまの行動者ではない)個体か。`true`ならカードに「先制待ち」を表示する。
  */
 data class BattleUnitUiModel(
     val id: Int,
@@ -43,6 +46,8 @@ data class BattleUnitUiModel(
     val breakState: BreakState = BreakState.NONE,
     val tp: Int = 0,
     val maxTp: Int = TacticalPointFormula.MAX_TP,
+    val canReservePreemptive: Boolean = false,
+    val isPreemptiveWaiting: Boolean = false,
 )
 
 /**
@@ -55,6 +60,8 @@ data class BattleUnitUiModel(
  * @property tpCost 使用に必要なTP。消費しない場合は0。
  * @property substituteHpCost TPが足りないときに、不足分を肩代わりして消費するHP(TP代替システム)。TPが足りている、またはTPコストがなければ0。
  *   0より大きいとき、スキル一覧のTP表示は「TP40(HP-12)」の形になる(HPが足りず使えない場合も表示する)。
+ * @property remainingCoolTime スキルのCT(クールタイム)の残り手番数(使用者の`skillCooldowns`の`remainingTurns`そのまま)。CT中でなければ0。
+ *   1以上のとき、スキル一覧のコストの後ろに「CT残り1」の形で表示する(使えない状態のまま)。
  * @property targetIds このスキルで選べる対象のFPID([BattleUnitUiModel.id])。レンジ・陣営の条件を満たす相手で、
  *   手番の味方から見たもの。
  * @property isSelfTargeting レンジ0(使用者自身だけが対象)のスキルか。`true`なら一覧で選んだ瞬間に対象選択を挟まず発動する。
@@ -71,6 +78,7 @@ data class BattleSkillUiModel(
     val isSelfTargeting: Boolean = false,
     val tpCost: Int = 0,
     val substituteHpCost: Int = 0,
+    val remainingCoolTime: Int = 0,
 )
 
 /**
@@ -107,6 +115,8 @@ sealed interface BattleSelection {
  *   [Formation.SLOT_COUNT]であり、味方が配置されていないマスは`null`となる。
  * @property currentActorId 現在の手番の個体のFPID([BattleUnitUiModel.id])。手番の個体がいなければ`null`。
  * @property isPlayerTurn 現在の手番が味方かどうか。
+ * @property isPreemptiveTurn 現在の手番が先制の手番(行動順に割り込んだ手番)かどうか。`true`の間は、スキル一覧に先制スキルだけを出し、
+ *   攻撃・防御・撤退を無効にし、スキル一覧からはキャンセルできない(先制はやめられない)。
  * @property isProcessing 演出中(敵の行動や攻撃結果の表示中)で、入力を受け付けない状態かどうか。
  *   表示用の値であり、演出中かどうかの実際の判定はViewModelが持つジョブで行う。
  * @property selection プレイヤーが行動を選択している途中の段階。「攻撃」「スキル」ボタンの押下で
@@ -125,6 +135,7 @@ data class BattleUiState(
     val partySlots: List<BattleUnitUiModel?> = List(Formation.SLOT_COUNT) { null },
     val currentActorId: Int? = null,
     val isPlayerTurn: Boolean = false,
+    val isPreemptiveTurn: Boolean = false,
     val isProcessing: Boolean = false,
     val selection: BattleSelection = BattleSelection.None,
     val skills: List<BattleSkillUiModel> = emptyList(),
@@ -155,10 +166,10 @@ data class BattleUiState(
      * 「攻撃」ボタンを押下できるかどうか。
      *
      * プレイヤーの手番で、演出中でなく、勝敗が決まっておらず、スキルの選択中でなく、
-     * 通常攻撃で選べる相手([attackTargetIds])が1体以上いるときのみ`true`となる。
+     * 通常攻撃で選べる相手([attackTargetIds])が1体以上いて、先制の手番でないときのみ`true`となる。
      */
     val isAttackEnabled: Boolean
-        get() = isInputAcceptable && !isSelectingSkill && attackTargetIds.isNotEmpty()
+        get() = isInputAcceptable && !isPreemptiveTurn && !isSelectingSkill && attackTargetIds.isNotEmpty()
 
     /**
      * 「スキル」ボタンを押下できるかどうか。
@@ -172,10 +183,38 @@ data class BattleUiState(
     /**
      * 「防御」ボタンを押下できるかどうか。
      *
-     * プレイヤーの手番で、演出中でなく、勝敗が決まっておらず、選択状態が[BattleSelection.None]のときのみ`true`となる。
+     * プレイヤーの手番で、演出中でなく、勝敗が決まっておらず、先制の手番でなく、選択状態が[BattleSelection.None]のときのみ`true`となる。
      */
     val isDefendEnabled: Boolean
-        get() = isInputAcceptable && selection == BattleSelection.None
+        get() = isInputAcceptable && !isPreemptiveTurn && selection == BattleSelection.None
+
+    /**
+     * 選択中に「キャンセル」ボタンを押下できるかどうか。
+     *
+     * 何かを選択している間は押せるが、先制の手番のスキル一覧からはキャンセルできない(先制の手番は行動しないと終われない)。
+     * 先制の手番でも、スキルの対象選択からスキル一覧へ戻るキャンセルはできる。
+     */
+    val isCancelEnabled: Boolean
+        get() = selection != BattleSelection.None && !(isPreemptiveTurn && selection == BattleSelection.SkillList)
+
+    /**
+     * 選択していないときに「撤退」ボタンを押下できるかどうか。演出中・勝敗決定後・先制の手番では押せない。
+     */
+    val isRetreatEnabled: Boolean
+        get() = !isProcessing && outcome == null && !isPreemptiveTurn
+
+    /**
+     * いま、カードのタップで先制行動を予約できる味方のFPIDの集合。
+     *
+     * 攻撃・スキルの対象選択中([BattleSelection.AttackTarget]・[BattleSelection.SkillTarget])は、カードのタップを対象選びに使うため空になる。
+     * それ以外は、[BattleUnitUiModel.canReservePreemptive]な味方すべて。
+     */
+    val reservableAllyIds: Set<Int>
+        get() = if (selection == BattleSelection.AttackTarget || selection is BattleSelection.SkillTarget) {
+            emptySet()
+        } else {
+            partySlots.filterNotNull().filter { it.canReservePreemptive }.map { it.id }.toSet()
+        }
 
     /**
      * 指定したFPIDの個体の表示名を返す。
