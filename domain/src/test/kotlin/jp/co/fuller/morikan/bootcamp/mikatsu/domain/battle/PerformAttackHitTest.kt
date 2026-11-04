@@ -6,7 +6,10 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.AttackShot
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleField
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillArea
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillTargetSelection
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillCost
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillCostType
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -29,7 +32,7 @@ class PerformAttackHitTest {
         val (after, result) = checkNotNull(field().performAttack(1, 2, skill, fixedRandom(0.95)))
 
         val hit = result.hits.single()
-        assertEquals(listOf(AttackShot(isHit = false, damage = 0)), hit.shots)
+        assertEquals(listOf(AttackShot(isHit = false, damage = 0)), hit.shots.map { it.copy(fieldAfter = null) })
         assertTrue(hit.isMissed)
         assertEquals(0, hit.damage)
         assertEquals(1000, after.enemies.single().currentHp)
@@ -60,7 +63,7 @@ class PerformAttackHitTest {
 
         assertEquals(
             listOf(AttackShot(false, 0), AttackShot(true, 24)),
-            result.hits.single().shots,
+            result.hits.single().shots.map { it.copy(fieldAfter = null) },
         )
         assertFalse(result.hits.single().isMissed)
         assertEquals(976, after.enemies.single().currentHp)
@@ -121,5 +124,76 @@ class PerformAttackHitTest {
 
         assertEquals(listOf(false, true), result.hits.single().shots.map { it.isHit })
         assertEquals(0, after.enemies.single().currentHp)
+    }
+
+    /** 範囲2体×2回の処理順が回数優先(1回目の全対象 → 2回目の全対象)で、結果はresolveTargetsの順に並ぶこと。各shotのfieldAfterのHPが段階的に減ること。 */
+    @Test
+    fun area_multiStrike_isProcessedRoundFirst() {
+        val f = BattleField(
+            allies = listOf(testAlly(1)),
+            enemies = listOf(testEnemy(2, hp = 1000, slot = 0), testEnemy(3, hp = 1000, slot = 1)),
+            turnQueue = listOf(1),
+        )
+        val areaSkill = skill.copy(
+            area = SkillArea.AREA,
+            targetSelection = SkillTargetSelection.ALL,
+            activationCount = 2,
+            accuracy = null,
+        )
+
+        val (after, result) = checkNotNull(f.performAttack(1, 2, areaSkill, fixedRandom(0.5)))
+
+        assertEquals(listOf(2, 3), result.hits.map { it.targetFpid })
+        fun hpIn(field: BattleField?, fpid: Int) = checkNotNull(field).enemies.first { it.fpid == fpid }.currentHp
+        val (hit2, hit3) = result.hits
+        // 1回目(両対象)→2回目(両対象)の順に進むため、1回目の対象3のスナップショットでは対象2が1回目の分だけ減っている。
+        assertEquals(976, hpIn(hit2.shots[0].fieldAfter, 2))
+        assertEquals(1000, hpIn(hit2.shots[0].fieldAfter, 3))
+        assertEquals(976, hpIn(hit3.shots[0].fieldAfter, 2))
+        assertEquals(976, hpIn(hit3.shots[0].fieldAfter, 3))
+        assertEquals(952, hpIn(hit2.shots[1].fieldAfter, 2))
+        assertEquals(976, hpIn(hit2.shots[1].fieldAfter, 3))
+        assertEquals(952, hpIn(hit3.shots[1].fieldAfter, 3))
+        assertEquals(after, result.fieldAfter)
+    }
+
+    /** 途中で倒れた対象には2回目が無く、もう一方の対象だけ2回目が続くこと。 */
+    @Test
+    fun area_multiStrike_defeatedTargetSkipsLaterRounds() {
+        val f = BattleField(
+            allies = listOf(testAlly(1)),
+            enemies = listOf(testEnemy(2, hp = 20, slot = 0), testEnemy(3, hp = 1000, slot = 1)),
+            turnQueue = listOf(1),
+        )
+        val areaSkill = skill.copy(
+            area = SkillArea.AREA,
+            targetSelection = SkillTargetSelection.ALL,
+            activationCount = 2,
+            accuracy = null,
+        )
+
+        val (_, result) = checkNotNull(f.performAttack(1, 2, areaSkill, fixedRandom(0.5)))
+
+        assertEquals(listOf(1, 2), result.hits.map { it.shots.size })
+    }
+
+    /** fieldBeforeShotsはコスト消費済みでダメージ前、fieldAfterはダメージ後の最終フィールドであること。 */
+    @Test
+    fun result_snapshots_beforeShotsHasCostSpentAndNoDamage() {
+        val f = BattleField(
+            allies = listOf(testAlly(1, mp = 50)),
+            enemies = listOf(testEnemy(2, hp = 1000)),
+            turnQueue = listOf(1),
+        )
+        val costly = skill.copy(accuracy = null, costs = listOf(SkillCost(SkillCostType.MP, 20)))
+
+        val (after, result) = checkNotNull(f.performAttack(1, 2, costly, fixedRandom(0.5)))
+
+        val before = checkNotNull(result.fieldBeforeShots)
+        assertEquals(30, (before.allies.single()).currentMp)
+        assertEquals(1000, before.enemies.single().currentHp)
+        assertNotNull(result.hits.single().shots.single().fieldAfter)
+        assertEquals(976, checkNotNull(result.hits.single().shots.single().fieldAfter).enemies.single().currentHp)
+        assertEquals(after, result.fieldAfter)
     }
 }

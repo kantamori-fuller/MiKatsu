@@ -50,12 +50,15 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleUnitUiModel
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.resolveDisplayNames
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.StatChangeDetail
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.StatChangeEntry
+import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.NarrationStep
+import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.toNarrationSteps
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.toNarrations
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -85,6 +88,9 @@ private const val RESULT_DISPLAY_MS = 1200L
  * 取り消された先制の手番は、次の手番へ進む前に「〇〇は先制行動できなかった!」を表示する。
  * 演出中のナレーションは複数の文の列として1文ずつ順に表示し、ナレーション欄のタップ([onNarrationClick])で
  * 表示時間の待ちを打ち切って次の文へ進められる。
+ * ダメージ技の演出中は、戦闘フィールドの購読による表示の更新を止め([isDisplayLocked])、ナレーションの1文ごとに、その時点の
+ * 戦闘フィールドのスナップショット([NarrationStep.field])を表示する(「1回目の文なら1回目の時点のHP」)。ナレーションを流し終えたら
+ * ロックを解除し、最新の戦闘フィールドを反映する。
  * 勝利後は「次に進む」で[advanceToNextBattleUseCase]により同じ編成のまま次の戦闘へ進み、
  * 進行度は[observeMapProgressUseCase]で購読して表示する(正はRepositoryが保持する)。
  *
@@ -144,6 +150,18 @@ class BattleViewModel @AssistedInject constructor(
      */
     private var narrationSkipSignal: CompletableDeferred<Unit>? = null
 
+    /**
+     * 通常攻撃のスキルデータ。戦闘フィールドを表示へ反映する([reflectedIn])のに使う。取得するまでは`null`で、その間はスナップショットを表示できない。
+     * 戦闘の状態そのものは持たない(SSOTはRepository)。
+     */
+    private var normalAttack: ActiveSkill? = null
+
+    /**
+     * ダメージ技の演出中に、購読した戦闘フィールドの表示への反映と自動の手番開始を止めるかどうか。
+     * ロック中は[showStep]が出すスナップショットだけが表示になり、解除すると最新の戦闘フィールドが再び流れて反映される。
+     */
+    private val isDisplayLocked = MutableStateFlow(false)
+
     /** 演出中(敵の手番・ブレイク中の手番飛ばしまたは味方の攻撃・スキルのジョブが動いている間)かどうか。 */
     private val isBusy: Boolean
         get() = autoTurnJob?.isActive == true || playerActionJob?.isActive == true
@@ -157,11 +175,14 @@ class BattleViewModel @AssistedInject constructor(
                     _uiState.update { it.copy(progress = progress) }
                 }
             }
-            val normalAttack = getNormalAttackUseCase()
-            observeBattleFieldUseCase().collect { battleField ->
-                _uiState.update { battleField.reflectedIn(it, normalAttack) }
-                startAutoTurnIfNeeded(battleField)
-            }
+            val normalAttack = getNormalAttackUseCase().also { this@BattleViewModel.normalAttack = it }
+            combine(observeBattleFieldUseCase(), isDisplayLocked) { battleField, locked -> battleField to locked }
+                .collect { (battleField, locked) ->
+                    // ダメージ技の演出中は、ナレーションに連動したスナップショットだけを表示する。
+                    if (locked) return@collect
+                    _uiState.update { battleField.reflectedIn(it, normalAttack) }
+                    startAutoTurnIfNeeded(battleField)
+                }
         }
     }
 
@@ -239,7 +260,7 @@ class BattleViewModel @AssistedInject constructor(
         if (skill.isSelfTargeting) {
             launchPlayerAction(actorFpid) {
                 useSkillUseCase(actorFpid = actorFpid, skillId = skillId, targetFpid = actorFpid)
-                    ?.let(::skillUseNarrations)
+                    ?.let(::skillUseSteps)
             }
         } else {
             _uiState.update { it.copy(selection = BattleSelection.SkillTarget(skillId)) }
@@ -259,7 +280,7 @@ class BattleViewModel @AssistedInject constructor(
         if (!state.isDefendEnabled || isBusy) return
         val name = state.nameOf(actorFpid)
         launchPlayerAction(actorFpid) {
-            if (defendUseCase(actorFpid)) listOf(BattleNarration.Defend(name)) else null
+            if (defendUseCase(actorFpid)) listOf(NarrationStep(BattleNarration.Defend(name))) else null
         }
     }
 
@@ -325,11 +346,11 @@ class BattleViewModel @AssistedInject constructor(
         if (!state.isPlayerTurn || isBusy || fpid !in state.selectableTargetIds) return
         when (val selection = state.selection) {
             BattleSelection.AttackTarget -> launchPlayerAction(actorFpid) {
-                attackUseCase(attackerFpid = actorFpid, targetFpid = fpid)?.let(::attackNarrations)
+                attackUseCase(attackerFpid = actorFpid, targetFpid = fpid)?.let(::attackSteps)
             }
             is BattleSelection.SkillTarget -> launchPlayerAction(actorFpid) {
                 useSkillUseCase(actorFpid = actorFpid, skillId = selection.skillId, targetFpid = fpid)
-                    ?.let(::skillUseNarrations)
+                    ?.let(::skillUseSteps)
             }
             else -> Unit
         }
@@ -341,16 +362,24 @@ class BattleViewModel @AssistedInject constructor(
      * 流れは「演出中にして選択状態を解除 → 行動の実行 → 結果のナレーション → 間 → 手番終了 → 演出終了」。
      * 演出中の状態は同期的に設定するため、連打しても二重に開始されない。行動が実行できなかった場合
      * ([execute]が`null`)は、手番を終えずに行動選択へ戻す。
+     * 実行の前に表示をロックし([isDisplayLocked])、ナレーションを流し終えたら手番の終了の前に解除する。
+     * 実行が失敗したときやジョブがキャンセルされたときも、必ず解除する。表示するスナップショットを持たない結果
+     * (ダメージのないスキル・防御)は、実行できた時点ですぐにロックを解除して最新の状態を反映してから、ナレーションを流す。
      *
      * @param actorFpid 行動する味方のFPID。
      * @param execute 行動を実行し、結果のナレーションの列を返す処理。実行できなければ`null`を返す。
      */
-    private fun launchPlayerAction(actorFpid: Int, execute: suspend () -> List<BattleNarration>?) {
+    private fun launchPlayerAction(actorFpid: Int, execute: suspend () -> List<NarrationStep>?) {
         _uiState.update { it.copy(isProcessing = true, selection = BattleSelection.None) }
+        isDisplayLocked.value = true
         playerActionJob = viewModelScope.launch {
-            val narrations = execute()
+            val narrations = try {
+                execute()?.also { steps -> if (steps.none { it.field != null }) isDisplayLocked.value = false }
+                    ?.also { steps -> steps.forEach { showStep(it, RESULT_DISPLAY_MS) } }
+            } finally {
+                isDisplayLocked.value = false
+            }
             if (narrations != null) {
-                narrations.forEach { showNarration(it, RESULT_DISPLAY_MS) }
                 endTurnAndAnnounceCancellations(actorFpid)
             }
             _uiState.update {
@@ -415,10 +444,16 @@ class BattleViewModel @AssistedInject constructor(
         }
         autoTurnJob = viewModelScope.launch {
             waitForNarration(ENEMY_TURN_DELAY_MS)
-            val result = executeEnemyTurnUseCase(actorFpid)
-            val narrations = result?.let(::attackNarrations)
-                ?: listOf(BattleNarration.EnemyCannotReach(_uiState.value.nameOf(actorFpid)))
-            narrations.forEach { showNarration(it, RESULT_DISPLAY_MS) }
+            isDisplayLocked.value = true
+            try {
+                val result = executeEnemyTurnUseCase(actorFpid)
+                val steps = result?.let(::attackSteps)
+                    ?: listOf(NarrationStep(BattleNarration.EnemyCannotReach(_uiState.value.nameOf(actorFpid))))
+                if (steps.none { it.field != null }) isDisplayLocked.value = false
+                steps.forEach { showStep(it, RESULT_DISPLAY_MS) }
+            } finally {
+                isDisplayLocked.value = false
+            }
             endTurnAndAnnounceCancellations(actorFpid)
             _uiState.update { it.copy(isProcessing = false, processingNarration = null) }
             autoTurnJob = null
@@ -494,6 +529,21 @@ class BattleViewModel @AssistedInject constructor(
     }
 
     /**
+     * 演出中のナレーションを1文表示し、その文に対応するスナップショットがあれば同時に画面へ反映して、表示時間が過ぎるかナレーション欄がタップされるまで待つ。
+     *
+     * @param step 表示するナレーションと、その文を出すときに表示する戦闘フィールド。
+     * @param durationMs 表示する時間(ミリ秒)。
+     */
+    private suspend fun showStep(step: NarrationStep, durationMs: Long) {
+        val skill = normalAttack
+        _uiState.update {
+            val reflected = if (step.field != null && skill != null) step.field.reflectedIn(it, skill) else it
+            reflected.copy(processingNarration = step.narration)
+        }
+        waitForNarration(durationMs)
+    }
+
+    /**
      * [durationMs]が過ぎるか[onNarrationClick]で打ち切られるまで待つ。待っている間だけタップを受け付ける。
      *
      * @param durationMs 待つ時間(ミリ秒)。
@@ -509,31 +559,28 @@ class BattleViewModel @AssistedInject constructor(
     }
 
     /**
-     * 攻撃結果から、表示するナレーションの列を作る。
+     * 攻撃結果から、表示するナレーションとスナップショットの組の列を作る。
      *
-     * 文の組み立て自体は[toNarrations]に委ね、ここでは表示名の解決だけを行う。
+     * 文の組み立て自体は[toNarrationSteps]に委ね、ここでは表示名の解決だけを行う。
      *
      * @param result 攻撃の結果。
-     * @return 順に1文ずつ表示するナレーション。
+     * @return 順に1文ずつ表示するナレーションと、その文を出すときに表示するフィールドの列。
      */
-    private fun attackNarrations(result: AttackResult): List<BattleNarration> {
-        val state = _uiState.value
-        return result.toNarrations(state::nameOf)
-    }
+    private fun attackSteps(result: AttackResult): List<NarrationStep> = result.toNarrationSteps(_uiState.value::nameOf)
 
     /**
-     * スキル使用の結果から、表示するナレーションの列を作る。
+     * スキル使用の結果から、表示するナレーションとスナップショットの組の列を作る。
      *
-     * ダメージを与えるスキル([SkillUseResult.Attack])は通常攻撃と同じ[attackNarrations]に乗せ、
-     * 与えないスキル([SkillUseResult.Effect])はスキルの結果として[toNarrations]で組み立てる。
-     * どちらも表示名の解決だけをここで行う。
+     * ダメージを与えるスキル([SkillUseResult.Attack])は通常攻撃と同じ[attackSteps]に乗せ、
+     * 与えないスキル([SkillUseResult.Effect])はスキルの結果として[toNarrations]で組み立て、
+     * スナップショットなし(`field = null`。表示は即時反映済み)のステップに包む。
      *
      * @param result スキル使用の結果。
-     * @return 順に1文ずつ表示するナレーション。
+     * @return 順に1文ずつ表示するナレーションと、その文を出すときに表示するフィールドの列。
      */
-    private fun skillUseNarrations(result: SkillUseResult): List<BattleNarration> = when (result) {
-        is SkillUseResult.Attack -> attackNarrations(result.result)
-        is SkillUseResult.Effect -> result.result.toNarrations(_uiState.value::nameOf)
+    private fun skillUseSteps(result: SkillUseResult): List<NarrationStep> = when (result) {
+        is SkillUseResult.Attack -> attackSteps(result.result)
+        is SkillUseResult.Effect -> result.result.toNarrations(_uiState.value::nameOf).map { NarrationStep(it) }
     }
 
     /**

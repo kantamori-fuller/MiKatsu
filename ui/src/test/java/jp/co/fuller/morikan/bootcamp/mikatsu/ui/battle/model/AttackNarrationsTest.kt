@@ -3,6 +3,7 @@ package jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.AttackHit
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.AttackResult
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.AttackShot
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleField
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.CriticalType
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -32,14 +33,38 @@ class AttackNarrationsTest {
         assertEquals(listOf(BattleNarration.AttackResult("味方", "ゴブリンA", 24)), result.toNarrations(nameOf))
     }
 
-    /** 範囲攻撃では、ブレイクした対象ごとに1文ずつ、対象の並び(ブレイクした順)で付くこと。 */
+    /** 範囲の多段攻撃では、ブレイクの文が回ごとに(接頭辞なしで)出て、末尾にまとめて重ねて付かないこと。 */
     @Test
-    fun area_break_appendsOneSentencePerBrokenTarget() {
+    fun areaMulti_break_isReportedPerRound() {
         val result = AttackResult(
             1,
             listOf(
                 AttackHit(2, listOf(AttackShot(true, 24, causedBreak = true))),
                 AttackHit(3, listOf(AttackShot(true, 24), AttackShot(true, 24, causedBreak = true))),
+            ),
+        )
+
+        assertEquals(
+            listOf(
+                BattleNarration.AreaAttackStart("味方"),
+                BattleNarration.InRound(1, BattleNarration.AreaHit(listOf(AreaHitEntry("ゴブリンA", 24), AreaHitEntry("ゴブリンB", 24)))),
+                BattleNarration.Broke("ゴブリンA"),
+                BattleNarration.InRound(2, BattleNarration.AreaHit(listOf(AreaHitEntry("ゴブリンB", 24)))),
+                BattleNarration.Broke("ゴブリンB"),
+                BattleNarration.AreaAttackTotal("味方", listOf(AreaHitEntry("ゴブリンA", 24), AreaHitEntry("ゴブリンB", 48))),
+            ),
+            result.toNarrations(nameOf),
+        )
+    }
+
+    /** 範囲の発動回数1の攻撃では、ブレイクした対象ごとに1文ずつ、まとめの文の後ろに付くこと(従来どおり)。 */
+    @Test
+    fun area_oneShot_break_appendsOneSentencePerBrokenTarget() {
+        val result = AttackResult(
+            1,
+            listOf(
+                AttackHit(2, listOf(AttackShot(true, 24, causedBreak = true))),
+                AttackHit(3, listOf(AttackShot(true, 24, causedBreak = true))),
             ),
         )
 
@@ -50,6 +75,109 @@ class AttackNarrationsTest {
             narrations.takeLast(2),
         )
         assertEquals(BattleNarration.AreaAttackStart("味方"), narrations.first())
+    }
+
+    /** 範囲の多段攻撃は、回ごとに「外れた相手 → ダメージ → クリティカル」を出し、最後に対象ごとの合計のまとめを出すこと。 */
+    @Test
+    fun areaMulti_reportsEachRoundThenTotals() {
+        val result = AttackResult(
+            1,
+            listOf(
+                AttackHit(2, listOf(AttackShot(true, 30), AttackShot(false, 0))),
+                AttackHit(3, listOf(AttackShot(true, 25, critical = CriticalType.CRITICAL), AttackShot(true, 28))),
+            ),
+            skillId = 7,
+            skillName = "クイックシュート",
+        )
+
+        assertEquals(
+            listOf(
+                BattleNarration.AreaAttackStart("味方", "クイックシュート"),
+                BattleNarration.InRound(1, BattleNarration.AreaHit(listOf(AreaHitEntry("ゴブリンA", 30), AreaHitEntry("ゴブリンB", 25)))),
+                BattleNarration.InRound(1, BattleNarration.AreaCritical("ゴブリンB")),
+                BattleNarration.InRound(2, BattleNarration.AreaMissed(listOf("ゴブリンA"))),
+                BattleNarration.InRound(2, BattleNarration.AreaHit(listOf(AreaHitEntry("ゴブリンB", 28)))),
+                BattleNarration.AreaAttackTotal("味方", listOf(AreaHitEntry("ゴブリンA", 30), AreaHitEntry("ゴブリンB", 53))),
+            ),
+            result.toNarrations(nameOf),
+        )
+    }
+
+    /** 範囲の多段攻撃が全回・全対象で外れたら、「しかし外れた!」の1文だけになること。 */
+    @Test
+    fun areaMulti_allMissed_isOneSentence() {
+        val result = AttackResult(
+            1,
+            listOf(
+                AttackHit(2, listOf(AttackShot(false, 0), AttackShot(false, 0))),
+                AttackHit(3, listOf(AttackShot(false, 0), AttackShot(false, 0))),
+            ),
+        )
+
+        assertEquals(listOf<BattleNarration>(BattleNarration.AreaAttackAllMissed("味方")), result.toNarrations(nameOf))
+    }
+
+    /** 表示用スナップショットを区別するための、目印だけを変えたダミーの戦闘フィールド。 */
+    private fun marker(n: Int) = BattleField(allies = emptyList(), enemies = emptyList(), turnQueue = listOf(n))
+
+    /** 単体の多段では、各ヒットの文がそのヒットのfieldAfter、最後の文(まとめ)は技全体のfieldAfterになること。 */
+    @Test
+    fun steps_single_multiShot_mapsEachShotToItsSnapshot() {
+        val result = AttackResult(
+            1,
+            listOf(AttackHit(2, listOf(AttackShot(true, 24, fieldAfter = marker(1)), AttackShot(true, 24, fieldAfter = marker(2))))),
+            fieldBeforeShots = marker(0),
+            fieldAfter = marker(9),
+        )
+
+        assertEquals(listOf(marker(1), marker(2), marker(9)), result.toNarrationSteps(nameOf).map { it.field })
+    }
+
+    /** 範囲の発動回数1では、開始の文がfieldBeforeShots、以降が最後のヒットのfieldAfter、最後の文だけ技全体のfieldAfterになること。 */
+    @Test
+    fun steps_area_oneShot_startUsesBeforeShots_lastUsesFinalField() {
+        val result = AttackResult(
+            1,
+            listOf(
+                AttackHit(2, listOf(AttackShot(true, 24, fieldAfter = marker(1)))),
+                AttackHit(3, listOf(AttackShot(true, 24, critical = CriticalType.CRITICAL, fieldAfter = marker(2)))),
+            ),
+            fieldBeforeShots = marker(0),
+            fieldAfter = marker(9),
+        )
+
+        val steps = result.toNarrationSteps(nameOf)
+
+        assertEquals(listOf(marker(0), marker(2), marker(9)), steps.map { it.field })
+        assertEquals(
+            listOf(BattleNarration.AreaAttackStart("味方"), BattleNarration.AreaHit(listOf(AreaHitEntry("ゴブリンA", 24), AreaHitEntry("ゴブリンB", 24))), BattleNarration.AreaCritical("ゴブリンB")),
+            steps.map { it.narration },
+        )
+    }
+
+    /** 範囲の多段では、N回目の文がN回目で最後に実行されたヒットのfieldAfter、最後の文(まとめ)が技全体のfieldAfterになること。 */
+    @Test
+    fun steps_areaMulti_mapsRoundsToLastShotOfRound() {
+        val result = AttackResult(
+            1,
+            listOf(
+                AttackHit(2, listOf(AttackShot(true, 24, fieldAfter = marker(1)), AttackShot(true, 24, fieldAfter = marker(3)))),
+                AttackHit(3, listOf(AttackShot(true, 24, fieldAfter = marker(2)), AttackShot(true, 24, fieldAfter = marker(4)))),
+            ),
+            fieldBeforeShots = marker(0),
+            fieldAfter = marker(9),
+        )
+
+        // 開始 / 1回目(両対象の後 = marker2) / 2回目(marker4) / まとめ(技全体)
+        assertEquals(listOf(marker(0), marker(2), marker(4), marker(9)), result.toNarrationSteps(nameOf).map { it.field })
+    }
+
+    /** スナップショットを持たない結果(テストでの組み立て)では、すべての文のfieldがnullになること。 */
+    @Test
+    fun steps_withoutSnapshots_haveNullFields() {
+        val result = AttackResult(1, listOf(AttackHit(2, listOf(AttackShot(true, 24), AttackShot(true, 24)))))
+
+        assertEquals(listOf(null, null, null), result.toNarrationSteps(nameOf).map { it.field })
     }
 
     /** 対象1体・1ヒットのクリティカル・バッドクリティカルは、種別を持った1文になること。 */
@@ -98,7 +226,7 @@ class AttackNarrationsTest {
         )
     }
 
-    /** 範囲攻撃は、ダメージの行 → クリティカルの文(ヒットごと) → ブレイクの文の順になること。外れたヒットは出さない。 */
+    /** 範囲の多段攻撃は、各回の中で ダメージの行 → クリティカルの文(ヒットごと) → ブレイクの文の順になり、最後にまとめが付くこと。 */
     @Test
     fun area_criticalSentences_afterDamage_beforeBroke() {
         val result = AttackResult(
@@ -118,11 +246,13 @@ class AttackNarrationsTest {
         assertEquals(
             listOf(
                 BattleNarration.AreaAttackStart("味方"),
-                BattleNarration.AreaHit(listOf(AreaHitEntry("ゴブリンA", 90), AreaHitEntry("ゴブリンB", 18))),
-                BattleNarration.AreaCritical("ゴブリンA"),
-                BattleNarration.AreaCritical("ゴブリンA"),
-                BattleNarration.AreaBadCritical("ゴブリンB"),
+                BattleNarration.InRound(1, BattleNarration.AreaHit(listOf(AreaHitEntry("ゴブリンA", 45), AreaHitEntry("ゴブリンB", 18)))),
+                BattleNarration.InRound(1, BattleNarration.AreaCritical("ゴブリンA")),
+                BattleNarration.InRound(1, BattleNarration.AreaBadCritical("ゴブリンB")),
+                BattleNarration.InRound(2, BattleNarration.AreaHit(listOf(AreaHitEntry("ゴブリンA", 45)))),
+                BattleNarration.InRound(2, BattleNarration.AreaCritical("ゴブリンA")),
                 BattleNarration.Broke("ゴブリンA"),
+                BattleNarration.AreaAttackTotal("味方", listOf(AreaHitEntry("ゴブリンA", 90), AreaHitEntry("ゴブリンB", 18))),
             ),
             result.toNarrations(nameOf),
         )

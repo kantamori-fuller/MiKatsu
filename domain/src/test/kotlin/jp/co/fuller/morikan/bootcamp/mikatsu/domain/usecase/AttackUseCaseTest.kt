@@ -38,7 +38,12 @@ class AttackUseCaseTest {
                 skillId = TEST_NORMAL_ATTACK.id,
                 skillName = TEST_NORMAL_ATTACK.name,
             ),
-            result,
+            // 表示用スナップショットは比較の対象外にする。
+            result?.copy(
+                hits = result.hits.map { hit -> hit.copy(shots = hit.shots.map { it.copy(fieldAfter = null) }) },
+                fieldBeforeShots = null,
+                fieldAfter = null,
+            ),
         )
         assertEquals(26, field.enemies[0].currentHp)
         assertEquals(50, field.enemies[1].currentHp)

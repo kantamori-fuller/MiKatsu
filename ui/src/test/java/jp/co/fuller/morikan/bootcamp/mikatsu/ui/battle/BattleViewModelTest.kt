@@ -453,6 +453,36 @@ class BattleViewModelTest {
         assertEquals(listOf(976, 976), repository.current.enemies.map { it.currentHp })
     }
 
+    /** 多段攻撃のナレーション中は、その文の時点のHPが表示され、次の文へ進むと次のヒットのHPになり、終了後に最終状態になること。 */
+    @Test
+    fun multiShot_displayFollowsNarration() = runTest(dispatcher) {
+        val rolls = ScriptedRandom()
+        val (viewModel, repository) = createViewModel(
+            normalAttack = DEFAULT_NORMAL_ATTACK.copy(accuracy = 90, activationCount = 2),
+            hitRandom = rolls,
+        )
+        advanceUntilIdle()
+        rolls.queue(0.5, 0.5)
+
+        viewModel.onAttackClick()
+        viewModel.onEnemyClick(repository.current.enemies[0].fpid)
+        runCurrent()
+
+        // リポジトリは2発とも反映済みでも、1文目の表示は1発目の時点。
+        assertEquals(BattleNarration.ShotHit(1, 24), viewModel.uiState.value.narration)
+        assertEquals(1000 - 48, repository.current.enemies[0].currentHp)
+        assertEquals(1000 - 24, viewModel.uiState.value.enemySlots[0]?.hp)
+
+        viewModel.onNarrationClick()
+        runCurrent()
+        assertEquals(BattleNarration.ShotHit(2, 24), viewModel.uiState.value.narration)
+        assertEquals(1000 - 48, viewModel.uiState.value.enemySlots[0]?.hp)
+
+        advanceUntilIdle()
+        assertFalse(viewModel.uiState.value.isProcessing)
+        assertEquals(1000 - 48, viewModel.uiState.value.enemySlots[0]?.hp)
+    }
+
     /** 対象1体・1回攻撃が外れると「しかし外れた!」の1文だけになり、HPは減らず、1文のあと手番が終わること。 */
     @Test
     fun singleTarget_oneShot_miss() = runTest(dispatcher) {
