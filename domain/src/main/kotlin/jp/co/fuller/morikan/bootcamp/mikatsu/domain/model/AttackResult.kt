@@ -64,6 +64,9 @@ data class AttackHit(
  * @property critical このヒットのクリティカルの種別。最終的なクリティカル倍率が100%未満なら[CriticalType.BAD_CRITICAL]、以上なら[CriticalType.CRITICAL]で、
  *   発生判定が出なかったヒットと外れたヒットは[CriticalType.NONE]。
  * @property isCriticalBlocked 対象の防御によってクリティカルが無効になったか。このときヒットは通常ヒット扱いで[critical]は[CriticalType.NONE]。
+ * @property resistance 対象の属性耐性によるヒットの扱い。無効・反射・吸収のヒットは命中した扱いで、[damage]は0(対象のHPは減らない)。
+ * @property absorbedAmount [resistance]が[ResistanceOutcome.ABSORBED]のとき、対象が実際に回復したHP量(最大HPで頭打ち)。それ以外は0。
+ * @property reflected [resistance]が[ResistanceOutcome.REFLECTED]のとき、攻撃者に跳ね返ったダメージの結果。それ以外は`null`。
  */
 data class AttackShot(
     val isHit: Boolean,
@@ -71,4 +74,47 @@ data class AttackShot(
     val causedBreak: Boolean = false,
     val critical: CriticalType = CriticalType.NONE,
     val isCriticalBlocked: Boolean = false,
+    val resistance: ResistanceOutcome = ResistanceOutcome.NONE,
+    val absorbedAmount: Int = 0,
+    val reflected: ReflectedDamage? = null,
+)
+
+/**
+ * 属性耐性によって、攻撃・効果が対象に対してどう扱われたか。
+ */
+enum class ResistanceOutcome {
+    /** 耐性の影響なし(倍率の耐性を含む通常の扱い)。 */
+    NONE,
+
+    /** 無効。ダメージ・効果がかからない。 */
+    NULLIFIED,
+
+    /** 反射。ダメージ・効果が使用者に跳ね返る。 */
+    REFLECTED,
+
+    /** 吸収。攻撃のダメージ分のHPを回復する。 */
+    ABSORBED,
+}
+
+/**
+ * 反射によって、攻撃者が自分自身を攻撃したものとして受けたダメージの結果。
+ *
+ * 反射されたヒットのクリティカル判定結果をそのまま使い、攻撃者の防御・ブレイク・属性耐性・パッシブスキルを反映して求める。
+ * 攻撃者の耐性が反射のときは再反射せず、無効扱いになる。
+ *
+ * @property damage 攻撃者が実際に受けたダメージ。無効・吸収のときは0。
+ * @property outcome 攻撃者の耐性による扱い。[ResistanceOutcome.NONE]は通常どおり受けた、[ResistanceOutcome.NULLIFIED]は無効
+ *   (攻撃者が反射の耐性を持つ場合を含む)、[ResistanceOutcome.ABSORBED]は攻撃者が吸収。[ResistanceOutcome.REFLECTED]にはならない。
+ * @property absorbedAmount [outcome]が[ResistanceOutcome.ABSORBED]のとき、攻撃者が実際に回復したHP量。それ以外は0。
+ * @property critical 反射されたヒットのクリティカルの種別(攻撃者の防御でクリティカルが無効になったときは[CriticalType.NONE])。
+ * @property isCriticalBlocked 攻撃者の防御によってクリティカルが無効になったか。
+ * @property causedBreak 反射ダメージで攻撃者がブレイクしたか。
+ */
+data class ReflectedDamage(
+    val damage: Int,
+    val outcome: ResistanceOutcome = ResistanceOutcome.NONE,
+    val absorbedAmount: Int = 0,
+    val critical: CriticalType = CriticalType.NONE,
+    val isCriticalBlocked: Boolean = false,
+    val causedBreak: Boolean = false,
 )

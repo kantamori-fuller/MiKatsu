@@ -2,6 +2,7 @@ package jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model
 
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleStat
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BreakState
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillElement
 
 /**
  * 個体の陣形上の位置を、詳細ポップアップに表示する区分で表す。
@@ -52,6 +53,7 @@ enum class BattleUnitPosition {
  * @property passiveSkillNames 設定しているPスキルの名前。
  * @property isDefending 防御中か。`true`のときだけ、ブレイク状態の近くに「防御中」を表示する。
  * @property statChanges かかっているステータス変化。変化のあるステータスだけを持ち、1つもなければ空。ステータス欄(基礎値)には反映しない。
+ * @property elementResistances 12属性の耐性値。表示順([jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.ElementResistances.ORDER])に並ぶ。値は加工せず数値のまま表示する。
  */
 data class BattleUnitDetailUiModel(
     val id: Int,
@@ -83,6 +85,18 @@ data class BattleUnitDetailUiModel(
     val passiveSkillNames: List<String>,
     val isDefending: Boolean = false,
     val statChanges: List<StatChangeDetail> = emptyList(),
+    val elementResistances: List<ElementResistanceDetail> = emptyList(),
+)
+
+/**
+ * 詳細ポップアップに表示する、1属性ぶんの耐性値。
+ *
+ * @property element 属性。
+ * @property value 耐性値(-999〜999)。倍率・無効・反射・吸収の別は付けず、数値のまま表示する。
+ */
+data class ElementResistanceDetail(
+    val element: SkillElement,
+    val value: Int,
 )
 
 /**

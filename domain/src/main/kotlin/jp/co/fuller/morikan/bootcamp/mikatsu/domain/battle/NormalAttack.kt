@@ -7,8 +7,12 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleAlly
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleField
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleStat
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.CriticalType
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.ReflectedDamage
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.ResistanceOutcome
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.updatePawn
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.applyDamage
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.ActiveSkill
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillElement
 import kotlin.random.Random
 
 /**
@@ -20,6 +24,14 @@ import kotlin.random.Random
  * 対象ごとに、1ヒットずつ[HitChanceFormula]で命中判定を行い、命中したヒットだけ[DamageFormula]の結果へ
  * クリティカル判定([CriticalFormula]。命中後に1回、乱数を引く)と倍率の適用(ヒットの種別は最終的な倍率で決める)、続けてブレイク中の被ダメージ増加([BreakFormula.boostDamage])、対象が防御中なら30%カット([DefenseFormula.reduceDamage])、さらに対象のパッシブスキルによるダメージ軽減
  * ([reduceDamage])を適用する。外れたヒットはダメージ0で軽減も適用せず、発動回数は1回消費する。
+ *
+ * 属性耐性([ElementResistanceFormula])は、防御の30%カットの後・パッシブスキルの軽減の前に、対象の耐性値(スキルの属性に対する値)で適用する。
+ * 倍率(1〜999)は`floor(ダメージ × 耐性 / 100)`(最低1)の後に軽減をかける。無効(0など)はダメージ0で軽減も通さない。
+ * 吸収(-999)は対象のダメージを0にし、耐性が100だった場合のダメージ(軽減込み)を最大HPで頭打ちにして対象のHPを回復する。
+ * 反射(-1)は対象のダメージを0にし、攻撃者が自分自身を攻撃したものとしてダメージを求め直して攻撃者に与える([reflectOntoAttacker]。新たな命中判定はなく、
+ * クリティカルは反射されたヒットの判定結果をそのまま使う)。反射ダメージで攻撃者が戦闘不能になったら、その技の残りのヒット・対象をすべて打ち切る。
+ * 無効・反射・吸収のヒットも、クリティカル判定(乱数)を含めて命中した扱いで、使用者のTP(条件1)は成立する。
+ * 受けた側のHPは減らないので、ブレイクゲージもTP(条件2)も増えない(反射された攻撃者自身は、受けたダメージに応じて増える)。
  * 防御中の対象では、最終的にクリティカルになるヒットを通常ヒット扱いにする([DefenseFormula.blocksCritical]。乱数は通常どおり引く)。
  * 発動回数だけ繰り返し、途中で対象が戦闘不能になったら、その対象への残りのヒットは行わない。
  * ダメージは1ヒットごとにフィールドへ適用してブレイクゲージを加算し([accumulateBreakGauge])、次のヒットは
@@ -69,11 +81,17 @@ fun BattleField.performAttack(
     var anyHit = false
     var allHitsOnDefending = true
     var maxCriticalRate: Int? = null
+    // 反射で攻撃者自身が受けたダメージによるTP(条件2)。技全体で合計してから切り捨てる。
+    var attackerTpFromReflect = 0.0
+    // 反射ダメージで攻撃者が戦闘不能になったら、残りのヒット・対象をすべて打ち切る。
+    var aborted = false
     val tpTargets = mutableListOf<TpTargetReport>()
-    val hits = targets.map { target ->
+    val hits = mutableListOf<AttackHit>()
+    for (target in targets) {
+        if (aborted) break
         val shots = mutableListOf<AttackShot>()
         var tpFromDamage = 0.0
-        while (shots.size < attackSkill.activationCount) {
+        while (shots.size < attackSkill.activationCount && !aborted) {
             // 途中でブレイクした効果を残りのヒットに効かせるため、ヒットごとに最新の対象の状態を読む。
             val current = field.allPawns.firstOrNull { it.fpid == target.fpid } ?: break
             if (current.isDefeated) break
@@ -107,7 +125,15 @@ fun BattleField.performAttack(
             val appliedJudge = if (isCriticalBlocked) CriticalType.NONE else judged
             val criticalDamage = CriticalFormula.applyDamage(base, appliedJudge, attacker.criticalDamageRate, damageStage)
             val boosted = BreakFormula.boostDamage(criticalDamage, current.isBroken)
-            val damage = current.reduceDamage(DefenseFormula.reduceDamage(boosted, current.isDefending))
+            // 属性耐性とパッシブスキルの軽減の前までのダメージ(吸収の回復量・反射の元にもなる)。
+            val defended = DefenseFormula.reduceDamage(boosted, current.isDefending)
+            val resistanceValue = current.resistanceTo(attackSkill.element)
+            val kind = ElementResistanceFormula.classify(resistanceValue)
+            val damage = when (kind) {
+                ElementResistanceFormula.Kind.MULTIPLIER ->
+                    current.reduceDamage(ElementResistanceFormula.scaleDamage(defended, resistanceValue))
+                else -> 0
+            }
             val hpLoss = minOf(damage, current.currentHp)
             // TPのために、ヒットの時点の防御と最終的なクリティカルの倍率を控える(防がれたクリティカルはNONEなので倍率に含めない)。
             val criticalRate = if (critical == CriticalType.CRITICAL) actualCriticalRate else null
@@ -115,16 +141,53 @@ fun BattleField.performAttack(
             if (!current.isDefending) allHitsOnDefending = false
             if (criticalRate != null) maxCriticalRate = maxOf(maxCriticalRate ?: 0, criticalRate)
             tpFromDamage += TacticalPointFormula.damageTaken(hpLoss, current.maxHp, current.isDefending, criticalRate)
-            val (broken, causedBreak) = field
-                .applyDamage(targetFpid = target.fpid, damage = damage)
-                .accumulateBreakGauge(attacker.breakPointRate, target.fpid, hpLoss)
-            field = broken
+            var causedBreak = false
+            var resistance = ResistanceOutcome.NONE
+            var absorbedAmount = 0
+            var reflected: ReflectedDamage? = null
+            when (kind) {
+                ElementResistanceFormula.Kind.MULTIPLIER -> {
+                    val (broken, broke) = field
+                        .applyDamage(targetFpid = target.fpid, damage = damage)
+                        .accumulateBreakGauge(attacker.breakPointRate, target.fpid, hpLoss)
+                    field = broken
+                    causedBreak = broke
+                }
+                ElementResistanceFormula.Kind.NULLIFY -> resistance = ResistanceOutcome.NULLIFIED
+                ElementResistanceFormula.Kind.ABSORB -> {
+                    resistance = ResistanceOutcome.ABSORBED
+                    // 耐性が100だった場合に受けるはずのダメージ(軽減込み)を、最大HPで頭打ちにして回復する。
+                    absorbedAmount = current.reduceDamage(defended).coerceAtMost(current.maxHp - current.currentHp)
+                    field = field.healPawn(target.fpid, absorbedAmount)
+                }
+                ElementResistanceFormula.Kind.REFLECT -> {
+                    resistance = ResistanceOutcome.REFLECTED
+                    val outcome = field.reflectOntoAttacker(
+                        attackerFpid = attackerFpid,
+                        element = attackSkill.element,
+                        power = power,
+                        offenseStat = offenseStat,
+                        defenseStat = defenseStat,
+                        judged = judged,
+                        finalType = finalType,
+                        damageStage = damageStage,
+                        actualCriticalRate = actualCriticalRate,
+                    )
+                    field = outcome.field
+                    reflected = outcome.reflected
+                    attackerTpFromReflect += outcome.tpFromDamage
+                    if (outcome.attackerDefeated) aborted = true
+                }
+            }
             shots += AttackShot(
                 isHit = true,
                 damage = damage,
                 causedBreak = causedBreak,
                 critical = critical,
                 isCriticalBlocked = isCriticalBlocked,
+                resistance = resistance,
+                absorbedAmount = absorbedAmount,
+                reflected = reflected,
             )
         }
         tpTargets += TpTargetReport(
@@ -132,7 +195,11 @@ fun BattleField.performAttack(
             tpFromDamage = tpFromDamage,
             evaded = shots.any { !it.isHit },
         )
-        AttackHit(targetFpid = target.fpid, shots = shots)
+        hits += AttackHit(targetFpid = target.fpid, shots = shots)
+    }
+    // 反射で攻撃者自身が受けたダメージのTPは、乱数を引かない対象として最後に加える(乱数の順序を変えない)。
+    if (attackerTpFromReflect > 0.0) {
+        tpTargets += TpTargetReport(fpid = attackerFpid, tpFromDamage = attackerTpFromReflect)
     }
     field = field.settleTp(
         actorFpid = attackerFpid,
@@ -143,8 +210,119 @@ fun BattleField.performAttack(
     )
     return field to AttackResult(
         attackerFpid = attackerFpid,
-        hits = hits,
+        hits = hits.toList(),
         skillId = attackSkill.id,
         skillName = attackSkill.name,
     )
 }
+
+/**
+ * 反射の処理結果。
+ *
+ * @property field 反射ダメージ(または吸収の回復)を攻撃者に反映した戦闘フィールド。
+ * @property reflected 攻撃者が受けた反射ダメージの結果。
+ * @property tpFromDamage 攻撃者が反射ダメージを受けたことによるTP(条件2)の元になる値(切り捨て前)。
+ * @property attackerDefeated 反射ダメージで攻撃者が戦闘不能になったか。
+ */
+private data class ReflectOutcome(
+    val field: BattleField,
+    val reflected: ReflectedDamage,
+    val tpFromDamage: Double,
+    val attackerDefeated: Boolean,
+)
+
+/**
+ * 反射された攻撃を、攻撃者が自分自身を攻撃したものとして計算し直して攻撃者に与える。
+ *
+ * ダメージ計算は攻撃者の破壊力→攻撃者の耐久力(特殊型ならマナ出力→マナ耐性)で、基礎威力は同じ。クリティカルは反射されたヒットの判定結果
+ * ([judged]・[finalType])をそのまま使い(引き直さない)、攻撃者が防御中なら最終的なクリティカルを無効化する。
+ * 続けて攻撃者のブレイク中の被ダメージ増加・防御中の30%カット・攻撃者の属性耐性・パッシブスキルの軽減を順に適用する。
+ * 攻撃者の耐性が反射のときは再反射せず無効扱い、吸収なら攻撃者がHPを回復する。ダメージを受けた攻撃者のブレイクゲージは
+ * 攻撃者自身のブレイクポイント倍率・ブレイク耐性で貯まる。反射された側の対象は呼び出し側で何も変化させない。
+ *
+ * @receiver 反射が起きた時点の戦闘フィールド。
+ * @param attackerFpid 攻撃者のFPID。
+ * @param element 攻撃の属性。
+ * @param power 攻撃の基礎威力。
+ * @param offenseStat ダメージ計算で攻撃側として使うステータス。
+ * @param defenseStat ダメージ計算で防御側として使うステータス。
+ * @param judged 反射されたヒットのクリティカル判定結果。
+ * @param finalType 反射されたヒットの最終的なクリティカル種別(防御による無効化の前)。
+ * @param damageStage 攻撃者のクリティカル倍率の段階。
+ * @param actualCriticalRate 反射されたヒットの実際のクリティカル倍率(%)。TPの計算に使う。
+ * @return 反射を反映した結果。
+ */
+private fun BattleField.reflectOntoAttacker(
+    attackerFpid: Int,
+    element: SkillElement,
+    power: Int,
+    offenseStat: BattleStat,
+    defenseStat: BattleStat,
+    judged: CriticalType,
+    finalType: CriticalType,
+    damageStage: Int,
+    actualCriticalRate: Int,
+): ReflectOutcome {
+    val self = allPawns.first { it.fpid == attackerFpid }
+    val base = DamageFormula.calculate(power, self.effectiveStat(offenseStat), self.effectiveStat(defenseStat))
+    val isBlocked = DefenseFormula.blocksCritical(self.isDefending, finalType)
+    val critical = if (isBlocked) CriticalType.NONE else finalType
+    val appliedJudge = if (isBlocked) CriticalType.NONE else judged
+    val criticalDamage = CriticalFormula.applyDamage(base, appliedJudge, self.criticalDamageRate, damageStage)
+    val boosted = BreakFormula.boostDamage(criticalDamage, self.isBroken)
+    val defended = DefenseFormula.reduceDamage(boosted, self.isDefending)
+    val value = self.resistanceTo(element)
+    var field = this
+    var damage = 0
+    var outcome = ResistanceOutcome.NONE
+    var absorbed = 0
+    var causedBreak = false
+    when (ElementResistanceFormula.classify(value)) {
+        ElementResistanceFormula.Kind.MULTIPLIER -> {
+            damage = self.reduceDamage(ElementResistanceFormula.scaleDamage(defended, value))
+            val (broken, broke) = field
+                .applyDamage(targetFpid = attackerFpid, damage = damage)
+                .accumulateBreakGauge(self.breakPointRate, attackerFpid, minOf(damage, self.currentHp))
+            field = broken
+            causedBreak = broke
+        }
+        // 攻撃者も反射の耐性なら、再反射せず無効扱いにする。
+        ElementResistanceFormula.Kind.NULLIFY, ElementResistanceFormula.Kind.REFLECT -> outcome = ResistanceOutcome.NULLIFIED
+        ElementResistanceFormula.Kind.ABSORB -> {
+            outcome = ResistanceOutcome.ABSORBED
+            absorbed = self.reduceDamage(defended).coerceAtMost(self.maxHp - self.currentHp)
+            field = field.healPawn(attackerFpid, absorbed)
+        }
+    }
+    val criticalRate = if (critical == CriticalType.CRITICAL) actualCriticalRate else null
+    val hpLoss = minOf(damage, self.currentHp)
+    val tp = TacticalPointFormula.damageTaken(hpLoss, self.maxHp, self.isDefending, criticalRate)
+    val defeated = field.allPawns.first { it.fpid == attackerFpid }.isDefeated
+    return ReflectOutcome(
+        field = field,
+        reflected = ReflectedDamage(
+            damage = damage,
+            outcome = outcome,
+            absorbedAmount = absorbed,
+            critical = critical,
+            isCriticalBlocked = isBlocked,
+            causedBreak = causedBreak,
+        ),
+        tpFromDamage = tp,
+        attackerDefeated = defeated,
+    )
+}
+
+/**
+ * 指定した個体のHPを回復した戦闘フィールドを返す。吸収の回復を対象・攻撃者のどちらにも同じ処理で反映するために切り出している。
+ *
+ * @receiver 回復前の戦闘フィールド。
+ * @param fpid 回復する個体のFPID。
+ * @param amount 回復量。呼び出し側が最大HPで頭打ちにした値を渡す。
+ * @return 回復後の戦闘フィールド。
+ */
+internal fun BattleField.healPawn(fpid: Int, amount: Int): BattleField = updatePawn(
+    fpid = fpid,
+    transformAlly = { it.copy(currentHp = it.currentHp + amount) },
+    transformEnemy = { it.copy(currentHp = it.currentHp + amount) },
+)

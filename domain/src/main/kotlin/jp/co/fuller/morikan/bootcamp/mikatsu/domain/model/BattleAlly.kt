@@ -64,4 +64,5 @@ data class BattleAlly(
     override val manaResistance: Int get() = character.manaResistance
     override val agility: Int get() = character.agility
     override val luck: Int get() = character.luck
+    override val elementResistances: ElementResistances get() = character.elementResistances
 }

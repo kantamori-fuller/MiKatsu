@@ -119,6 +119,12 @@ sealed interface BattleFieldPawn {
     val passiveSkills: List<PassiveSkill>
 
     /**
+     * 12属性の耐性。味方は[Character.elementResistances]、敵は[Enemy.elementResistances]と同じ値。
+     * 判定と計算は[jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.ElementResistanceFormula]が行う。
+     */
+    val elementResistances: ElementResistances
+
+    /**
      * クールタイム(CT)中のスキルの記録。使うと[SkillCooldown]が加わり、本人の手番が終わるたびに進み、明けると消える。
      * 戦闘中だけの値で、`Character`・`Enemy`には持たず、次の戦闘へは持ち越さない。
      */

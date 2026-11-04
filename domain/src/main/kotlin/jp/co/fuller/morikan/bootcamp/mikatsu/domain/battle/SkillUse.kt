@@ -3,6 +3,8 @@ package jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleAlly
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleField
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleStat
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.ReflectedEffect
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.ResistanceOutcome
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.SkillResult
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.SkillUseResult
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.SkillTargetResult
@@ -30,6 +32,10 @@ import kotlin.random.Random
  * (使用者の命中率・対象の回避率を使い、対象がブレイク中なら必中)、外れた対象にはそのスキルの効果が一切かからない。
  * 命中率が`null`のスキルは乱数を引かず必ず成功する。コストは外れても消費する。
  * 回復は最大HPで頭打ちになり、戦闘不能の個体は対象に含まれないため蘇生しない。
+ * スキルタイプにデバフまたはネガティブエフェクトを含むスキルだけ、命中した対象の属性耐性([ElementResistanceFormula])で扱いが変わる。
+ * 無効(0など)・吸収(-999)の対象には効果がかからず、反射(-1)の対象にはかからずに効果が使用者へ跳ね返る
+ * (使用者の耐性が無効・反射・吸収なら使用者にもかからない)。いずれも命中した扱いで、使用者のTP(条件4)は成立する。
+ * 倍率(1〜999)・回復・バフ・ポジティブエフェクトには影響しない。
  * ステータス変化は対象に新しいエントリとして記録し、段階の上限で頭打ちでも記録する。
  * 発動回数が2以上でも効果の適用は1回のままである。
  * 最後に、全対象の処理が終わった後で、使用者・対象のTPをまとめて加算する([settleTp])。使用者は1体以上に命中したときだけ
@@ -76,28 +82,43 @@ fun BattleField.performSkill(
             return@map SkillTargetResult(targetFpid = target.fpid, healedAmount = 0, isHit = false)
         }
         tpTargets += TpTargetReport(fpid = target.fpid)
-        var healedTotal = 0
-        val statChanges = mutableListOf<StatChangeResult>()
-        skill.effects.forEach { effect ->
-            when (effect) {
-                is ActiveSkillEffect.Heal -> {
-                    // 使用者自身が対象のとき、HPコスト消費後のHPを基準に回復量を求める。
-                    val latest = checkNotNull(field.allPawns.firstOrNull { it.fpid == target.fpid })
-                    val healed = effect.amount.coerceAtLeast(0).coerceAtMost(latest.maxHp - latest.currentHp)
-                    healedTotal += healed
-                    field = field.updatePawn(
-                        fpid = target.fpid,
-                        transformAlly = { it.copy(currentHp = it.currentHp + healed) },
-                        transformEnemy = { it.copy(currentHp = it.currentHp + healed) },
-                    )
+        // デバフ・ネガティブエフェクトのスキルだけ、対象の属性耐性で扱いが変わる(無効・反射・吸収も命中した扱い)。
+        val kind = if (ElementResistanceFormula.affectsEffects(skill)) current.resistanceKindTo(skill.element) else null
+        when (kind) {
+            ElementResistanceFormula.Kind.NULLIFY, ElementResistanceFormula.Kind.ABSORB ->
+                // 吸収はダメージがないので、実質無効として扱う。
+                return@map SkillTargetResult(
+                    targetFpid = target.fpid,
+                    healedAmount = 0,
+                    resistance = ResistanceOutcome.NULLIFIED,
+                )
+            ElementResistanceFormula.Kind.REFLECT -> {
+                // 効果を使用者に跳ね返す。使用者の耐性が無効・反射・吸収なら使用者にもかからない(新たな命中判定なし、再反射なし)。
+                val latestActor = checkNotNull(field.allPawns.firstOrNull { it.fpid == actorFpid })
+                val actorKind = latestActor.resistanceKindTo(skill.element)
+                val reflected = if (actorKind != ElementResistanceFormula.Kind.MULTIPLIER) {
+                    ReflectedEffect(isNullified = true)
+                } else {
+                    val applied = field.applyEffects(skill, actorFpid)
+                    field = applied.field
+                    ReflectedEffect(isNullified = false, statChanges = applied.statChanges)
                 }
-                is ActiveSkillEffect.StatChange -> {
-                    field = field.addStatModifier(target.fpid, effect.stat, effect.stages, effect.durationTurns)
-                    statChanges += StatChangeResult(stat = effect.stat, stages = effect.stages)
-                }
+                return@map SkillTargetResult(
+                    targetFpid = target.fpid,
+                    healedAmount = 0,
+                    resistance = ResistanceOutcome.REFLECTED,
+                    reflected = reflected,
+                )
             }
+            ElementResistanceFormula.Kind.MULTIPLIER, null -> Unit
         }
-        SkillTargetResult(targetFpid = target.fpid, healedAmount = healedTotal, statChanges = statChanges)
+        val applied = field.applyEffects(skill, target.fpid)
+        field = applied.field
+        SkillTargetResult(
+            targetFpid = target.fpid,
+            healedAmount = applied.healed,
+            statChanges = applied.statChanges,
+        )
     }
     field = field.settleTp(
         actorFpid = actorFpid,
@@ -209,3 +230,49 @@ fun BattleAlly.substituteHpCostOf(skill: ActiveSkill): Int =
 fun BattleAlly.canAfford(skill: ActiveSkill): Boolean =
     currentMp >= skill.costOf(SkillCostType.MP) &&
         currentHp - skill.costOf(SkillCostType.HP) - substituteHpCostOf(skill) > 0
+
+/**
+ * [BattleField.applyEffects]の結果。
+ *
+ * @property field 効果を適用した戦闘フィールド。
+ * @property healed 実際に回復したHP量の合計。
+ * @property statChanges かかったステータス変化。
+ */
+private data class AppliedEffects(
+    val field: BattleField,
+    val healed: Int,
+    val statChanges: List<StatChangeResult>,
+)
+
+/**
+ * スキルの効果(回復・ステータス変化)を指定した個体に適用する。
+ *
+ * 対象に効く場合も、反射で使用者に跳ね返る場合も同じ処理を共有するために切り出している。
+ * 回復は最大HPで頭打ちになる。ステータス変化は新しいエントリとして記録し、段階の上限で頭打ちでも記録する。
+ *
+ * @receiver 適用前の戦闘フィールド。
+ * @param skill 効果を持つスキル。
+ * @param fpid 効果を受ける個体のFPID。
+ * @return 適用後のフィールドと、回復量・かかったステータス変化。
+ */
+private fun BattleField.applyEffects(skill: ActiveSkill, fpid: Int): AppliedEffects {
+    var field = this
+    var healedTotal = 0
+    val statChanges = mutableListOf<StatChangeResult>()
+    skill.effects.forEach { effect ->
+        when (effect) {
+            is ActiveSkillEffect.Heal -> {
+                // 使用者自身が対象のとき、HPコスト消費後のHPを基準に回復量を求める。
+                val latest = checkNotNull(field.allPawns.firstOrNull { it.fpid == fpid })
+                val healed = effect.amount.coerceAtLeast(0).coerceAtMost(latest.maxHp - latest.currentHp)
+                healedTotal += healed
+                field = field.healPawn(fpid, healed)
+            }
+            is ActiveSkillEffect.StatChange -> {
+                field = field.addStatModifier(fpid, effect.stat, effect.stages, effect.durationTurns)
+                statChanges += StatChangeResult(stat = effect.stat, stages = effect.stages)
+            }
+        }
+    }
+    return AppliedEffects(field, healedTotal, statChanges)
+}

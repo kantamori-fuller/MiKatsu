@@ -6,7 +6,10 @@ import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
 import dagger.hilt.android.lifecycle.HiltViewModel
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.ElementResistanceFormula
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.CharacterDraft
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.ElementResistances
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillElement
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillLimits
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.GetCharacterUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.GetSkillsUseCase
@@ -28,7 +31,7 @@ import kotlinx.coroutines.launch
  * DI(Hilt)で解決できる依存(UseCase)とルートが持つ実行時の値(characterId)を
  * `@AssistedFactory`で組み合わせて生成する。
  *
- * 既存データがあればフォームへ復元し、各ステータス入力の検証(半角数字のみ許可)と、
+ * 既存データがあればフォームへ復元し、各ステータス入力の検証(半角数字のみ許可。属性耐性は先頭の「-」と-999〜999の範囲も)と、
  * 保存処理の実行、およびAスキル・Pスキルの追加・削除(それぞれ上限は[SkillLimits]、重複なし)を担当することを目的とする。Screen側は本ViewModelの[uiState]を購読して
  * 描画するのみで、ロジックは持たない。
  *
@@ -76,6 +79,9 @@ class CharacterCreateViewModel @AssistedInject constructor(
                             manaResistance = character.manaResistance.toString(),
                             agility = character.agility.toString(),
                             luck = character.luck.toString(),
+                            elementResistances = ElementResistances.ORDER.associateWith { element ->
+                                character.elementResistances.of(element).toString()
+                            },
                             activeSkillIds = character.activeSkillIds,
                             passiveSkillIds = character.passiveSkillIds,
                         )
@@ -149,6 +155,35 @@ class CharacterCreateViewModel @AssistedInject constructor(
      * @param value 入力後の文字列。半角数字のみ許可される。
      */
     fun onLuckChange(value: String) = updateStat(value) { copy(luck = it) }
+
+    /**
+     * 属性耐性フィールドの入力が変化したときに呼ばれる。
+     *
+     * 入力できるのは、空欄、先頭の「-」だけ、または「-」(任意)に続く半角数字で、整数として
+     * [ElementResistanceFormula.MIN]〜[ElementResistanceFormula.MAX]に収まるものだけ。それ以外の入力は弾いて状態を変えない。
+     * 耐性項目のない属性(無・龍)の入力は無視する。
+     *
+     * @param element 入力が変化した属性。
+     * @param value 入力後の文字列。
+     */
+    fun onElementResistanceChange(element: SkillElement, value: String) {
+        if (element !in ElementResistances.ORDER || !isValidResistanceInput(value)) return
+        _uiState.update { it.copy(elementResistances = it.elementResistances + (element to value)) }
+    }
+
+    /**
+     * 属性耐性の入力途中の文字列として許せるかを判定する。
+     *
+     * @param value 検証対象の入力値。
+     * @return 空欄、「-」だけ、または「-」(任意)+半角数字で、整数として範囲内に収まるなら`true`。
+     */
+    private fun isValidResistanceInput(value: String): Boolean {
+        if (value.isEmpty() || value == "-") return true
+        val digits = value.removePrefix("-")
+        if (digits.isEmpty() || !digits.all { it in '0'..'9' }) return false
+        val parsed = value.toIntOrNull() ?: return false
+        return parsed in ElementResistanceFormula.MIN..ElementResistanceFormula.MAX
+    }
 
     /**
      * アクティブスキルの「追加」が押されたときに呼ばれる。
@@ -240,7 +275,7 @@ class CharacterCreateViewModel @AssistedInject constructor(
      *
      * 現在の入力内容から[CharacterDraft]を組み立てて保存し、完了後に
      * [CharacterCreateUiState.isSaved]を`true`にすることでScreen側へ画面遷移を促す。
-     * 空文字のステータスは0として扱う。名前が未入力の場合は何もしない。
+     * 空文字のステータスは0として扱い、空欄や「-」だけの属性耐性は100として扱う。名前が未入力の場合は何もしない。
      * スキルIDは、マスターデータの読み込み済みなら存在するもの(設定順)だけを保存し、存在しないIDは落とす。
      * 未読み込みの場合は、設定済みのIDを失わないようそのまま保存する。
      */
@@ -260,6 +295,11 @@ class CharacterCreateViewModel @AssistedInject constructor(
                     manaResistance = state.manaResistance.toIntOrNull() ?: 0,
                     agility = state.agility.toIntOrNull() ?: 0,
                     luck = state.luck.toIntOrNull() ?: 0,
+                    elementResistances = ElementResistances.ORDER.fold(ElementResistances()) { resistances, element ->
+                        // 空欄や「-」だけの欄は等倍(100)にする。
+                        val value = state.elementResistances[element]?.toIntOrNull() ?: ElementResistanceFormula.NEUTRAL
+                        resistances.with(element, ElementResistanceFormula.clamp(value))
+                    },
                     activeSkillIds = if (state.isSkillCatalogLoaded) state.activeSkills.map { it.id } else state.activeSkillIds,
                     passiveSkillIds = if (state.isSkillCatalogLoaded) state.passiveSkills.map { it.id } else state.passiveSkillIds,
                 )

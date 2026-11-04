@@ -2,6 +2,8 @@ package jp.co.fuller.morikan.bootcamp.mikatsu.ui.charactercreate
 
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.Character
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.CharacterDraft
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.ElementResistances
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillElement
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.ActiveSkill
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.ActiveSkillEffect
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.PassiveSkill
@@ -70,7 +72,7 @@ class CharacterCreateViewModelTest {
         override suspend fun getCharacter(id: Int): Character? = existing?.takeIf { it.id == id }
         override suspend fun saveCharacter(draft: CharacterDraft): Character {
             saved = draft
-            return Character(1, draft.name, 0, 0, 0, 0, 0, 0, 0, 0, draft.activeSkillIds, draft.passiveSkillIds)
+            return Character(1, draft.name, 0, 0, 0, 0, 0, 0, 0, 0, draft.activeSkillIds, draft.passiveSkillIds, draft.elementResistances)
         }
         override suspend fun deleteCharacter(id: Int) = error("not used")
     }
@@ -264,5 +266,99 @@ class CharacterCreateViewModelTest {
         assertEquals(listOf(3), viewModel.uiState.value.activeSkillIds)
         assertEquals(listOf(SkillUiModel(3, "A3")), viewModel.uiState.value.activeSkills)
         assertEquals(listOf(SkillUiModel(1, "P")), viewModel.uiState.value.passiveSkills)
+    }
+
+    /** 新規作成時は、12属性の耐性欄がすべて「100」で、シート順に並ぶこと。 */
+    @Test
+    fun resistances_newCharacter_allHundred() = runTest(dispatcher) {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        assertEquals(ElementResistances.ORDER, viewModel.uiState.value.elementResistances.keys.toList())
+        assertTrue(viewModel.uiState.value.elementResistances.values.all { it == "100" })
+    }
+
+    /** 先頭の「-」・空欄・範囲内の数字は入力でき、数字以外・範囲外・途中の「-」は弾かれること。 */
+    @Test
+    fun resistances_inputValidation() = runTest(dispatcher) {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        fun input(value: String) {
+            viewModel.onElementResistanceChange(SkillElement.FIRE, value)
+        }
+        fun current() = viewModel.uiState.value.elementResistances.getValue(SkillElement.FIRE)
+
+        for (accepted in listOf("", "-", "-1", "0", "999", "-999", "50")) {
+            input(accepted)
+            assertEquals(accepted, current())
+        }
+        input("50")
+        for (rejected in listOf("1000", "-1000", "a", "1a", "--1", "1-", "-1-", "5.5", "9999999999", "１")) {
+            input(rejected)
+            assertEquals("弾かれる: $rejected", "50", current())
+        }
+    }
+
+    /** 耐性項目のない無・龍の入力は無視されること。 */
+    @Test
+    fun resistances_noneAndDragonIgnored() = runTest(dispatcher) {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        val before = viewModel.uiState.value.elementResistances
+
+        viewModel.onElementResistanceChange(SkillElement.NONE, "5")
+        viewModel.onElementResistanceChange(SkillElement.DRAGON, "5")
+
+        assertEquals(before, viewModel.uiState.value.elementResistances)
+    }
+
+    /** 保存時、入力した耐性が反映され、空欄や「-」だけの欄は100になること。 */
+    @Test
+    fun resistances_save_blankAndDashBecomeHundred() = runTest(dispatcher) {
+        val repository = FakeCharacterRepository()
+        val viewModel = createViewModel(repository = repository)
+        advanceUntilIdle()
+        viewModel.onNameChange("アリス")
+        viewModel.onElementResistanceChange(SkillElement.FIRE, "0")
+        viewModel.onElementResistanceChange(SkillElement.ICE, "-1")
+        viewModel.onElementResistanceChange(SkillElement.WATER, "-999")
+        viewModel.onElementResistanceChange(SkillElement.THUNDER, "")
+        viewModel.onElementResistanceChange(SkillElement.DEATH, "-")
+        viewModel.onElementResistanceChange(SkillElement.EROSION, "250")
+
+        viewModel.onSaveClick()
+        advanceUntilIdle()
+
+        val saved = checkNotNull(repository.saved).elementResistances
+        assertEquals(0, saved.of(SkillElement.FIRE))
+        assertEquals(-1, saved.of(SkillElement.ICE))
+        assertEquals(-999, saved.of(SkillElement.WATER))
+        assertEquals(100, saved.of(SkillElement.THUNDER))
+        assertEquals(100, saved.of(SkillElement.DEATH))
+        assertEquals(250, saved.of(SkillElement.EROSION))
+        assertEquals(100, saved.of(SkillElement.MYSTIC))
+    }
+
+    /** 編集時は保存されている耐性が各欄に表示され、そのまま保存すると同じ値になること。 */
+    @Test
+    fun resistances_edit_showsSavedValues() = runTest(dispatcher) {
+        val existing = Character(
+            id = 7, name = "ボブ", hp = 1, mana = 1, attack = 1, defense = 1, manaOutput = 1, manaResistance = 1, agility = 1, luck = 1,
+            elementResistances = ElementResistances(fire = 0, collapse = -1, earth = 300, death = -999),
+        )
+        val repository = FakeCharacterRepository(existing)
+        val viewModel = createViewModel(characterId = 7, repository = repository)
+        advanceUntilIdle()
+
+        val shown = viewModel.uiState.value.elementResistances
+        assertEquals("0", shown.getValue(SkillElement.FIRE))
+        assertEquals("-1", shown.getValue(SkillElement.COLLAPSE))
+        assertEquals("300", shown.getValue(SkillElement.EARTH))
+        assertEquals("-999", shown.getValue(SkillElement.DEATH))
+        assertEquals("100", shown.getValue(SkillElement.WATER))
+
+        viewModel.onSaveClick()
+        advanceUntilIdle()
+        assertEquals(existing.elementResistances, checkNotNull(repository.saved).elementResistances)
     }
 }

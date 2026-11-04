@@ -259,6 +259,121 @@ sealed interface BattleNarration {
      * @property stages 段階の増減(正なら上がった、負なら下がった)。表示には絶対値を使う。
      */
     data class StatStageChanged(val targetName: String, val stat: BattleStat, val stages: Int) : BattleNarration
+
+    /**
+     * 対象1体への攻撃が命中したが、ダメージの文が続かない吸収・反射のときの、ヒットの文(「AがBに攻撃!」)。
+     *
+     * @property attackerName 攻撃した個体の表示名。
+     * @property targetName 攻撃を受けた個体の表示名。
+     * @property skillName 通常攻撃以外の技名。`null`なら「攻撃」と表示する。
+     */
+    data class AttackLead(
+        val attackerName: String,
+        val targetName: String,
+        val skillName: String? = null,
+    ) : BattleNarration
+
+    /**
+     * 複数回攻撃の1ヒットが命中したことだけを伝える(「2回目: 命中!」)。吸収・反射のヒットで、続けて吸収・反射の文が来る。
+     *
+     * @property shotNumber 何回目のヒットか(1始まり)。
+     */
+    data class ShotLanded(val shotNumber: Int) : BattleNarration
+
+    /**
+     * 対象1体への攻撃(1発)が、対象の属性耐性で無効になったことを伝える(「AがBに攻撃! しかしBには効かなかった!」)。
+     *
+     * @property attackerName 攻撃した個体の表示名。
+     * @property targetName 無効にした相手の表示名。
+     * @property skillName 通常攻撃以外の技名。`null`なら「攻撃」と表示する。
+     */
+    data class AttackNullified(
+        val attackerName: String,
+        val targetName: String,
+        val skillName: String? = null,
+    ) : BattleNarration
+
+    /**
+     * 複数回攻撃の1ヒットが、対象の属性耐性で無効になったことを伝える(「2回目: 効かなかった!」)。
+     *
+     * @property shotNumber 何回目のヒットか(1始まり)。
+     */
+    data class ShotNullified(val shotNumber: Int) : BattleNarration
+
+    /**
+     * 範囲攻撃で、属性耐性により無効になった相手をまとめて伝える(「Bには効かなかった!」)。
+     *
+     * @property targetNames 無効にした相手の表示名。
+     */
+    data class AreaNullified(val targetNames: List<String>) : BattleNarration
+
+    /**
+     * 攻撃を属性耐性の吸収で受け、HPが回復したことを伝える(「Bは攻撃を吸収した! HPが30回復」)。
+     *
+     * @property targetName 吸収した個体の表示名。
+     * @property healedAmount 実際に回復したHP量。
+     */
+    data class AttackAbsorbed(val targetName: String, val healedAmount: Int) : BattleNarration
+
+    /**
+     * 攻撃が反射され、攻撃者がダメージを受けたことを伝える(「Bは攻撃を跳ね返した! Aに30ダメージ」)。
+     *
+     * @property targetName 反射した個体の表示名。
+     * @property attackerName 反射されて自分がダメージを受けた攻撃者の表示名。
+     * @property damage 攻撃者が受けたダメージ。
+     */
+    data class AttackReflected(val targetName: String, val attackerName: String, val damage: Int) : BattleNarration
+
+    /**
+     * 攻撃が反射されたが、攻撃者の耐性で無効になったことを伝える(「Bは攻撃を跳ね返した! しかしAには効かなかった!」)。
+     *
+     * @property targetName 反射した個体の表示名。
+     * @property attackerName 攻撃者の表示名。
+     */
+    data class AttackReflectedNullified(val targetName: String, val attackerName: String) : BattleNarration
+
+    /**
+     * 攻撃が反射されたが、攻撃者が吸収してHPが回復したことを伝える(「Bは攻撃を跳ね返した! AはHPが30回復」)。
+     *
+     * @property targetName 反射した個体の表示名。
+     * @property attackerName 攻撃者の表示名。
+     * @property healedAmount 攻撃者が実際に回復したHP量。
+     */
+    data class AttackReflectedAbsorbed(
+        val targetName: String,
+        val attackerName: String,
+        val healedAmount: Int,
+    ) : BattleNarration
+
+    /**
+     * ステータス変化スキルが対象の属性耐性で無効になったことを伝える(「Aの覇気! しかしBには効かなかった!」)。対象が1体のときに使う。
+     *
+     * @property actorName スキルを使った味方の表示名。
+     * @property skillName 使ったスキルの名前。
+     * @property targetName 無効にした相手の表示名。
+     */
+    data class SkillNullified(val actorName: String, val skillName: String, val targetName: String) : BattleNarration
+
+    /**
+     * スキルの使用後に続けて、対象の属性耐性で効果が無効になったことを伝える(「Bには効かなかった!」)。
+     *
+     * @property targetName 無効にした相手の表示名。
+     */
+    data class EffectNullified(val targetName: String) : BattleNarration
+
+    /**
+     * スキルの効果が反射されたことを伝える(「Bは効果を跳ね返した!」)。続けて使用者にかかった変化か[EffectReflectedNullified]が来る。
+     *
+     * @property targetName 反射した個体の表示名。
+     */
+    data class EffectReflected(val targetName: String) : BattleNarration
+
+    /**
+     * 反射された効果が、使用者の耐性で無効になったことを伝える(「しかしAには効かなかった!」)。
+     *
+     * @property actorName 効果を跳ね返された使用者の表示名。
+     */
+    data class EffectReflectedNullified(val actorName: String) : BattleNarration
 }
 
 /**

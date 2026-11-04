@@ -22,14 +22,20 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.core.theme.MiKatsuTheme
  * @param label フィールド上部に表示するラベル(例: "H. 体力")。
  * @param value 現在の入力値。
  * @param onValueChange 入力が変化したときに呼ばれるコールバック。
+ * @param keyboardType 表示するキーボードの種類。既定は数値キーボード。負数を入力できる欄は、数値キーボードでは「-」を打てない端末があるため文字キーボードを指定する。
  */
 @Composable
-internal fun StatField(label: String, value: String, onValueChange: (String) -> Unit) {
+internal fun StatField(
+    label: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    keyboardType: KeyboardType = KeyboardType.Number,
+) {
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
         label = { Text(label) },
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
         modifier = Modifier.fillMaxWidth(),
     )
     Spacer(Modifier.height(8.dp))
