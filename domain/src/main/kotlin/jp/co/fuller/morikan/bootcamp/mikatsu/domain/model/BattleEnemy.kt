@@ -28,6 +28,8 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.PassiveSkill
  * @property isDefending 防御状態か([BattleFieldPawn.isDefending])。性質は[breakGauge]と同じ。
  * @property skillCooldowns クールタイム中のスキル([BattleFieldPawn.skillCooldowns])。戦闘開始時は空で、次の戦闘へは持ち越さない。
  * @property statModifiers かけられているバフ・デバフ([BattleFieldPawn.statModifiers])。命中率・回避率の段階もここに含まれる。戦闘開始時は空。
+ * @property ailments かかっている状態異常([BattleFieldPawn.ailments])。戦闘開始時は空で、次の戦闘へは持ち越さない。
+ * @property currentMp 現在のMP([BattleFieldPawn.currentMp])。戦闘開始時は最大MP([Enemy.mana])と同じ。汚染・呪怨で減る(スキルはまだ使わない)。
  */
 data class BattleEnemy(
     override val fpid: Int,
@@ -45,8 +47,11 @@ data class BattleEnemy(
     override val isDefending: Boolean = false,
     override val statModifiers: List<StatModifier> = emptyList(),
     override val skillCooldowns: List<SkillCooldown> = emptyList(),
+    override val ailments: List<AilmentState> = emptyList(),
+    override val currentMp: Int = enemy.mana,
 ) : BattleFieldPawn {
     override val maxHp: Int get() = enemy.hp
+    override val maxMp: Int get() = enemy.mana
     override val attack: Int get() = enemy.attack
     override val defense: Int get() = enemy.defense
     override val manaOutput: Int get() = enemy.manaOutput

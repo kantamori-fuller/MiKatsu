@@ -19,6 +19,7 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.CriticalType
  * 反射は「Bは攻撃を跳ね返した! Aに30ダメージ」と攻撃者側の結果(無効・吸収・クリティカル・ブレイク)の文になり、クリティカルの文は本文の後に併記する。
  * ダメージを与えたヒットがひとつもない多段攻撃は、合計ダメージのまとめを出さない。
  * 範囲の多段攻撃は回ごとに報告する(詳細は[toNarrationSteps])。
+ * 攻撃のダメージで睡眠・凍結が解除されたヒットは、その後に「Bは目を覚ました!」「Bの凍結が解けた!」の文を足す(反射では攻撃者の分)。
  * 通常攻撃以外の技(ローリング・ソバットなど)では、「攻撃!」の部分だけを技名にする(1発ごとの文・まとめ・ブレイクなどはそのまま)。
  * 文の組み立てをViewModelの演出の進行から切り離し、単体でテストできるようにすることを目的とする。
  *
@@ -123,12 +124,17 @@ private fun AttackResult.areaMultiStrikeSteps(nameOf: (Int) -> String): List<Nar
                     ResistanceOutcome.ABSORBED, ResistanceOutcome.REFLECTED ->
                         addAll(resistedShotNarrations(shot, attackerName, targetName))
                 }
+                addAll(curedNarrations(targetName, shot.curedAilments))
             }
             roundShots.filter { it.second.causedBreak }.forEach { add(BattleNarration.Broke(nameOf(it.first.targetFpid))) }
         }
         sentences.forEach { sentence ->
-            // ブレイクの文(反射で攻撃者がブレイクした文を含む)には「N回目: 」を付けない。
-            val narration = if (sentence is BattleNarration.Broke) sentence else BattleNarration.InRound(round + 1, sentence)
+            // ブレイクの文(反射で攻撃者がブレイクした文を含む)と睡眠・凍結の解除の文には「N回目: 」を付けない。
+            val narration = if (sentence is BattleNarration.Broke || sentence is BattleNarration.AilmentReleasedByDamage) {
+                sentence
+            } else {
+                BattleNarration.InRound(round + 1, sentence)
+            }
             steps += NarrationStep(narration, field)
         }
     }
@@ -176,7 +182,7 @@ private fun AttackResult.attackSteps(nameOf: (Int) -> String): List<NarrationSte
                     else -> listOf<BattleNarration>(BattleNarration.AttackLead(attackerName, targetName, skill)) +
                         resistedShotNarrations(shot, attackerName, targetName)
                 }
-                narrations.map { NarrationStep(it, shot.fieldAfter) }
+                (narrations + curedNarrations(targetName, shot.curedAilments)).map { NarrationStep(it, shot.fieldAfter) }
             }
             else -> {
                 val perShot = shots.flatMapIndexed { index, shot ->
@@ -196,7 +202,7 @@ private fun AttackResult.attackSteps(nameOf: (Int) -> String): List<NarrationSte
                         else -> listOf<BattleNarration>(BattleNarration.ShotLanded(shotNumber = index + 1)) +
                             resistedShotNarrations(shot, attackerName, targetName)
                     }
-                    narrations.map { NarrationStep(it, shot.fieldAfter) }
+                    (narrations + curedNarrations(targetName, shot.curedAilments)).map { NarrationStep(it, shot.fieldAfter) }
                 }
                 // ダメージを与えたヒットが1つもない(すべて無効・吸収・反射)ときは、合計ダメージのまとめを出さない。
                 val hasDamagingShot = shots.any { it.isHit && it.resistance == ResistanceOutcome.NONE }
@@ -239,6 +245,7 @@ private fun AttackResult.attackSteps(nameOf: (Int) -> String): List<NarrationSte
                         addAll(criticalNarrations(targetName, shot.critical, shot.isCriticalBlocked))
                     ResistanceOutcome.ABSORBED, ResistanceOutcome.REFLECTED -> addAll(resistedShotNarrations(shot, attackerName, targetName))
                 }
+                addAll(curedNarrations(targetName, shot.curedAilments))
             }
         }
     }
@@ -273,7 +280,8 @@ private fun resistedShotNarrations(shot: AttackShot, attackerName: String, targe
             }
             listOf(head) +
                 criticalNarrations(attackerName, reflected.critical, reflected.isCriticalBlocked) +
-                if (reflected.causedBreak) listOf(BattleNarration.Broke(attackerName)) else emptyList()
+                (if (reflected.causedBreak) listOf(BattleNarration.Broke(attackerName)) else emptyList()) +
+                curedNarrations(attackerName, reflected.curedAilments)
         }
         ResistanceOutcome.NONE, ResistanceOutcome.NULLIFIED -> emptyList()
     }

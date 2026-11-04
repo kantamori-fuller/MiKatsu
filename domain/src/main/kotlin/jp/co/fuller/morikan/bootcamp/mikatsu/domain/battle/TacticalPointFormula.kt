@@ -37,6 +37,9 @@ object TacticalPointFormula {
     /** サポート技(攻撃技以外)を当てたときに得るTPの範囲。 */
     val SUPPORT_RANGE: IntRange = 8..12
 
+    /** デバフ・ネガティブエフェクトのスキルを命中させられた(受けた側が)ときに得るTPの範囲(条件8)。 */
+    val EFFECT_HIT_RANGE: IntRange = 8..12
+
     /** 相手の技を避けたときに得るTPの範囲。 */
     val EVADE_RANGE: IntRange = 18..22
 
@@ -92,6 +95,14 @@ object TacticalPointFormula {
      * @return 18〜22の整数。
      */
     fun drawEvade(random: Random): Int = draw(EVADE_RANGE, random)
+
+    /**
+     * デバフ・ネガティブエフェクトのスキルを命中させられたときに得るTPを引く(条件8)。
+     *
+     * @param random 乱数。
+     * @return 8〜12の整数。
+     */
+    fun drawEffectHit(random: Random): Int = draw(EFFECT_HIT_RANGE, random)
 
     /**
      * 攻撃を受けた1ヒット分の、受けた側が得るTP(小数)を求める(条件2)。乱数は使わない。
@@ -160,11 +171,13 @@ internal data class TpUserReport(
  * @property fpid 対象のFPID。
  * @property tpFromDamage 受けたヒットごとの[TacticalPointFormula.damageTaken]の合計(切り捨て前)。
  * @property evaded 1発以上避けたか。
+ * @property effectHit デバフ・ネガティブエフェクトのスキルに1回以上命中されたか(条件8)。成功・失敗・属性耐性の扱いに関係なく、命中していれば`true`。
  */
 internal data class TpTargetReport(
     val fpid: Int,
     val tpFromDamage: Double = 0.0,
     val evaded: Boolean = false,
+    val effectHit: Boolean = false,
 )
 
 /**
@@ -204,7 +217,7 @@ internal fun BattleField.gainTurnStartTp(fpid: Int, random: Random): BattleField
 /**
  * 1回の技の処理がすべて終わった後で、使用者と対象のTPをまとめて加算する。
  *
- * 乱数を引く順序は、まず使用者(命中していれば条件1・4)、次に[targets]の順に各対象(条件2は乱数なし、避けていれば条件6)。
+ * 乱数を引く順序は、まず使用者(命中していれば条件1・4)、次に[targets]の順に各対象(条件2は乱数なし、避けていれば条件6、デバフ・ネガティブエフェクトを命中させられていれば条件8)。
  * 成立しない条件では乱数を引かない。
  *
  * @receiver 技の処理が終わった時点の戦闘フィールド。
@@ -235,6 +248,7 @@ internal fun BattleField.settleTp(
     targets.forEach { target ->
         field = field.gainTp(target.fpid, target.tpFromDamage.toInt())
         if (target.evaded) field = field.gainTp(target.fpid, TacticalPointFormula.drawEvade(random))
+        if (target.effectHit) field = field.gainTp(target.fpid, TacticalPointFormula.drawEffectHit(random))
     }
     return field
 }

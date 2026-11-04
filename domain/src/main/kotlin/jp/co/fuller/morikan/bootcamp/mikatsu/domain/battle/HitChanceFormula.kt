@@ -55,12 +55,14 @@ object HitChanceFormula {
      * @param skillAccuracy スキルの命中率(0〜100)。`null`は必中を表し、判定しない。
      * @param accuracyStage 攻撃者の命中率の有効段階。
      * @param evasionStage 対象の回避率の有効段階。
-     * @return 最終的な命中率(0.0〜100.0)。スキルの命中率が`null`なら100.0。
+     * @param isAttackerDizzy 攻撃者が目眩か。`true`なら最終命中率に[StatusAilmentFormula.DIZZINESS_HIT_RATE]を掛ける。
+     * @return 最終的な命中率(0.0〜100.0)。スキルの命中率が`null`なら100.0(目眩でも必中は変わらない)。
      */
-    fun finalChance(skillAccuracy: Int?, accuracyStage: Int, evasionStage: Int): Double {
+    fun finalChance(skillAccuracy: Int?, accuracyStage: Int, evasionStage: Int, isAttackerDizzy: Boolean = false): Double {
         if (skillAccuracy == null) return MAX_CHANCE
         val stage = hitStage(accuracyStage, evasionStage)
-        return (skillAccuracy.toDouble() * numerator(stage) / denominator(stage)).coerceIn(0.0, MAX_CHANCE)
+        val chance = (skillAccuracy.toDouble() * numerator(stage) / denominator(stage)).coerceIn(0.0, MAX_CHANCE)
+        return if (isAttackerDizzy) chance * StatusAilmentFormula.DIZZINESS_HIT_RATE else chance
     }
 
     /**
@@ -75,6 +77,7 @@ object HitChanceFormula {
      * @param evasionStage 対象の回避率の有効段階。
      * @param random 当たり外れを決める乱数。テストで結果を固定できるよう外から受け取る。
      * @param isTargetGuaranteedHit 対象が被必中(ブレイク中)か。`true`なら必ず命中する。
+     * @param isAttackerDizzy 攻撃者が目眩か(最終命中率が0.4倍になる。必中はそのまま必中)。
      * @return 命中したら`true`。
      */
     fun isHit(
@@ -83,9 +86,10 @@ object HitChanceFormula {
         evasionStage: Int,
         random: Random,
         isTargetGuaranteedHit: Boolean = false,
+        isAttackerDizzy: Boolean = false,
     ): Boolean {
         if (isTargetGuaranteedHit || skillAccuracy == null) return true
-        return random.nextDouble() * MAX_CHANCE < finalChance(skillAccuracy, accuracyStage, evasionStage)
+        return random.nextDouble() * MAX_CHANCE < finalChance(skillAccuracy, accuracyStage, evasionStage, isAttackerDizzy)
     }
 
     /** 段階を±12に収める。 */

@@ -51,7 +51,7 @@ object DefenseFormula {
 /**
  * 現在の行動者の味方が防御し、次の自分の手番が始まるまで防御状態になった[BattleField]を返す。
  *
- * 使用者が現在の行動者ではない、味方ではない、戦闘不能である、ブレイク中で行動できない、
+ * 使用者が現在の行動者ではない、味方ではない、戦闘不能である、ブレイク中または状態異常で行動できない、
  * または勝敗が決まっている場合は防御できないため`null`を返す。
  * 成立した瞬間に、使用者はTP([TacticalPointFormula.DEFEND_TP])を得る。
  * 手番の終了はここでは行わず、呼び出し側が[endTurn]で行う。使用者はFPIDで指定する。
@@ -64,7 +64,7 @@ fun BattleField.defend(actorFpid: Int): BattleField? {
     if (outcome != null) return null
     if (actorFpid != currentActorFpid) return null
     val actor: BattleAlly = allies.firstOrNull { it.fpid == actorFpid } ?: return null
-    if (actor.isDefeated || actor.isBroken) return null
+    if (actor.isDefeated || actor.isBroken || actor.isIncapacitated) return null
     return updatePawn(
         fpid = actorFpid,
         transformAlly = { it.copy(isDefending = true) },

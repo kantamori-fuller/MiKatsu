@@ -4,6 +4,7 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleOutcome
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BreakState
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.TacticalPointFormula
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.Formation
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.StatusAilment
 
 /**
  * バトル画面に表示する、敵または味方1体分の状態を表すUIモデル。
@@ -12,7 +13,7 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.Formation
  * 味方([jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.Character])はドメイン上
  * 別のモデルだが、バトル画面での見た目(名前・HP・MPの数値とゲージ)は共通のため、
  * 表示専用の型としてこの1つに集約する。[hp]は戦闘中のダメージで減少する
- * 現在値であり、味方の[mana]はスキルの使用で減少する現在値(敵は現段階では消費されず[maxMana]と同じ)になる。
+ * 現在値であり、味方の[mana]はスキルの使用で減少する現在値(敵はスキルを使わないが、汚染・呪怨で減る)になる。
  *
  * @property id 表示元のFPID(フィールドポーンID)。味方・敵を問わず、フィールド全体を
  *   通じて一意な値となる([jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleFieldPawn.fpid]
@@ -32,6 +33,7 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.Formation
  * @property canReservePreemptive いま先制行動を予約できる個体か(`canReservePreemptive`の結果)。`true`ならカードに細いオレンジの枠を付ける
  *   (対象選択中は予約できないため[BattleUiState.reservableAllyIds]で除かれる)。
  * @property isPreemptiveWaiting 先制行動を予約済み、または先制の手番を待っている(いまの行動者ではない)個体か。`true`ならカードに「先制待ち」を表示する。
+ * @property ailments かかっている状態異常(enum順)。カードに短いラベルで並べる。なければ空。
  */
 data class BattleUnitUiModel(
     val id: Int,
@@ -48,6 +50,7 @@ data class BattleUnitUiModel(
     val maxTp: Int = TacticalPointFormula.MAX_TP,
     val canReservePreemptive: Boolean = false,
     val isPreemptiveWaiting: Boolean = false,
+    val ailments: List<StatusAilment> = emptyList(),
 )
 
 /**

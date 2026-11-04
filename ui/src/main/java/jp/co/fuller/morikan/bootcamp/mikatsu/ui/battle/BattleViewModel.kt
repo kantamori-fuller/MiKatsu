@@ -16,6 +16,7 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.ElementResistances
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.Formation
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleStat
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.SkillUseResult
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.StatusAilment
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillRange
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.ActiveSkill
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillCostType
@@ -39,7 +40,10 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.ObserveMapProgressUs
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.ReservePreemptiveActionUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.StartBattleUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.UseSkillUseCase
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.EndTurnResult
+import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.AilmentDetail
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleNarration
+import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.toNarrationStep
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleSelection
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleSkillUiModel
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleUiState
@@ -434,6 +438,10 @@ class BattleViewModel @AssistedInject constructor(
             startBrokenTurnSkip(actorFpid)
             return
         }
+        actor.incapacitatingAilment?.let { ailment ->
+            startIncapacitatedTurnSkip(actorFpid, ailment)
+            return
+        }
         if (field.isPreemptiveTurn) {
             if (announcedPreemptiveFpid != actorFpid) startPreemptiveIntro(actorFpid)
             return
@@ -483,15 +491,26 @@ class BattleViewModel @AssistedInject constructor(
     }
 
     /**
-     * 現在の行動者の手番を[endTurnUseCase]で終え、取り消された先制の手番があれば「〇〇は先制行動できなかった!」を1文ずつ表示する。
+     * 現在の行動者の手番を[endTurnUseCase]で終え、手番終了時の状態異常の出来事と、取り消された先制の手番を1文ずつ表示する。
      *
-     * 取り消しはナレーションを次の手番へ進む前に出すため、手番を終えた直後(演出中のまま、次の個体の処理を始める前)に表示する。
+     * 状態異常の出来事(ダメージ・伝染・解除・戦闘不能)は、各出来事の直後のフィールドと一緒に、攻撃と同じくナレーションと表示を連動させて流す
+     * ([toNarrationStep])。その間は戦闘フィールドの購読による表示の更新を止め([isDisplayLocked])、流し終えたら解除して最新を反映する。
+     * 続けて、取り消された先制の手番があれば「〇〇は先制行動できなかった!」を、次の手番へ進む前に表示する。
      * 呼び出し元は演出ジョブの中で呼ぶこと。
      *
      * @param actorFpid 手番を終える個体のFPID。
      */
     private suspend fun endTurnAndAnnounceCancellations(actorFpid: Int) {
-        endTurnUseCase(actorFpid).forEach { cancelledFpid ->
+        isDisplayLocked.value = true
+        val result: EndTurnResult
+        try {
+            result = endTurnUseCase(actorFpid)
+            if (result.events.isEmpty()) isDisplayLocked.value = false
+            result.events.forEach { showStep(it.toNarrationStep(_uiState.value::nameOf), RESULT_DISPLAY_MS) }
+        } finally {
+            isDisplayLocked.value = false
+        }
+        result.cancelledPreemptive.forEach { cancelledFpid ->
             showNarration(BattleNarration.PreemptiveFailed(_uiState.value.nameOf(cancelledFpid)), RESULT_DISPLAY_MS)
         }
     }
@@ -510,6 +529,28 @@ class BattleViewModel @AssistedInject constructor(
         autoTurnJob = viewModelScope.launch {
             showNarration(BattleNarration.BreakStunned(name), RESULT_DISPLAY_MS)
             showNarration(BattleNarration.BreakRecovered(name), RESULT_DISPLAY_MS)
+            endTurnAndAnnounceCancellations(actorFpid)
+            _uiState.update { it.copy(isProcessing = false, processingNarration = null) }
+            autoTurnJob = null
+            startAutoTurnIfNeeded(observeBattleFieldUseCase().first())
+        }
+    }
+
+    /**
+     * 状態異常(スタン・凍結・感電・石化・睡眠)で行動不能の個体の手番を飛ばす演出ジョブを開始する。
+     *
+     * プレイヤーの操作を受け付けないよう演出中にし、「〇〇は〈状態異常名〉で動けない!」を表示してから手番を終える。
+     * 状態異常の経過(ダメージ・残りターンの減算)は手番の終了([endTurnUseCase])の中で行われ、飛ばされた手番も1手番として数える。
+     * ブレイク中の個体は[startBrokenTurnSkip]が優先して扱う。
+     *
+     * @param actorFpid 手番を飛ばす個体のFPID。
+     * @param ailment 動けない原因の状態異常(複数該当ならenum順の先頭)。
+     */
+    private fun startIncapacitatedTurnSkip(actorFpid: Int, ailment: StatusAilment) {
+        val name = _uiState.value.nameOf(actorFpid)
+        _uiState.update { it.copy(isProcessing = true, selection = BattleSelection.None) }
+        autoTurnJob = viewModelScope.launch {
+            showNarration(BattleNarration.AilmentIncapacitated(name, ailment), RESULT_DISPLAY_MS)
             endTurnAndAnnounceCancellations(actorFpid)
             _uiState.update { it.copy(isProcessing = false, processingNarration = null) }
             autoTurnJob = null
@@ -690,8 +731,8 @@ private fun BattleField.detailOf(pawn: BattleFieldPawn, displayName: String): Ba
         name = displayName,
         hp = pawn.currentHp,
         maxHp = pawn.maxHp,
-        mp = ally?.currentMp ?: enemy?.enemy?.mana ?: 0,
-        maxMp = ally?.maxMp ?: enemy?.enemy?.mana ?: 0,
+        mp = pawn.currentMp,
+        maxMp = pawn.maxMp,
         tp = pawn.currentTp,
         maxTp = pawn.maxTp,
         breakGauge = floor(pawn.breakGauge).toInt(),
@@ -726,6 +767,7 @@ private fun BattleField.detailOf(pawn: BattleFieldPawn, displayName: String): Ba
                 )
             }
         },
+        ailments = pawn.ailments.map { AilmentDetail(it.ailment, it.remainingTurns) },
         elementResistances = ElementResistances.ORDER.map { ElementResistanceDetail(it, pawn.elementResistances.of(it)) },
     )
 }
@@ -747,14 +789,15 @@ private fun BattleEnemy.toUiModel(displayName: String, isActive: Boolean) = Batt
     name = displayName,
     hp = currentHp,
     maxHp = maxHp,
-    mana = enemy.mana,
-    maxMana = enemy.mana,
+    mana = currentMp,
+    maxMana = maxMp,
     isDefeated = isDefeated,
     isActive = isActive,
     breakGaugeFraction = floor(breakGauge).toFloat() / BreakFormula.MAX_GAUGE.toFloat(),
     breakState = breakState,
     tp = currentTp,
     maxTp = maxTp,
+    ailments = ailments.map { it.ailment },
 )
 
 /**
@@ -792,6 +835,7 @@ private fun BattleAlly.toUiModel(
     maxTp = maxTp,
     canReservePreemptive = canReservePreemptive,
     isPreemptiveWaiting = isPreemptiveWaiting,
+    ailments = ailments.map { it.ailment },
 )
 
 /**

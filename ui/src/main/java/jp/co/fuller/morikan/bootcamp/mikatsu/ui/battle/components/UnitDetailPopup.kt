@@ -32,6 +32,8 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.core.theme.TacticalPointOrange
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.ActionTimeline
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.BreakFormula
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BreakState
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.StatusAilment
+import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.AilmentDetail
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.R
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleUnitDetailUiModel
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.StatChangeDetail
@@ -156,6 +158,9 @@ private fun UnitDetailContent(detail: BattleUnitDetailUiModel) {
 
     SectionTitle(R.string.battle_detail_section_stat_changes)
     StatChanges(detail.statChanges)
+
+    SectionTitle(R.string.battle_detail_section_ailments)
+    Ailments(detail.ailments)
 
     SectionTitle(R.string.battle_detail_section_battle_values)
     ValueRow(R.string.battle_detail_accuracy, detail.accuracy.toString())
@@ -284,6 +289,25 @@ private fun StatChanges(changes: List<StatChangeDetail>) {
 }
 
 /**
+ * かかっている状態異常を「毒 残り3」の形で1種類ずつ1行に表示する。1つもなければ「なし」を表示する。
+ *
+ * @param ailments 表示する状態異常と残りターン。
+ */
+@Composable
+private fun Ailments(ailments: List<AilmentDetail>) {
+    if (ailments.isEmpty()) {
+        Text(stringResource(R.string.battle_detail_skill_none), style = MaterialTheme.typography.bodyMedium)
+        return
+    }
+    ailments.forEach { detail ->
+        Text(
+            text = stringResource(R.string.battle_detail_ailment_row, stringResource(detail.ailment.labelRes), detail.remainingTurns),
+            style = MaterialTheme.typography.bodyMedium,
+        )
+    }
+}
+
+/**
  * 段階を符号付きの文字列にする。0以上は「+」を付ける(0は「+0」)。
  *
  * @param stage 段階。
@@ -313,6 +337,24 @@ private fun UnitDetailPopupBrokenPreview() {
                 statChanges = emptyList(),
                 activeSkillNames = emptyList(),
                 passiveSkillNames = emptyList(),
+            ),
+            onDismiss = {},
+        )
+    }
+}
+
+/** 状態異常(毒・麻痺・MPスキル封印)がかかっている個体の詳細ポップアップを確認するためのPreview。 */
+@Preview(showBackground = true, name = "詳細ポップアップ(状態異常あり)")
+@Composable
+private fun UnitDetailPopupAilmentsPreview() {
+    MiKatsuTheme(darkTheme = false) {
+        UnitDetailPopup(
+            detail = previewUnitDetail().copy(
+                ailments = listOf(
+                    AilmentDetail(StatusAilment.POISON, 3),
+                    AilmentDetail(StatusAilment.PARALYSIS, 5),
+                    AilmentDetail(StatusAilment.MP_SEAL, 1),
+                ),
             ),
             onDismiss = {},
         )

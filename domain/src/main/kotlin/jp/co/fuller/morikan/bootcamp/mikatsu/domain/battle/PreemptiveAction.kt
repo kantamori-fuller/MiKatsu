@@ -49,7 +49,7 @@ fun BattleField.isSkillUsable(actorFpid: Int, skill: ActiveSkill): Boolean {
 /**
  * 味方が、先制の手番で行動できる状態かどうか。
  *
- * 戦闘不能でなく、ブレイク中でなく、いま使える([isSkillUsable])先制行動スキルが1つ以上あれば`true`。
+ * 戦闘不能でなく、ブレイク中でも状態異常による行動不能でもなく、いま使える([isSkillUsable])先制行動スキルが1つ以上あれば`true`。
  * 予約の条件の一部であり、先制の手番が先頭に来た時点で取り消すかどうかの判定にも使う。
  *
  * @receiver 判定の基になる戦闘フィールド。
@@ -58,7 +58,7 @@ fun BattleField.isSkillUsable(actorFpid: Int, skill: ActiveSkill): Boolean {
  */
 internal fun BattleField.canActPreemptively(fpid: Int): Boolean {
     val ally = allies.firstOrNull { it.fpid == fpid } ?: return false
-    if (ally.isDefeated || ally.isBroken) return false
+    if (ally.isDefeated || ally.isBroken || ally.isIncapacitated) return false
     return ally.preemptiveSkills().any { isSkillUsable(fpid, it) }
 }
 

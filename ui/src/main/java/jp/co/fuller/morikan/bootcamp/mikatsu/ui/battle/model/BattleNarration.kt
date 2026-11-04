@@ -2,6 +2,7 @@ package jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model
 
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleStat
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.CriticalType
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.StatusAilment
 
 /**
  * バトル画面で、プレイヤーに表示するテキスト(バトルナレーター)の種類。
@@ -391,6 +392,100 @@ sealed interface BattleNarration {
      * @property actorName 効果を跳ね返された使用者の表示名。
      */
     data class EffectReflectedNullified(val actorName: String) : BattleNarration
+
+    /**
+     * 状態異常がかかったことを伝える(「Bは毒になった!」)。
+     *
+     * @property targetName かかった個体の表示名。
+     * @property ailment かかった状態異常。
+     */
+    data class AilmentInflicted(val targetName: String, val ailment: StatusAilment) : BattleNarration
+
+    /**
+     * 付与しようとした効果がすべて失敗したことを伝える(「しかしBには効かなかった!」)。成功判定・排他・石化で弾かれた場合。
+     *
+     * @property targetName 効かなかった個体の表示名。
+     */
+    data class AilmentAllFailed(val targetName: String) : BattleNarration
+
+    /**
+     * 付与しようとした効果の一部だけが失敗したことを伝える(「Bには毒が効かなかった!」)。成功した分の文に続けて使う。
+     *
+     * @property targetName 効かなかった個体の表示名。
+     * @property ailment 効かなかった状態異常。`null`は即死。
+     */
+    data class AilmentFailed(val targetName: String, val ailment: StatusAilment?) : BattleNarration
+
+    /**
+     * 即死が成功したことを伝える(「Bは即死した!」)。
+     *
+     * @property targetName 即死した個体の表示名。
+     */
+    data class InstantDeathSucceeded(val targetName: String) : BattleNarration
+
+    /**
+     * 状態異常で行動不能の個体が、手番が来ても動けないことを伝える(「Aはスタンで動けない!」)。
+     *
+     * @property actorName 動けない個体の表示名。
+     * @property ailment 動けない原因の状態異常(複数該当ならenum順の先頭)。
+     */
+    data class AilmentIncapacitated(val actorName: String, val ailment: StatusAilment) : BattleNarration
+
+    /**
+     * 手番終了時、状態異常でHPのダメージを受けたことを伝える(「Bは毒で12ダメージ」)。
+     *
+     * @property targetName ダメージを受けた個体の表示名。
+     * @property ailment 原因の状態異常。
+     * @property damage 実際に減ったHP。
+     */
+    data class AilmentHpDamage(val targetName: String, val ailment: StatusAilment, val damage: Int) : BattleNarration
+
+    /**
+     * 手番終了時、状態異常でMPが減ったことを伝える(「BはMPが5減った」)。
+     *
+     * @property targetName MPが減った個体の表示名。
+     * @property amount 実際に減ったMP。
+     */
+    data class AilmentMpLoss(val targetName: String, val amount: Int) : BattleNarration
+
+    /**
+     * 手番終了時、状態異常でTPが減ったことを伝える(「BはTPが12減った」)。
+     *
+     * @property targetName TPが減った個体の表示名。
+     * @property amount 実際に減ったTP。
+     */
+    data class AilmentTpLoss(val targetName: String, val amount: Int) : BattleNarration
+
+    /**
+     * 感染が同じ陣営の別の個体へうつったことを伝える(「Bの感染がCにうつった!」)。
+     *
+     * @property fromName 感染元の個体の表示名。
+     * @property toName 新たに感染した個体の表示名。
+     */
+    data class AilmentSpread(val fromName: String, val toName: String) : BattleNarration
+
+    /**
+     * 残りターンが0になって状態異常が治ったことを伝える(「Bの毒が治った」)。
+     *
+     * @property targetName 治った個体の表示名。
+     * @property ailment 治った状態異常。
+     */
+    data class AilmentCured(val targetName: String, val ailment: StatusAilment) : BattleNarration
+
+    /**
+     * 状態異常のダメージで戦闘不能になったことを伝える(「Bは戦闘不能になった!」)。
+     *
+     * @property targetName 戦闘不能になった個体の表示名。
+     */
+    data class UnitDefeated(val targetName: String) : BattleNarration
+
+    /**
+     * 攻撃のダメージで睡眠・凍結が解除されたことを伝える(睡眠は「Bは目を覚ました!」、凍結は「Bの凍結が解けた!」)。
+     *
+     * @property targetName 解除された個体の表示名。
+     * @property ailment 解除された状態異常([StatusAilment.SLEEP]または[StatusAilment.FREEZE])。
+     */
+    data class AilmentReleasedByDamage(val targetName: String, val ailment: StatusAilment) : BattleNarration
 }
 
 /**

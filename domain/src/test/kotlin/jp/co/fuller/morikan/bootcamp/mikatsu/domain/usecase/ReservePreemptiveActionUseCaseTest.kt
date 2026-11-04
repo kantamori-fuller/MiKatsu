@@ -44,7 +44,7 @@ class ReservePreemptiveActionUseCaseTest {
     fun endTurn_interrupts_andReturnsNoCancellation() = runBlocking {
         ReservePreemptiveActionUseCase(repository)(2)
 
-        val cancelled = EndTurnUseCase(repository, SequenceRandom())(1)
+        val cancelled = EndTurnUseCase(repository, SequenceRandom())(1).cancelledPreemptive
 
         assertTrue(cancelled.isEmpty())
         assertEquals(2, repository.current.currentActorFpid)
@@ -57,7 +57,7 @@ class ReservePreemptiveActionUseCaseTest {
         ReservePreemptiveActionUseCase(repository)(2)
         repository.updateBattleField { f -> f.copy(allies = f.allies.map { if (it.fpid == 2) it.copy(currentMp = 0) else it }) }
 
-        val cancelled = EndTurnUseCase(repository, SequenceRandom())(1)
+        val cancelled = EndTurnUseCase(repository, SequenceRandom())(1).cancelledPreemptive
 
         assertEquals(listOf(2), cancelled)
         assertFalse(repository.current.isPreemptiveTurn)
@@ -68,7 +68,7 @@ class ReservePreemptiveActionUseCaseTest {
     fun endTurn_nonActor_changesNothing() = runBlocking {
         val before = repository.current
 
-        val cancelled = EndTurnUseCase(repository, SequenceRandom())(2)
+        val cancelled = EndTurnUseCase(repository, SequenceRandom())(2).cancelledPreemptive
 
         assertTrue(cancelled.isEmpty())
         assertEquals(before, repository.current)

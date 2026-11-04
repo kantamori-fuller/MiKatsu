@@ -13,7 +13,7 @@ import kotlin.random.Random
  *
  * 通常攻撃が届く(レンジ・陣営の条件を満たす)相手を[selectableTargets]で求め、その中から誰を狙うかを
  * [EnemyTargetSelector]に委ねる。ダメージ処理は味方の攻撃([AttackUseCase])と同じ共通関数を使う。
- * 届く相手がいない場合や、敵がブレイク中で行動できない場合は何もしない。手番の終了は呼び出し側が[EndTurnUseCase]で行う。
+ * 届く相手がいない場合や、敵がブレイク中または状態異常で行動できない場合は何もしない。手番の終了は呼び出し側が[EndTurnUseCase]で行う。
  *
  * 威力・発動回数・命中率は通常攻撃のスキルデータ([SkillRepository.getNormalAttack])から読む。
  *
@@ -43,7 +43,7 @@ class ExecuteEnemyTurnUseCase(
         val normalAttack = skillRepository.getNormalAttack()
         var result: AttackResult? = null
         battleRepository.updateBattleField { field ->
-            val attacker = field.enemies.firstOrNull { it.fpid == actorFpid && it.fpid == field.currentActorFpid && !it.isBroken }
+            val attacker = field.enemies.firstOrNull { it.fpid == actorFpid && it.fpid == field.currentActorFpid && !it.isBroken && !it.isIncapacitated }
             val candidates = attacker?.let { field.selectableTargets(it.fpid, normalAttack) }.orEmpty()
             val target = attacker?.takeIf { candidates.isNotEmpty() }?.let { enemyTargetSelector.select(field, it, candidates) }
             val attack = if (attacker != null && target != null) {

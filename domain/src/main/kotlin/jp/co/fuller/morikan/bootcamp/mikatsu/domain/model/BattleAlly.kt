@@ -30,6 +30,7 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.PassiveSkill
  * @property isDefending 防御状態か([BattleFieldPawn.isDefending])。性質は[breakGauge]と同じ。
  * @property skillCooldowns クールタイム中のスキル([BattleFieldPawn.skillCooldowns])。戦闘開始時は空で、次の戦闘へは持ち越さない。
  * @property statModifiers かけられているバフ・デバフ([BattleFieldPawn.statModifiers])。命中率・回避率の段階もここに含まれる。戦闘開始時は空で、次の戦闘へは持ち越さない。
+ * @property ailments かかっている状態異常([BattleFieldPawn.ailments])。戦闘開始時は空で、次の戦闘へは持ち越さない。
  * @property activeSkills [Character.activeSkillIds]から解決した、使えるアクティブスキル。
  * @property passiveSkills [Character.passiveSkillIds]から解決した、発揮しているパッシブスキル。
  */
@@ -37,7 +38,7 @@ data class BattleAlly(
     override val fpid: Int,
     val character: Character,
     override val currentHp: Int,
-    val currentMp: Int,
+    override val currentMp: Int,
     override val slot: Int,
     override val remainingDistance: Double,
     override val turnCount: Int,
@@ -50,13 +51,14 @@ data class BattleAlly(
     override val isDefending: Boolean = false,
     override val statModifiers: List<StatModifier> = emptyList(),
     override val skillCooldowns: List<SkillCooldown> = emptyList(),
+    override val ailments: List<AilmentState> = emptyList(),
     val activeSkills: List<ActiveSkill> = emptyList(),
     override val passiveSkills: List<PassiveSkill> = emptyList(),
 ) : BattleFieldPawn {
     override val maxHp: Int get() = character.hp
 
     /** 最大MP。[Character.mana]と同じ値。 */
-    val maxMp: Int get() = character.mana
+    override val maxMp: Int get() = character.mana
 
     override val attack: Int get() = character.attack
     override val defense: Int get() = character.defense

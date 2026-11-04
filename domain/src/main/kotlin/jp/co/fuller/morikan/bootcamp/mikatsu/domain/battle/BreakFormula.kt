@@ -84,6 +84,7 @@ object BreakFormula {
  * ダメージの適用後の戦闘フィールドに対して呼ぶ。対象が戦闘不能になった・ブレイク中・立ち上がり中のときは何もしない。
  * 加算後に[BreakFormula.MAX_GAUGE]以上になったら、ゲージを0に戻して(超過分は捨てる)[BreakState.BROKEN]にし、防御状態も解除する。
  * 貯まるのは攻撃によるダメージだけで、HPコストの支払いや回復では呼ばない。
+ * 計算に使う対象のブレイク耐性は、麻痺中なら0.7倍(切り捨て)にした値([effectiveBreakResistance])で、保存している耐性自体は書き換えない。
  *
  * @receiver ダメージ適用後の戦闘フィールド。
  * @param attackerBreakPointRate 攻撃者のブレイクポイント倍率。
@@ -102,7 +103,7 @@ internal fun BattleField.accumulateBreakGauge(
         actualHpLoss = hpLoss,
         targetMaxHp = target.maxHp,
         attackerBreakPointRate = attackerBreakPointRate,
-        targetBreakResistance = target.breakResistance,
+        targetBreakResistance = target.effectiveBreakResistance(),
     )
     val broke = gauge >= BreakFormula.MAX_GAUGE
     val newGauge = if (broke) 0.0 else gauge

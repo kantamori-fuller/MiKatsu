@@ -2,6 +2,7 @@ package jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model
 
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleStat
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BreakState
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.StatusAilment
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillElement
 
 /**
@@ -53,6 +54,7 @@ enum class BattleUnitPosition {
  * @property passiveSkillNames 設定しているPスキルの名前。
  * @property isDefending 防御中か。`true`のときだけ、ブレイク状態の近くに「防御中」を表示する。
  * @property statChanges かかっているステータス変化。変化のあるステータスだけを持ち、1つもなければ空。ステータス欄(基礎値)には反映しない。
+ * @property ailments かかっている状態異常と残りターン(enum順)。なければ空で、画面には「なし」を表示する。
  * @property elementResistances 12属性の耐性値。表示順([jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.ElementResistances.ORDER])に並ぶ。値は加工せず数値のまま表示する。
  */
 data class BattleUnitDetailUiModel(
@@ -85,6 +87,7 @@ data class BattleUnitDetailUiModel(
     val passiveSkillNames: List<String>,
     val isDefending: Boolean = false,
     val statChanges: List<StatChangeDetail> = emptyList(),
+    val ailments: List<AilmentDetail> = emptyList(),
     val elementResistances: List<ElementResistanceDetail> = emptyList(),
 )
 
@@ -121,4 +124,15 @@ data class StatChangeDetail(
 data class StatChangeEntry(
     val stages: Int,
     val remainingTurns: Int?,
+)
+
+/**
+ * 詳細ポップアップに表示する、状態異常1種類分の残りターン。「毒 残り3」の形で表示する。
+ *
+ * @property ailment 状態異常の種類。
+ * @property remainingTurns 残りターン数。
+ */
+data class AilmentDetail(
+    val ailment: StatusAilment,
+    val remainingTurns: Int,
 )

@@ -36,6 +36,7 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.core.theme.MiKatsuTheme
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleOutcome
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.CriticalType
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.Formation
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.StatusAilment
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.R
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.components.FormationGrid
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.components.FormationSlotFrame
@@ -548,6 +549,31 @@ private fun BattleNarration.toText(): String = when (this) {
     is BattleNarration.EffectReflectedNullified -> stringResource(R.string.battle_narration_effect_reflected_nullified, actorName)
     is BattleNarration.MultiSkillResult ->
         stringResource(R.string.battle_narration_multi_skill_result, actorName, skillName, targetCount, totalHealed)
+    is BattleNarration.AilmentInflicted ->
+        stringResource(R.string.battle_narration_ailment_inflicted, targetName, stringResource(ailment.labelRes))
+    // 「しかしBには効かなかった!」は反射の無効と同じ文言なので、文字列リソースを共有する。
+    is BattleNarration.AilmentAllFailed -> stringResource(R.string.battle_narration_effect_reflected_nullified, targetName)
+    is BattleNarration.AilmentFailed -> stringResource(
+        R.string.battle_narration_ailment_failed,
+        targetName,
+        stringResource(ailment?.labelRes ?: R.string.battle_ailment_instant_death),
+    )
+    is BattleNarration.InstantDeathSucceeded -> stringResource(R.string.battle_narration_instant_death, targetName)
+    is BattleNarration.AilmentIncapacitated ->
+        stringResource(R.string.battle_narration_ailment_incapacitated, actorName, stringResource(ailment.labelRes))
+    is BattleNarration.AilmentHpDamage ->
+        stringResource(R.string.battle_narration_ailment_hp_damage, targetName, stringResource(ailment.labelRes), damage)
+    is BattleNarration.AilmentMpLoss -> stringResource(R.string.battle_narration_ailment_mp_loss, targetName, amount)
+    is BattleNarration.AilmentTpLoss -> stringResource(R.string.battle_narration_ailment_tp_loss, targetName, amount)
+    is BattleNarration.AilmentSpread -> stringResource(R.string.battle_narration_ailment_spread, fromName, toName)
+    is BattleNarration.AilmentCured ->
+        stringResource(R.string.battle_narration_ailment_cured, targetName, stringResource(ailment.labelRes))
+    is BattleNarration.UnitDefeated -> stringResource(R.string.battle_narration_unit_defeated, targetName)
+    is BattleNarration.AilmentReleasedByDamage -> if (ailment == StatusAilment.SLEEP) {
+        stringResource(R.string.battle_narration_woke_up, targetName)
+    } else {
+        stringResource(R.string.battle_narration_thawed, targetName)
+    }
 }
 
 /** Preview用に、すべてのイベントを無視する[BattleScreenContent]を表示する。 */
