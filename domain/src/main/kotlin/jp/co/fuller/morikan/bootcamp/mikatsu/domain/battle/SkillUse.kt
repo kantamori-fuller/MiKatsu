@@ -19,7 +19,7 @@ import kotlin.random.Random
  * 次のいずれかに当てはまる場合はスキルを使えないため`null`を返す。
  * - 使用者が現在の行動者ではない、味方ではない、戦闘不能である、またはブレイク中で行動できない。
  * - 使用者がそのスキルを設定していない。
- * - コスト(MP・HP・TP)を支払えない([canAfford])。
+ * - コスト(MP・HP・TP。TPは不足分をHPで肩代わりできる)を支払えない([canAfford])。
  * - 選んだ対象が選べない個体である(レンジ外・陣営違い・戦闘不能・存在しない。[selectableTargets]を参照)。
  * - 基礎威力を持つ(ダメージを与える)スキル。この適用は未対応で、
  *   通常攻撃は[performAttack]で行う(将来、攻撃スキルもここへ統合する)。
@@ -147,6 +147,9 @@ fun BattleField.performActiveSkill(
 /**
  * 使用者のスキルのコスト(MP・HP・TP)を消費した[BattleField]を返す。味方でなければ何も消費しない。
  *
+ * TPが足りないときは、持っているTPをすべて消費して(TPは0になる)、不足分を[substituteHpCostOf]のHPで肩代わりし、
+ * スキルのHPコストと合わせて現在HPから引く。代替のHPは消費の経路(ここ)だけで引くため、
+ * ブレイクゲージにもTP(攻撃を受けた条件)にも影響しない。肩代わりの量は消費前の使用者の状態から求める。
  * 支払えるかの確認は呼び出し側([canAfford])が行う。外れても戻さない。
  *
  * @receiver 消費前の戦闘フィールド。
@@ -160,15 +163,41 @@ internal fun BattleField.spendCosts(actorFpid: Int, skill: ActiveSkill): BattleF
     val tpCost = skill.costOf(SkillCostType.TP)
     return updatePawn(
         fpid = actorFpid,
-        transformAlly = { it.copy(currentMp = it.currentMp - mpCost, currentHp = it.currentHp - hpCost, currentTp = it.currentTp - tpCost) },
+        transformAlly = {
+            val substituteHp = it.substituteHpCostOf(skill)
+            it.copy(
+                currentMp = it.currentMp - mpCost,
+                currentHp = it.currentHp - hpCost - substituteHp,
+                currentTp = (it.currentTp - tpCost).coerceAtLeast(0),
+            )
+        },
         transformEnemy = { it },
     )
 }
 
 /**
+ * 味方が、スキルのTPコストの不足分を肩代わりするHPの量(TP代替システム)を返す。
+ *
+ * 使用可否の判定([canAfford])・コスト消費([spendCosts])・戦闘画面のスキル一覧の表示が同じ計算を使うよう公開している。
+ * 計算の本体は[TacticalPointFormula.substituteHpCost]。TPが足りているなら0。
+ *
+ * @receiver スキルを使おうとする味方。
+ * @param skill 使おうとするスキル。
+ * @return 代替で消費するHP。TPが足りている、またはTPコストがなければ0。
+ */
+fun BattleAlly.substituteHpCostOf(skill: ActiveSkill): Int =
+    TacticalPointFormula.substituteHpCost(
+        tpCost = skill.costOf(SkillCostType.TP),
+        currentTp = currentTp,
+        maxHp = maxHp,
+    )
+
+/**
  * 味方が、スキルのすべてのコストを支払えるかどうかを返す。
  *
- * MPは現在MPがコスト以上、TPは現在TPがコスト以上であること、HPは消費後も現在HPが1以上残る(HPが0以下になるコストは払えない)ことを条件とする。
+ * MPは現在MPがコスト以上であること。HPは、HPコストとTP代替のHP([substituteHpCostOf])の合計を引いた後も現在HPが1以上残ることを条件とする
+ * (HPが0以下になる使い方はできない。HPを1に丸めて払わせることはしない)。
+ * TPが足りなくても、不足分をHPで肩代わりできれば使える。MPの不足は代替できない。
  * 戦闘画面のスキル一覧の使用可否表示と、[performSkill]の判定が同じ基準になるよう公開している。
  *
  * @receiver スキルを使おうとする味方。
@@ -177,5 +206,4 @@ internal fun BattleField.spendCosts(actorFpid: Int, skill: ActiveSkill): BattleF
  */
 fun BattleAlly.canAfford(skill: ActiveSkill): Boolean =
     currentMp >= skill.costOf(SkillCostType.MP) &&
-        currentTp >= skill.costOf(SkillCostType.TP) &&
-        currentHp - skill.costOf(SkillCostType.HP) > 0
+        currentHp - skill.costOf(SkillCostType.HP) - substituteHpCostOf(skill) > 0

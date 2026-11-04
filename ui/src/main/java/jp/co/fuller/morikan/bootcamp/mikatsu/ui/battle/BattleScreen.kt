@@ -283,7 +283,8 @@ internal fun BattleScreenContent(
 /**
  * 手番の味方が使えるアクティブスキルを、名前とコスト(MP、HPコストがあればHPも)つきで縦に並べて表示する。
  *
- * 現在のMPでコストを支払えないスキルは選択できない(無効表示になる)。数が多い場合は
+ * 現在のMP・HPでコストを支払えないスキルは選択できない(無効表示になる)。TPが足りない分はHPで肩代わりでき、
+ * 肩代わりするHPがあるとき(使えない場合も)、TPの表示は「TP40(HP-12)」の形になる。数が多い場合は
  * [SKILL_LIST_MAX_HEIGHT]の中でスクロールする。
  *
  * @param skills 表示するスキルの一覧。
@@ -312,7 +313,13 @@ private fun SkillList(
                 val costs = listOfNotNull(
                     skill.mpCost.takeIf { it > 0 }?.let { stringResource(R.string.battle_skill_cost_mp_format, it) },
                     skill.hpCost.takeIf { it > 0 }?.let { stringResource(R.string.battle_skill_cost_hp_format, it) },
-                    skill.tpCost.takeIf { it > 0 }?.let { stringResource(R.string.battle_skill_cost_tp_format, it) },
+                    skill.tpCost.takeIf { it > 0 }?.let {
+                        if (skill.substituteHpCost > 0) {
+                            stringResource(R.string.battle_skill_cost_tp_substitute_format, it, skill.substituteHpCost)
+                        } else {
+                            stringResource(R.string.battle_skill_cost_tp_format, it)
+                        }
+                    },
                 )
                 Text(
                     if (costs.isEmpty()) {
@@ -522,7 +529,7 @@ private fun BattleScreenPlayerTurnPreview() {
     BattleContentPreview(previewBattleUiState())
 }
 
-/** スキル一覧を開いた状態を確認するためのPreview。 */
+/** スキル一覧を開いた状態(TP代替で使えるスキルと、HPが足りず使えないスキルの「TP40(HP-12)」表示を含む)を確認するためのPreview。 */
 @Preview(showBackground = true, name = "戦闘(スキル一覧)")
 @Composable
 private fun BattleScreenSkillListPreview() {

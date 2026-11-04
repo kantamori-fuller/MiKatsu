@@ -391,13 +391,16 @@ class TacticalPointTest {
 
     // ---- ローリング・ソバット ----
 
-    /** TPが40未満なら使えず(null)、フィールドは変わらないこと。 */
+    /** TPが40未満でも、不足分をHPで肩代わりして使えること(TP39なら不足1で代替HPは最大HP100の1%=1)。TPは0になり、その後に条件1のTPが加わる。 */
     @Test
-    fun sobat_withLessThan40Tp_isNotUsable() {
+    fun sobat_withLessThan40Tp_usesHpSubstitute() {
         val f = field(allyTp = 39, skills = listOf(TEST_SOBAT))
 
-        assertNull(f.performActiveSkill(1, TEST_SOBAT.id, 2, TpRandom()))
-        assertTrue(!f.allies.single().canAfford(TEST_SOBAT))
+        assertTrue(f.allies.single().canAfford(TEST_SOBAT))
+        val (after, _) = checkNotNull(f.performActiveSkill(1, TEST_SOBAT.id, 2, TpRandom(listOf(noCrit, 2))))
+
+        assertEquals(99, after.allies.single().currentHp)
+        assertEquals(10, after.tpOf(1))
         assertTrue(field(allyTp = 40, skills = listOf(TEST_SOBAT)).allies.single().canAfford(TEST_SOBAT))
     }
 

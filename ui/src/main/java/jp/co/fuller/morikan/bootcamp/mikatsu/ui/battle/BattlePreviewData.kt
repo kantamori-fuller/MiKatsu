@@ -56,9 +56,15 @@ internal fun previewBattleUiState(): BattleUiState {
         isPlayerTurn = true,
         skills = listOf(
             BattleSkillUiModel(id = 2, name = "ディア", mpCost = 10, hpCost = 0, targetIds = setOf(1, 2), isUsable = true),
+            // TPが足りず、不足分をHPで肩代わりして使える(「TP40(HP-12)」の表示)。
             BattleSkillUiModel(
                 id = 5, name = "ローリング・ソバット", mpCost = 0, hpCost = 0, targetIds = setOf(3, 5),
-                isUsable = false, tpCost = 40,
+                isUsable = true, tpCost = 40, substituteHpCost = 12,
+            ),
+            // TPが足りず、肩代わりするとHPが0になるため使えない(無効表示でも「TP100(HP-120)」と表示する)。
+            BattleSkillUiModel(
+                id = 7, name = "渾身の一撃", mpCost = 0, hpCost = 0, targetIds = setOf(3, 5),
+                isUsable = false, tpCost = 100, substituteHpCost = 120,
             ),
         ),
         attackTargetIds = setOf(3, 5),
