@@ -230,4 +230,40 @@ class SkillRepositoryImplTest {
         assertEquals(SkillTargetSide.ENEMY, skill.targetSide)
         assertEquals(listOf<ActiveSkillEffect>(ActiveSkillEffect.InstantDeath(successRate = 30)), skill.effects)
     }
+
+    /** テスト用の精神系スキル(Aスキル10〜14)が、共通の仕様(無属性・MP10・CT0・レンジ3・フィールド全体から一体選択・必中)で、1種類の状態異常だけを3ターン・成功率100でかけること。 */
+    @Test
+    fun mentalTestSkills_areActiveSkills10to14_withCommonSpec() = runBlocking {
+        val expected = listOf(
+            10 to ("テスト洗脳" to StatusAilment.BRAINWASH),
+            11 to ("テスト発狂" to StatusAilment.MADNESS),
+            12 to ("テスト魅了" to StatusAilment.CHARM),
+            13 to ("テスト恐怖" to StatusAilment.FEAR),
+            14 to ("テスト挑発" to StatusAilment.TAUNT),
+        )
+
+        expected.forEach { (id, nameAndAilment) ->
+            val skill = checkNotNull(repository.getActiveSkill(id))
+
+            assertEquals(nameAndAilment.first, skill.name)
+            assertEquals(SkillElement.NONE, skill.element)
+            assertEquals(setOf(SkillCategory.NEGATIVE_EFFECT), skill.categories)
+            assertNull(skill.physicalAttribute)
+            assertEquals(listOf(SkillCost(SkillCostType.MP, 10)), skill.costs)
+            assertEquals(0, skill.coolTime)
+            assertEquals(SkillContactType.NON_CONTACT, skill.contactType)
+            assertEquals(SkillRange.RANGE_3, skill.range)
+            assertEquals(SkillArea.FIELD, skill.area)
+            assertEquals(SkillTargetSelection.ONE, skill.targetSelection)
+            assertNull(skill.basePower)
+            assertEquals(1, skill.activationCount)
+            assertNull(skill.accuracy)
+            assertEquals(SkillTargetSide.ENEMY, skill.targetSide)
+            assertEquals(
+                listOf<ActiveSkillEffect>(ActiveSkillEffect.InflictAilment(nameAndAilment.second, durationTurns = 3, successRate = 100)),
+                skill.effects,
+            )
+            assertTrue(repository.getActiveSkills().any { it.id == id })
+        }
+    }
 }

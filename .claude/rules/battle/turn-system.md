@@ -31,6 +31,7 @@ paths:
   - 先制の手番なら、まず無効な先制の手番を取り消す(`cancelInvalidPreemptiveTurns`。`preemptive.md`)
   - 防御の解除(`defense.md`)
   - TP+6〜8(条件3。ブレイクで飛ばされる手番でも受け取る。同時手番のくじの後に引く。`tp.md`)
+  - 恐怖なら30%でその手番だけスタンする(`rollFearAtTurnStart`。防御の解除・TPの後、TPの乱数の後に引く。先制の手番でも判定。戦闘不能・ブレイク中・行動不能なら判定しない。`mental-ailments.md`)
   - 勝敗が決まったら予約と先制の印を破棄(`preemptive.md`)
 - **手番終了**(`endTurn`、呼び出し側は`EndTurnUseCase`)
   - 残り距離のリセット・`turnCount`+1・先制の印を外す
@@ -41,4 +42,5 @@ paths:
   - 予約の割り込み(`applyPreemptiveReservations`。`advanceToNextTurn`の前。`preemptive.md`)
   - いずれも「本人の手番中に作られた記録」(`grantedDuringOwnTurn`等)はその手番の終了では減らさない
 - **戻り値**: `EndTurnUseCase`は`EndTurnResult`(`cancelledPreemptive`と`events`)を返す。
-- **自動で飛ばされる手番**: ブレイク中・行動不能の状態異常中は`BattleViewModel`が自動で飛ばし、ナレーションを出して`EndTurnUseCase`で終える(飛ばされた手番も手番として数える)。
+- **自動で飛ばされる手番**: ブレイク中・行動不能の状態異常中(恐怖のスタンは専用の文)・選べる行動が何もない味方(「Aは何もできない!」)は`BattleViewModel`が自動で飛ばし、ナレーションを出して`EndTurnUseCase`で終える(飛ばされた手番も手番として数える)。
+- **CPUが動かす手番**: 敵・洗脳・発狂の個体は`ExecuteAutoTurnUseCase`で自動で行動する(`mental-ailments.md`)。

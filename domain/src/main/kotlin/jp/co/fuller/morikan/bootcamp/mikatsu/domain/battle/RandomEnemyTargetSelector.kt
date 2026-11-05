@@ -1,6 +1,5 @@
 package jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle
 
-import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleEnemy
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleField
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleFieldPawn
 import kotlin.random.Random
@@ -14,6 +13,6 @@ import kotlin.random.Random
  */
 class RandomEnemyTargetSelector(private val random: Random) : EnemyTargetSelector {
 
-    override fun select(field: BattleField, attacker: BattleEnemy, candidates: List<BattleFieldPawn>): BattleFieldPawn? =
+    override fun select(field: BattleField, attacker: BattleFieldPawn, candidates: List<BattleFieldPawn>): BattleFieldPawn? =
         candidates.randomOrNull(random)
 }

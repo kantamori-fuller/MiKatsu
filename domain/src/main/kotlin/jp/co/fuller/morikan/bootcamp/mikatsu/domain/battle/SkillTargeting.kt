@@ -4,6 +4,7 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleAlly
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleField
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleFieldPawn
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.Formation
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.StatusAilment
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.ActiveSkill
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillArea
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillRange
@@ -109,6 +110,11 @@ fun BattleField.distanceBetween(actor: BattleFieldPawn, target: BattleFieldPawn)
  *   [SkillTargetSide.ALLY]は使用者を含む自陣営、[SkillTargetSide.ENEMY]は反対の陣営。
  * - レンジ内: 使用者からの距離([distanceBetween])がスキルのレンジ以下。
  *
+ * 使用者の精神系の状態異常で、陣営の条件が次のように変わる(優先順位は 発狂 > 洗脳 > 魅了。`mental-ailments.md`)。
+ * - 発狂: 陣営を無視して、使用者自身を含む全員(レンジだけで判定)。
+ * - 洗脳: 自分の陣営のうち自分以外(スキルの陣営・範囲は無視)。
+ * - 魅了: 通常の条件に加えて、反対の陣営の個体を選べない(範囲が`FIELD`でも)。
+ *
  * 使用者が見つからない、または戦闘不能のときは候補なしとする。候補が0体のスキル(通常攻撃を含む)は使えない。
  * 個体はFPIDで扱うため、結果の各個体の[BattleFieldPawn.fpid]で対象を指定できる。
  *
@@ -129,19 +135,26 @@ fun BattleField.selectableTargets(actorFpid: Int, skill: ActiveSkill): List<Batt
 }
 
 /**
- * 個体が、スキルの陣営条件に合っているかどうか。
+ * 個体が、スキルの陣営条件に合っているかどうか。使用者の発狂・洗脳・魅了で条件が変わる。
  *
  * @param actor スキルを使う個体。
  * @param pawn 判定する個体。
  * @param skill 使うスキル。
- * @return 範囲が[SkillArea.FIELD]なら常に`true`。それ以外は[ActiveSkill.targetSide]の陣営に属していれば`true`。
+ * @return 発狂中は常に`true`、洗脳中は自分以外の自陣営なら`true`。それ以外は、範囲が[SkillArea.FIELD]なら`true`、
+ *   そうでなければ[ActiveSkill.targetSide]の陣営に属していれば`true`(魅了中はさらに自陣営の個体に限る)。
  */
-private fun isInTargetSide(actor: BattleFieldPawn, pawn: BattleFieldPawn, skill: ActiveSkill): Boolean =
-    skill.area == SkillArea.FIELD ||
-        when (skill.targetSide) {
-            SkillTargetSide.ALLY -> actor.isSameSideAs(pawn)
-            SkillTargetSide.ENEMY -> !actor.isSameSideAs(pawn)
-        }
+private fun isInTargetSide(actor: BattleFieldPawn, pawn: BattleFieldPawn, skill: ActiveSkill): Boolean = when {
+    actor.hasAilment(StatusAilment.MADNESS) -> true
+    actor.hasAilment(StatusAilment.BRAINWASH) -> actor.isSameSideAs(pawn) && actor.fpid != pawn.fpid
+    else -> {
+        val normal = skill.area == SkillArea.FIELD ||
+            when (skill.targetSide) {
+                SkillTargetSide.ALLY -> actor.isSameSideAs(pawn)
+                SkillTargetSide.ENEMY -> !actor.isSameSideAs(pawn)
+            }
+        normal && (!actor.hasAilment(StatusAilment.CHARM) || actor.isSameSideAs(pawn))
+    }
+}
 
 /**
  * プレイヤー(または敵のAI)が選んだ対象(アンカー)から、スキルが実際に効く個体の一覧を求める。
@@ -155,6 +168,7 @@ private fun isInTargetSide(actor: BattleFieldPawn, pawn: BattleFieldPawn, skill:
  *   [SkillArea.AREA]=アンカーの陣営の全員、[SkillArea.FIELD]=敵味方全員。
  *
  * まとまりの他のメンバーは、レンジの外にいても対象になる(レンジはアンカーにだけ効く)。
+ * ただし使用者が魅了のとき(発狂・洗脳でないとき)は、範囲が`FIELD`でも反対の陣営の個体を巻き込まない。
  * 戦闘不能の個体は、どの場合も対象に含めない(回復で蘇生しない)。
  *
  * @receiver 判定の基になる戦闘フィールド。
@@ -173,6 +187,19 @@ fun BattleField.resolveTargets(actorFpid: Int, skill: ActiveSkill, anchorFpid: I
         SkillArea.FORMATION -> living.filter { it.isSameSideAs(anchor) && effectiveRowOf(it) == effectiveRowOf(anchor) }
         SkillArea.COLUMN -> living.filter { it.isSameSideAs(anchor) && it.column() == anchor.column() }
         SkillArea.AREA -> living.filter { it.isSameSideAs(anchor) }
-        SkillArea.FIELD -> living
+        SkillArea.FIELD ->
+            if (isCharmedOnly(actorFpid)) living.filter { it.isSameSideAs(anchor) } else living
     }
+}
+
+/**
+ * 使用者が魅了で、発狂・洗脳に上書きされていない(魅了の制限が効いている)かどうか。
+ *
+ * @receiver 判定の基になる戦闘フィールド。
+ * @param actorFpid 使用者のFPID。
+ * @return 魅了の制限が効いていれば`true`。
+ */
+private fun BattleField.isCharmedOnly(actorFpid: Int): Boolean {
+    val actor = allPawns.firstOrNull { it.fpid == actorFpid } ?: return false
+    return actor.hasAilment(StatusAilment.CHARM) && !actor.isAutoActing
 }

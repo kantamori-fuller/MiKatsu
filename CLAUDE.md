@@ -37,6 +37,7 @@
 | [stat-modifiers.md](.claude/rules/battle/stat-modifiers.md) | ステータスのバフ・デバフ(段階・持続・永続)、`effectiveStat`の使い方 | `StatStageFormula.kt` |
 | [preemptive.md](.claude/rules/battle/preemptive.md) | 先制行動の予約・割り込み・取り消し・UI | `PreemptiveAction.kt`・`ActionTimeline.kt` |
 | [status-ailments.md](.claude/rules/battle/status-ailments.md) | 状態異常の付与・成功率・手番終了時のダメージ・行動不能・各効果 | `StatusAilmentFormula.kt` |
+| [mental-ailments.md](.claude/rules/battle/mental-ailments.md) | 精神系の状態異常(洗脳・発狂・魅了・恐怖・挑発)。強さによる排他、自動行動、対象の変化、恐怖のスタン、挑発の制限、何もできない手番 | `StatusAilmentFormula.kt`・`AutoTurn.kt`・`SkillTargeting.kt`・`ManualAction.kt` |
 | [narration.md](.claude/rules/battle/narration.md) | 攻撃のナレーションの形、タップで進める、ナレーションと表示の連動 | `AttackNarrations.kt`・`BattleViewModel` |
 | [unit-detail-popup.md](.claude/rules/battle/unit-detail-popup.md) | カード長押しの詳細ポップアップの開閉・表示内容 | `UnitDetailPopup.kt` |
 
@@ -49,7 +50,7 @@
 | 手番の開始・終了に処理を足す | `turn-system.md`(早見表) → `preemptive.md` |
 | 戦闘中だけの値を足す | `break.md`・`stat-modifiers.md`の「戦闘中だけの値」(`Character`・`characters.json`に持たない、`createNextBattleField`で持ち越すかを決める) |
 | 戦闘画面の表示・文言を変える | `ui.md` → `narration.md`・`unit-detail-popup.md` |
-| 乱数を引く順番が絡む | `tp.md`の「乱数の順序」・`status-ailments.md`の「成功率」・`preemptive.md`の「並び順」 |
+| 乱数を引く順番が絡む | `tp.md`の「乱数の順序」・`status-ailments.md`の「成功率」・`preemptive.md`の「並び順」・`mental-ailments.md`(発狂・恐怖) |
 
 ## 次の戦闘への持ち越し早見表(`createNextBattleField`)
 

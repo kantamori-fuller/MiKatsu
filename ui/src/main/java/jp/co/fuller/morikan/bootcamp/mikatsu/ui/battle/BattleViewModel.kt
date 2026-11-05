@@ -6,6 +6,7 @@ import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
 import dagger.hilt.android.lifecycle.HiltViewModel
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.AutoTurnResult
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleAlly
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleEnemy
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleField
@@ -28,12 +29,14 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.canReservePreemptive
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.isSkillUsable
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.substituteHpCostOf
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.effectiveRowOf
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.defend
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.hasAnyManualAction
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.selectableTargets
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.AdvanceToNextBattleUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.AttackUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.DefendUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.EndTurnUseCase
-import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.ExecuteEnemyTurnUseCase
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.ExecuteAutoTurnUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.GetNormalAttackUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.ObserveBattleFieldUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.ObserveMapProgressUseCase
@@ -69,7 +72,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.floor
 
-/** 敵の行動を開始してから攻撃を実行するまでの間(ミリ秒)。 */
+/** CPUが動かす手番(敵・洗脳・発狂)を開始してから行動を実行するまでの間(ミリ秒)。 */
 private const val ENEMY_TURN_DELAY_MS = 800L
 
 /** 攻撃結果などの演出ナレーション1文あたりの表示時間(ミリ秒)。最後の文の表示後に手番を終える。 */
@@ -85,7 +88,10 @@ private const val RESULT_DISPLAY_MS = 1200L
  * 「スキル」→スキルの選択→対象のタップで[useSkillUseCase]によるスキルの使用を、「防御」で[defendUseCase]による防御を行う。
  * タップできる対象は、通常攻撃のデータ([getNormalAttackUseCase])と手番の味方のスキルのレンジ・範囲・陣営の条件から
  * 求めた「選べる相手」だけで、敵・味方どちらのカードからでも選べる。
- * 手番が敵のときは、間とナレーションを挟みながら[executeEnemyTurnUseCase]で自動的に攻撃させる。
+ * 手番が敵のとき、または洗脳・発狂した個体のときは、間とナレーションを挟みながら[executeAutoTurnUseCase]で自動的に行動させる
+ * (洗脳は「〜は洗脳されている!」→通常攻撃、発狂は「〜は発狂している!」→スキル・攻撃または何もしない)。
+ * 恐怖のスタンで手番を飛ばすときは専用の文(「〜は恐怖で体がすくんだ!」)、手動で操作する味方が何も選べない手番(魅了・挑発など)は
+ * 「〜は何もできない!」を出して自動で飛ばす(判定は`domain`の`hasAnyManualAction`)。
  * 行動のたびに[endTurnUseCase]で手番を終える。
  * 味方のカードのタップ([onAllyClick])は、対象選択中でなければ[reservePreemptiveActionUseCase]で先制行動の予約になる。予約は行動中(敵・味方・演出中)でも
  * でき、現在の行動者の手番の終了([endTurnUseCase])で行動順に割り込む。先制の手番が始まったら「〇〇の先制行動!」を表示してから先制スキルだけの一覧を開き、
@@ -105,7 +111,7 @@ private const val RESULT_DISPLAY_MS = 1200L
  * @property getNormalAttackUseCase 通常攻撃のスキルデータを取得するUseCase。通常攻撃で選べる相手の算出に使う。
  * @property useSkillUseCase 味方のアクティブスキルを使うUseCase。
  * @property defendUseCase 味方の防御を実行するUseCase。
- * @property executeEnemyTurnUseCase 敵の手番の攻撃を実行するUseCase。
+ * @property executeAutoTurnUseCase CPUが動かす手番(敵・洗脳・発狂)の行動を実行するUseCase。
  * @property endTurnUseCase 現在の行動者の手番を終えるUseCase。
  * @property observeMapProgressUseCase マップの進行度を購読するUseCase。
  * @property advanceToNextBattleUseCase 勝利後に次の戦闘へ進めるUseCase。
@@ -120,7 +126,7 @@ class BattleViewModel @AssistedInject constructor(
     private val getNormalAttackUseCase: GetNormalAttackUseCase,
     private val useSkillUseCase: UseSkillUseCase,
     private val defendUseCase: DefendUseCase,
-    private val executeEnemyTurnUseCase: ExecuteEnemyTurnUseCase,
+    private val executeAutoTurnUseCase: ExecuteAutoTurnUseCase,
     private val endTurnUseCase: EndTurnUseCase,
     private val observeMapProgressUseCase: ObserveMapProgressUseCase,
     private val advanceToNextBattleUseCase: AdvanceToNextBattleUseCase,
@@ -414,17 +420,21 @@ class BattleViewModel @AssistedInject constructor(
     }
 
     /**
-     * 現在の手番が自動で進む個体(ブレイク中の個体、または敵)で、演出中でなく、勝敗も決まっていなければ、
-     * 手番の演出ジョブを開始する。
+     * 現在の手番が自動で進む個体(ブレイク中・行動不能の個体、先制の手番の導入、発狂・洗脳した個体、敵、何も選べない味方)で、
+     * 演出中でなく、勝敗も決まっていなければ、手番の演出ジョブを開始する。
      *
-     * 判断には、古くなり得るUiStateではなく、Repositoryから流れてきた最新の[field]を用いる。
-     * ブレイク中の個体(味方・敵とも)は行動できないため、「動けない」→「立ち上がった」のナレーションを
-     * 1文ずつ表示してから[endTurnUseCase]で手番を終える(ブレイクの状態遷移は手番の終了で`domain`が行う)。
-     * 敵の流れは「演出中にする → 敵の行動のナレーション → 間 → 攻撃 → 攻撃結果のナレーションの列(1文ずつ、間を置く) →
-     * 手番終了 → 演出終了」。届く相手がいなくて攻撃できなかったときは、攻撃結果の代わりに
-     * 「届かない」ナレーション([BattleNarration.EnemyCannotReach])を同じ間だけ表示してから手番を終える。
-     * 各ナレーションの間は、ナレーション欄のタップ([onNarrationClick])で打ち切れる。
-     * 2つのジョブが動いている間は多重起動しない。
+     * 判断には、古くなり得るUiStateではなく、Repositoryから流れてきた最新の[field]を用いる。判定の順は次のとおり。
+     * 1. ブレイク中(味方・敵とも): 「動けない」→「立ち上がった」を1文ずつ表示して[endTurnUseCase]で手番を終える
+     *    (ブレイクの状態遷移は手番の終了で`domain`が行う。[startBrokenTurnSkip])。
+     * 2. 行動不能の状態異常: 「〇〇は〈名〉で動けない!」(恐怖によるスタンは専用の「恐怖で体がすくんだ!」)を表示して手番を終える([startIncapacitatedTurnSkip])。
+     * 3. 先制の手番: 「先制行動!」の導入を出してスキル一覧を開く([startPreemptiveIntro])。
+     * 4. 発狂・洗脳(味方・敵とも)、および敵: 自動で行動する([startCpuTurn])。
+     *    流れは「演出中にする → 前置きのナレーション(発狂/洗脳/敵の行動) → 間 → 行動 → 結果のナレーション(1文ずつ、間を置く) → 手番終了 → 演出終了」。
+     *    届く相手がいなくて攻撃できなかったときは「届かない」([BattleNarration.EnemyCannotReach])、発狂で何もしないときは
+     *    「しかし〇〇は何もしなかった!」、何もできないときは「〇〇は何もできない!」を同じ間だけ表示してから手番を終える。
+     * 5. 手動で操作する味方で、通常攻撃・スキル・防御のどれも選べないとき(`domain`の`hasAnyManualAction`): 「〇〇は何もできない!」を出して自動で飛ばす
+     *    ([startNothingToDoSkip])。
+     * 各ナレーションの間は、ナレーション欄のタップ([onNarrationClick])で打ち切れる。2つのジョブが動いている間は多重起動しない。
      *
      * @param field 判断に用いる、最新の戦闘フィールド。
      */
@@ -439,24 +449,48 @@ class BattleViewModel @AssistedInject constructor(
             return
         }
         actor.incapacitatingAilment?.let { ailment ->
-            startIncapacitatedTurnSkip(actorFpid, ailment)
+            val causedByFear = ailment == StatusAilment.STUN &&
+                actor.ailments.any { it.ailment == StatusAilment.STUN && it.causedByFear }
+            startIncapacitatedTurnSkip(actorFpid, ailment, causedByFear)
             return
         }
         if (field.isPreemptiveTurn) {
             if (announcedPreemptiveFpid != actorFpid) startPreemptiveIntro(actorFpid)
             return
         }
-        if (field.enemies.none { it.fpid == actorFpid }) return
+        if (actor.isAutoActing || actor is BattleEnemy) {
+            startCpuTurn(actorFpid, actor)
+            return
+        }
+        val attack = normalAttack ?: return
+        if (!field.hasAnyManualAction(actorFpid, attack)) startNothingToDoSkip(actorFpid)
+    }
+
+    /**
+     * CPUが動かす手番(発狂・洗脳した個体、敵)の演出ジョブを開始する。
+     *
+     * 最初に前置きのナレーション(発狂は「〇〇は発狂している!」、洗脳は「〇〇は洗脳されている!」、それ以外の敵は「〇〇の行動」)を表示して間を置き、
+     * [executeAutoTurnUseCase]で行動させ、結果の種類([AutoTurnResult])に応じた文を1文ずつ表示してから、手番を終える。
+     * 発狂が洗脳より優先される(`domain`の優先順位と同じ)。
+     *
+     * @param actorFpid 行動させる個体のFPID。
+     * @param actor 行動者(前置きの判定に使う)。
+     */
+    private fun startCpuTurn(actorFpid: Int, actor: BattleFieldPawn) {
         _uiState.update {
-            it.copy(isProcessing = true, processingNarration = BattleNarration.EnemyTurn(it.nameOf(actorFpid)))
+            val name = it.nameOf(actorFpid)
+            val lead = when {
+                actor.hasAilment(StatusAilment.MADNESS) -> BattleNarration.MadnessLead(name)
+                actor.hasAilment(StatusAilment.BRAINWASH) -> BattleNarration.BrainwashLead(name)
+                else -> BattleNarration.EnemyTurn(name)
+            }
+            it.copy(isProcessing = true, selection = BattleSelection.None, processingNarration = lead)
         }
         autoTurnJob = viewModelScope.launch {
             waitForNarration(ENEMY_TURN_DELAY_MS)
             isDisplayLocked.value = true
             try {
-                val result = executeEnemyTurnUseCase(actorFpid)
-                val steps = result?.let(::attackSteps)
-                    ?: listOf(NarrationStep(BattleNarration.EnemyCannotReach(_uiState.value.nameOf(actorFpid))))
+                val steps = autoTurnSteps(actorFpid, executeAutoTurnUseCase(actorFpid))
                 if (steps.none { it.field != null }) isDisplayLocked.value = false
                 steps.forEach { showStep(it, RESULT_DISPLAY_MS) }
             } finally {
@@ -466,6 +500,24 @@ class BattleViewModel @AssistedInject constructor(
             _uiState.update { it.copy(isProcessing = false, processingNarration = null) }
             autoTurnJob = null
             startAutoTurnIfNeeded(observeBattleFieldUseCase().first())
+        }
+    }
+
+    /**
+     * CPUが動かした手番の結果から、表示するナレーションとスナップショットの組の列を作る。
+     *
+     * @param actorFpid 行動した個体のFPID。
+     * @param result 行動の結果。実行できなかった(`null`)ときは「届かない」と同じ扱いにする。
+     * @return 順に1文ずつ表示するナレーションと、その文を出すときに表示するフィールドの列。
+     */
+    private fun autoTurnSteps(actorFpid: Int, result: AutoTurnResult?): List<NarrationStep> {
+        val name = _uiState.value.nameOf(actorFpid)
+        return when (result) {
+            is AutoTurnResult.Attacked -> attackSteps(result.result)
+            is AutoTurnResult.UsedSkill -> result.result.toNarrations(_uiState.value::nameOf).map { NarrationStep(it) }
+            AutoTurnResult.MadnessIdle -> listOf(NarrationStep(BattleNarration.MadnessIdle(name)))
+            AutoTurnResult.NothingToDo -> listOf(NarrationStep(BattleNarration.NothingToDo(name)))
+            AutoTurnResult.CannotReach, null -> listOf(NarrationStep(BattleNarration.EnemyCannotReach(name)))
         }
     }
 
@@ -516,19 +568,18 @@ class BattleViewModel @AssistedInject constructor(
     }
 
     /**
-     * ブレイク中の個体の手番を飛ばす演出ジョブを開始する。
+     * 手番を飛ばす演出ジョブを開始する。ブレイク・行動不能・何もできない手番の共通の流れ。
      *
-     * プレイヤーの操作を受け付けないよう演出中にし、「動けない」「立ち上がった」のナレーションを順に表示して
-     * から手番を終える。ブレイクの状態を進める処理は手番の終了([endTurnUseCase])の中で行われる。
+     * プレイヤーの操作を受け付けないよう演出中にし、[narrations]を順に表示してから[endTurnUseCase]で手番を終える。
+     * 飛ばされた手番も1手番として数える(ブレイク・状態異常の経過は手番の終了の中で`domain`が行う)。
      *
      * @param actorFpid 手番を飛ばす個体のFPID。
+     * @param narrations 順に表示するナレーション。
      */
-    private fun startBrokenTurnSkip(actorFpid: Int) {
-        val name = _uiState.value.nameOf(actorFpid)
+    private fun startTurnSkip(actorFpid: Int, narrations: List<BattleNarration>) {
         _uiState.update { it.copy(isProcessing = true, selection = BattleSelection.None) }
         autoTurnJob = viewModelScope.launch {
-            showNarration(BattleNarration.BreakStunned(name), RESULT_DISPLAY_MS)
-            showNarration(BattleNarration.BreakRecovered(name), RESULT_DISPLAY_MS)
+            narrations.forEach { showNarration(it, RESULT_DISPLAY_MS) }
             endTurnAndAnnounceCancellations(actorFpid)
             _uiState.update { it.copy(isProcessing = false, processingNarration = null) }
             autoTurnJob = null
@@ -537,25 +588,41 @@ class BattleViewModel @AssistedInject constructor(
     }
 
     /**
+     * ブレイク中の個体の手番を飛ばす演出ジョブを開始する。「動けない」「立ち上がった」のナレーションを順に表示してから手番を終える。
+     * ブレイクの状態を進める処理は手番の終了([endTurnUseCase])の中で行われる。
+     *
+     * @param actorFpid 手番を飛ばす個体のFPID。
+     */
+    private fun startBrokenTurnSkip(actorFpid: Int) {
+        val name = _uiState.value.nameOf(actorFpid)
+        startTurnSkip(actorFpid, listOf(BattleNarration.BreakStunned(name), BattleNarration.BreakRecovered(name)))
+    }
+
+    /**
      * 状態異常(スタン・凍結・感電・石化・睡眠)で行動不能の個体の手番を飛ばす演出ジョブを開始する。
      *
-     * プレイヤーの操作を受け付けないよう演出中にし、「〇〇は〈状態異常名〉で動けない!」を表示してから手番を終える。
-     * 状態異常の経過(ダメージ・残りターンの減算)は手番の終了([endTurnUseCase])の中で行われ、飛ばされた手番も1手番として数える。
-     * ブレイク中の個体は[startBrokenTurnSkip]が優先して扱う。
+     * 「〇〇は〈状態異常名〉で動けない!」を表示してから手番を終える。恐怖によるスタン([causedByFear])は、専用の
+     * 「〇〇は恐怖で体がすくんだ!」を代わりに表示する。状態異常の経過(ダメージ・残りターンの減算)は手番の終了の中で行われ、
+     * 飛ばされた手番も1手番として数える。ブレイク中の個体は[startBrokenTurnSkip]が優先して扱う。
      *
      * @param actorFpid 手番を飛ばす個体のFPID。
      * @param ailment 動けない原因の状態異常(複数該当ならenum順の先頭)。
+     * @param causedByFear 動けない原因が恐怖によるスタンか(`domain`の[jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.AilmentState.causedByFear])。
      */
-    private fun startIncapacitatedTurnSkip(actorFpid: Int, ailment: StatusAilment) {
+    private fun startIncapacitatedTurnSkip(actorFpid: Int, ailment: StatusAilment, causedByFear: Boolean) {
         val name = _uiState.value.nameOf(actorFpid)
-        _uiState.update { it.copy(isProcessing = true, selection = BattleSelection.None) }
-        autoTurnJob = viewModelScope.launch {
-            showNarration(BattleNarration.AilmentIncapacitated(name, ailment), RESULT_DISPLAY_MS)
-            endTurnAndAnnounceCancellations(actorFpid)
-            _uiState.update { it.copy(isProcessing = false, processingNarration = null) }
-            autoTurnJob = null
-            startAutoTurnIfNeeded(observeBattleFieldUseCase().first())
-        }
+        val narration = if (causedByFear) BattleNarration.FearFrozen(name) else BattleNarration.AilmentIncapacitated(name, ailment)
+        startTurnSkip(actorFpid, listOf(narration))
+    }
+
+    /**
+     * 手動で操作する味方が、通常攻撃・スキル・防御のどれも選べない手番を、自動で飛ばす演出ジョブを開始する。
+     * 「〇〇は何もできない!」を表示してから手番を終える(手番として数える)。判定は`domain`の`hasAnyManualAction`。
+     *
+     * @param actorFpid 手番を飛ばす味方のFPID。
+     */
+    private fun startNothingToDoSkip(actorFpid: Int) {
+        startTurnSkip(actorFpid, listOf(BattleNarration.NothingToDo(_uiState.value.nameOf(actorFpid))))
     }
 
     /**
@@ -644,8 +711,8 @@ class BattleViewModel @AssistedInject constructor(
  *
  * 同名の個体には[resolveDisplayNames]で表示名を付け、演出中の状態(演出フラグ・一時ナレーション)や
  * 選択状態は維持する。手番の個体が変わって味方の手番でなくなった場合は選択状態を解除する。
- * 手番の味方が使えるスキルと、その時点のコスト・CT・選べる相手で使えるかどうか([isSkillUsable])、通常攻撃・各スキルで選べる相手
- * ([selectableTargets])も反映する。先制の手番では先制スキルだけを一覧にする。味方のカードには、先制行動を予約できるか([canReservePreemptive])と
+ * 手番の味方が使えるスキルと、その時点のコスト・CT・選べる相手(魅了・挑発の制限を含む)で使えるかどうか([isSkillUsable])、通常攻撃・各スキルで選べる相手
+ * ([selectableTargets])、防御できるか([defend]が成立するか。挑発中は不可)も反映する。先制の手番では先制スキルだけを一覧にする。味方のカードには、先制行動を予約できるか([canReservePreemptive])と
  * 予約済み・先制の手番待ちかも反映する。全個体の詳細([BattleUnitDetailUiModel])も組み立て直し、
  * 勝敗が決まったか、開いていた詳細の個体がいなくなったときは詳細ポップアップを閉じる。
  *
@@ -701,6 +768,7 @@ private fun BattleField.reflectedIn(current: BattleUiState, normalAttack: Active
             }
         }.orEmpty(),
         attackTargetIds = actorAlly?.let { selectableTargetIds(it.fpid, normalAttack) }.orEmpty(),
+        canDefend = actorAlly?.let { defend(it.fpid) != null } ?: true,
         outcome = outcome,
         unitDetails = details,
         detailUnitId = current.detailUnitId?.takeIf { outcome == null && it in details },

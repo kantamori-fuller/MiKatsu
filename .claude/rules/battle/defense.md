@@ -20,6 +20,7 @@ paths:
 - `BattleField.defend`(`DefendUseCase`経由)。使用者が現在の行動者の味方・戦闘不能でない・ブレイク中でない・行動不能の状態異常でない・勝敗未確定のときだけ成立し、`BattleFieldPawn.isDefending`を`true`にする。成立した瞬間にTP+5(`tp.md`)。
 - 手番の終了は呼び出し側が`EndTurnUseCase`で行う。
 - ボタンは味方の手番で、演出中でなく、選択状態が`None`のときだけ有効(先制の手番では無効。`preemptive.md`)。
+- 挑発中は防御できない(`defend`が`null`。洗脳・発狂で自動で動いている間は挑発の制限は効かない)。ボタンは`BattleUiState.canDefend`で無効になる。`DefendUseCase`は洗脳・発狂の個体も弾く(`mental-ailments.md`)。
 - 今回は味方だけが使い、敵AIは使わない(状態は敵味方共通で持つ)。
 
 ## 効果(防御中の個体が攻撃を受けるとき)

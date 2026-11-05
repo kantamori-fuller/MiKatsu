@@ -5,16 +5,17 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.TEST_NORMAL_ATTACK
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.testAlly
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.testEnemy
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleField
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.AttackResult
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.AutoTurnResult
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import kotlin.random.Random
 
-/** [ExecuteEnemyTurnUseCase]が敵の手番のときだけ、生きている味方を攻撃することを検証するテスト。 */
-class ExecuteEnemyTurnUseCaseTest {
+/** [ExecuteAutoTurnUseCase]が、敵の手番では生きている味方を攻撃し、洗脳・発狂・魅了の手番も正しく扱うことを検証するテスト。 */
+class ExecuteAutoTurnUseCaseTest {
 
     /** 戦闘不能の味方を狙わず、生きている味方だけを攻撃すること。 */
     @Test
@@ -27,11 +28,10 @@ class ExecuteEnemyTurnUseCaseTest {
                     turnQueue = listOf(4),
                 ),
             )
-            val result = ExecuteEnemyTurnUseCase(repo, FakeSkillRepository(), RandomEnemyTargetSelector(Random(seed)), Random(0))(actorFpid = 4)
+            val result = ExecuteAutoTurnUseCase(repo, FakeSkillRepository(), RandomEnemyTargetSelector(Random(seed)), Random(0))(actorFpid = 4)
 
-            assertNotNull(result)
-            assertEquals(4, result!!.attackerFpid)
-            assertEquals(listOf(2), result.hits.map { it.targetFpid })
+            assertEquals(4, attacked(result).attackerFpid)
+            assertEquals(listOf(2), attacked(result).hits.map { it.targetFpid })
             assertTrue(repo.current.allies[1].currentHp < 100)
         }
     }
@@ -46,7 +46,7 @@ class ExecuteEnemyTurnUseCaseTest {
         )
         val repo = FakeBattleRepository(field)
 
-        assertNull(ExecuteEnemyTurnUseCase(repo, FakeSkillRepository(), RandomEnemyTargetSelector(Random(0)), Random(0))(actorFpid = 2))
+        assertNull(ExecuteAutoTurnUseCase(repo, FakeSkillRepository(), RandomEnemyTargetSelector(Random(0)), Random(0))(actorFpid = 2))
 
         assertEquals(field, repo.current)
     }
@@ -61,7 +61,7 @@ class ExecuteEnemyTurnUseCaseTest {
         )
         val repo = FakeBattleRepository(field)
 
-        assertNull(ExecuteEnemyTurnUseCase(repo, FakeSkillRepository(), RandomEnemyTargetSelector(Random(0)), Random(0))(actorFpid = 3))
+        assertNull(ExecuteAutoTurnUseCase(repo, FakeSkillRepository(), RandomEnemyTargetSelector(Random(0)), Random(0))(actorFpid = 3))
 
         assertEquals(field, repo.current)
     }
@@ -74,9 +74,9 @@ class ExecuteEnemyTurnUseCaseTest {
         )
         val skills = FakeSkillRepository(TEST_NORMAL_ATTACK.copy(basePower = 200, activationCount = 2))
 
-        val result = ExecuteEnemyTurnUseCase(repo, skills, RandomEnemyTargetSelector(Random(0)), Random(0))(actorFpid = 2)
+        val result = ExecuteAutoTurnUseCase(repo, skills, RandomEnemyTargetSelector(Random(0)), Random(0))(actorFpid = 2)
 
-        assertEquals(92, result?.totalDamage) // 威力200の1ヒットは46、2回で92
+        assertEquals(92, attacked(result).totalDamage) // 威力200の1ヒットは46、2回で92
         assertEquals(100 - 92, repo.current.allies[0].currentHp)
     }
 
@@ -92,14 +92,14 @@ class ExecuteEnemyTurnUseCaseTest {
                 ),
             )
 
-            val result = ExecuteEnemyTurnUseCase(repo, FakeSkillRepository(), RandomEnemyTargetSelector(Random(seed)), Random(0))(actorFpid = 4)
+            val result = ExecuteAutoTurnUseCase(repo, FakeSkillRepository(), RandomEnemyTargetSelector(Random(seed)), Random(0))(actorFpid = 4)
 
-            assertTrue(checkNotNull(result).hits.single().targetFpid in listOf(1, 3))
+            assertTrue(attacked(result).hits.single().targetFpid in listOf(1, 3))
             assertEquals(100, repo.current.allies[1].currentHp)
         }
     }
 
-    /** 届く相手がいない(後衛の敵からレンジ1)とき、何もせずnullを返し、フィールドも変わらないこと。 */
+    /** 届く相手がいない(後衛の敵からレンジ1)とき、何もせず「届かない」を返し、フィールドも変わらないこと。 */
     @Test
     fun invoke_noReachableTarget_doesNothing() = runBlocking {
         val field = BattleField(
@@ -109,7 +109,7 @@ class ExecuteEnemyTurnUseCaseTest {
         )
         val repo = FakeBattleRepository(field)
 
-        assertNull(ExecuteEnemyTurnUseCase(repo, FakeSkillRepository(), RandomEnemyTargetSelector(Random(0)), Random(0))(actorFpid = 3))
+        assertEquals(AutoTurnResult.CannotReach, ExecuteAutoTurnUseCase(repo, FakeSkillRepository(), RandomEnemyTargetSelector(Random(0)), Random(0))(actorFpid = 3))
 
         assertEquals(field, repo.current)
     }
@@ -125,8 +125,16 @@ class ExecuteEnemyTurnUseCaseTest {
             ),
         )
 
-        val result = ExecuteEnemyTurnUseCase(repo, FakeSkillRepository(), RandomEnemyTargetSelector(Random(0)), Random(0))(actorFpid = 3)
+        val result = ExecuteAutoTurnUseCase(repo, FakeSkillRepository(), RandomEnemyTargetSelector(Random(0)), Random(0))(actorFpid = 3)
 
-        assertEquals(listOf(1), result?.hits?.map { it.targetFpid })
+        assertEquals(listOf(1), attacked(result).hits.map { it.targetFpid })
     }
+
+    /**
+     * 結果が通常攻撃(攻撃した)であることを確かめて、攻撃の結果を取り出す。
+     *
+     * @param result 自動行動の結果。
+     * @return 攻撃の結果。
+     */
+    private fun attacked(result: AutoTurnResult?): AttackResult = (result as AutoTurnResult.Attacked).result
 }

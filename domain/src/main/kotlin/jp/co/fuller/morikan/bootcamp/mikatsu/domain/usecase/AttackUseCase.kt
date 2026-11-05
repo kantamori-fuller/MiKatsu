@@ -29,7 +29,8 @@ class AttackUseCase(
      * 攻撃者から対象へ通常攻撃を行い、ダメージを適用する。
      *
      * 攻撃者が現在の行動者ではない場合、攻撃者か対象が見つからない場合、攻撃者か対象が
-     * 戦闘不能の場合、対象がレンジ外・陣営違いで選べない場合は、何も変更せずに`null`を返す。
+     * 戦闘不能の場合、対象がレンジ外・陣営違いで選べない場合、攻撃者が洗脳・発狂で自動で動く個体の場合
+     * (プレイヤーは操作できない。自動行動は[ExecuteAutoTurnUseCase]が行う)は、何も変更せずに`null`を返す。
      *
      * @param attackerFpid 攻撃者のFPID。
      * @param targetFpid 選んだ攻撃対象(アンカー)のFPID。
@@ -40,7 +41,8 @@ class AttackUseCase(
         val normalAttack = skillRepository.getNormalAttack()
         var result: AttackResult? = null
         battleRepository.updateBattleField { field ->
-            val attack = field.performAttack(attackerFpid, targetFpid, normalAttack, random)
+            val isAuto = field.allPawns.firstOrNull { it.fpid == attackerFpid }?.isAutoActing == true
+            val attack = if (isAuto) null else field.performAttack(attackerFpid, targetFpid, normalAttack, random)
             result = attack?.second
             attack?.first ?: field
         }

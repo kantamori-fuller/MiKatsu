@@ -44,6 +44,7 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.components.UnitDetailPopu
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.components.UnitStatCard
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.AreaHitEntry
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleNarration
+import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.inflictedNarrationRes
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.labelRes
 import kotlin.math.abs
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleSelection
@@ -549,8 +550,14 @@ private fun BattleNarration.toText(): String = when (this) {
     is BattleNarration.EffectReflectedNullified -> stringResource(R.string.battle_narration_effect_reflected_nullified, actorName)
     is BattleNarration.MultiSkillResult ->
         stringResource(R.string.battle_narration_multi_skill_result, actorName, skillName, targetCount, totalHealed)
-    is BattleNarration.AilmentInflicted ->
-        stringResource(R.string.battle_narration_ailment_inflicted, targetName, stringResource(ailment.labelRes))
+    is BattleNarration.AilmentInflicted -> ailment.inflictedNarrationRes
+        ?.let { stringResource(it, targetName) }
+        ?: stringResource(R.string.battle_narration_ailment_inflicted, targetName, stringResource(ailment.labelRes))
+    is BattleNarration.BrainwashLead -> stringResource(R.string.battle_narration_brainwash_lead, actorName)
+    is BattleNarration.MadnessLead -> stringResource(R.string.battle_narration_madness_lead, actorName)
+    is BattleNarration.MadnessIdle -> stringResource(R.string.battle_narration_madness_idle, actorName)
+    is BattleNarration.FearFrozen -> stringResource(R.string.battle_narration_fear_frozen, actorName)
+    is BattleNarration.NothingToDo -> stringResource(R.string.battle_narration_nothing_to_do, actorName)
     // 「しかしBには効かなかった!」は反射の無効と同じ文言なので、文字列リソースを共有する。
     is BattleNarration.AilmentAllFailed -> stringResource(R.string.battle_narration_effect_reflected_nullified, targetName)
     is BattleNarration.AilmentFailed -> stringResource(
@@ -653,6 +660,40 @@ private fun BattleScreenDetailPopupPreview() {
     BattleContentPreview(
         previewBattleUiState().copy(unitDetails = mapOf(detail.id to detail), detailUnitId = detail.id),
     )
+}
+
+/** 洗脳された個体の手番の前置き(「〇〇は洗脳されている!」)を演出中に表示している状態を確認するためのPreview。 */
+@Preview(showBackground = true, name = "戦闘(洗脳の手番)")
+@Composable
+private fun BattleScreenBrainwashTurnPreview() {
+    BattleContentPreview(
+        previewBattleUiState().copy(isProcessing = true, processingNarration = BattleNarration.BrainwashLead("味方")),
+    )
+}
+
+/** 恐怖でスタンした手番の文(「〇〇は恐怖で体がすくんだ!」)を演出中に表示している状態を確認するためのPreview。 */
+@Preview(showBackground = true, name = "戦闘(恐怖のスタン)")
+@Composable
+private fun BattleScreenFearFrozenPreview() {
+    BattleContentPreview(
+        previewBattleUiState().copy(isProcessing = true, processingNarration = BattleNarration.FearFrozen("味方")),
+    )
+}
+
+/** 何もできない手番(「〇〇は何もできない!」)を演出中に表示している状態を確認するためのPreview。 */
+@Preview(showBackground = true, name = "戦闘(何もできない手番)")
+@Composable
+private fun BattleScreenNothingToDoPreview() {
+    BattleContentPreview(
+        previewBattleUiState().copy(isProcessing = true, processingNarration = BattleNarration.NothingToDo("味方")),
+    )
+}
+
+/** 挑発・魅了などで攻撃・防御が無効になっている手番(防御ボタンが無効)を確認するためのPreview。 */
+@Preview(showBackground = true, name = "戦闘(防御できない手番)")
+@Composable
+private fun BattleScreenCannotDefendPreview() {
+    BattleContentPreview(previewBattleUiState().copy(canDefend = false, attackTargetIds = emptySet()))
 }
 
 /** 勝利のオーバーレイを表示している状態を確認するためのPreview。 */

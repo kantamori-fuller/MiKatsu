@@ -343,7 +343,7 @@ private fun UnitDetailPopupBrokenPreview() {
     }
 }
 
-/** 状態異常(毒・麻痺・MPスキル封印)がかかっている個体の詳細ポップアップを確認するためのPreview。 */
+/** 状態異常(毒・麻痺・MPスキル封印・魅了)がかかっている個体の詳細ポップアップを確認するためのPreview。 */
 @Preview(showBackground = true, name = "詳細ポップアップ(状態異常あり)")
 @Composable
 private fun UnitDetailPopupAilmentsPreview() {
@@ -354,6 +354,7 @@ private fun UnitDetailPopupAilmentsPreview() {
                     AilmentDetail(StatusAilment.POISON, 3),
                     AilmentDetail(StatusAilment.PARALYSIS, 5),
                     AilmentDetail(StatusAilment.MP_SEAL, 1),
+                    AilmentDetail(StatusAilment.CHARM, 2),
                 ),
             ),
             onDismiss = {},

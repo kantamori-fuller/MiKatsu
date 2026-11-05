@@ -304,6 +304,15 @@ private fun UnitStatCardAilmentsPreview() {
     }
 }
 
+/** 精神系の状態異常(洗脳)がかかっている味方カードと、挑発がかかっている敵カードを確認するためのPreview。 */
+@Preview(showBackground = true, name = "カード(精神系の状態異常)")
+@Composable
+private fun UnitStatCardMentalAilmentsPreview() {
+    UnitStatCardPreviewFrame {
+        UnitStatCard(unit = previewAlly().copy(ailments = listOf(StatusAilment.BRAINWASH)), modifier = it)
+    }
+}
+
 /** 行動不能の状態異常(睡眠)がかかっている敵カードを確認するためのPreview。 */
 @Preview(showBackground = true, name = "カード(睡眠)")
 @Composable
