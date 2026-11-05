@@ -202,6 +202,19 @@ sealed interface BattleFieldPawn {
     /** 状態異常で行動不能か。ブレイクとは別で、行動不能の個体は攻撃・スキル・防御ができず、手番が来たら飛ばされる。 */
     val isIncapacitated: Boolean get() = incapacitatingAilment != null
 
+    /**
+     * 洗脳または発狂で、プレイヤーが操作できず自動で行動する個体か。
+     * この間は魅了・挑発の制限は効かない(行動を決める優先順位は発狂 > 洗脳 > 手動操作。`mental-ailments.md`)。
+     */
+    val isAutoActing: Boolean
+        get() = hasAilment(StatusAilment.MADNESS) || hasAilment(StatusAilment.BRAINWASH)
+
+    /**
+     * 挑発により、攻撃技(基礎威力のあるスキル)しか使えず防御もできない状態か。洗脳・発狂で自動で動いている間は制限が効かない。
+     */
+    val isRestrictedToAttackSkills: Boolean
+        get() = hasAilment(StatusAilment.TAUNT) && !isAutoActing
+
     /** ブレイク状態([BreakState.BROKEN])かどうか。 */
     val isBroken: Boolean get() = breakState == BreakState.BROKEN
 

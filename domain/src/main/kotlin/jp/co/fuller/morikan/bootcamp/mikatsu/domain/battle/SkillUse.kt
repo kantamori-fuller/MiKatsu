@@ -22,6 +22,7 @@ import kotlin.random.Random
  *
  * 次のいずれかに当てはまる場合はスキルを使えないため`null`を返す。
  * - 使用者が現在の行動者ではない、味方ではない、戦闘不能である、またはブレイク中・状態異常(スタン・凍結・感電・石化・睡眠)で行動できない。
+ * - 使用者が挑発中で、洗脳・発狂で自動で動いていない(基礎威力のないこのスキルは使えない。[BattleFieldPawn.isRestrictedToAttackSkills])。
  * - 使用者がそのスキルを設定していない。
  * - そのスキルがクールタイム(CT)中である。使えたら、外れてもCTを設定する([startCooldown])。
  * - コスト(MP・HP・TP。TPは不足分をHPで肩代わりできる)を支払えない、またはMP・TPスキル封印で使えない([canAfford])。
@@ -67,6 +68,7 @@ fun BattleField.performSkill(
     if (actor.isDefeated || actor.isBroken || actor.isIncapacitated) return null
     val skill = actor.activeSkills.firstOrNull { it.id == skillId } ?: return null
     if (skill.basePower != null) return null
+    if (actor.isRestrictedToAttackSkills) return null
     if (actor.isOnCooldown(skill.id)) return null
     if (!actor.canAfford(skill)) return null
     val targets = resolveTargets(actorFpid, skill, targetFpid) ?: return null

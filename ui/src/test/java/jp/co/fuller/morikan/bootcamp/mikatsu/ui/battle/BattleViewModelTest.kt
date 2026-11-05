@@ -40,7 +40,7 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.ObserveMapProgressUs
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.AttackUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.DefendUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.EndTurnUseCase
-import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.ExecuteEnemyTurnUseCase
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.ExecuteAutoTurnUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.GetBattleFieldUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.GetNormalAttackUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.ObserveBattleFieldUseCase
@@ -133,7 +133,7 @@ class BattleViewModelTest {
             getNormalAttackUseCase = GetNormalAttackUseCase(FakeSkillRepository(normalAttack)),
             useSkillUseCase = UseSkillUseCase(battleRepository, random),
             defendUseCase = DefendUseCase(battleRepository),
-            executeEnemyTurnUseCase = ExecuteEnemyTurnUseCase(battleRepository, FakeSkillRepository(normalAttack), RandomEnemyTargetSelector(random), hitRandom),
+            executeAutoTurnUseCase = ExecuteAutoTurnUseCase(battleRepository, FakeSkillRepository(normalAttack), RandomEnemyTargetSelector(random), hitRandom),
             endTurnUseCase = EndTurnUseCase(battleRepository, random),
             observeMapProgressUseCase = ObserveMapProgressUseCase(mapProgressRepository),
             advanceToNextBattleUseCase = AdvanceToNextBattleUseCase(
@@ -930,6 +930,181 @@ class BattleViewModelTest {
         assertFalse(viewModel.uiState.value.narration is BattleNarration.EnemyCannotReach)
     }
 
+    /** 現在の行動者に、状態異常[ailments]をかける(手番中の変化として購読経由で反映させる)。 */
+    private suspend fun FakeBattleRepository.giveActor(vararg ailments: AilmentState) {
+        updateBattleField { f ->
+            f.copy(allies = f.allies.map { if (it.fpid == f.currentActorFpid) it.copy(ailments = ailments.toList()) else it })
+        }
+    }
+
+    /** 洗脳された味方の手番は操作を受け付けず、「〇〇は洗脳されている!」のあと、自分以外の味方だけを通常攻撃して手番を終えること。 */
+    @Test
+    fun brainwashedAlly_attacksOtherAllyAutomatically() = runTest(dispatcher) {
+        val (viewModel, repository) = createViewModel(allySlots = listOf(0, 1))
+        advanceUntilIdle()
+        val actor = checkNotNull(repository.current.currentActorFpid)
+        val otherAlly = repository.current.allies.first { it.fpid != actor }
+        val actorName = viewModel.uiState.value.nameOf(actor)
+        val enemyHp = repository.current.enemies.map { it.currentHp }
+        val otherHp = otherAlly.currentHp
+
+        repository.giveActor(AilmentState(StatusAilment.BRAINWASH, 1))
+        runCurrent()
+
+        assertTrue(viewModel.uiState.value.isProcessing)
+        assertEquals(BattleNarration.BrainwashLead(actorName), viewModel.uiState.value.narration)
+        assertFalse(viewModel.uiState.value.isAttackEnabled)
+        advanceTimeBy(800)
+        runCurrent()
+        assertTrue(viewModel.uiState.value.narration is BattleNarration.AttackResult)
+        assertEquals(viewModel.uiState.value.nameOf(otherAlly.fpid), (viewModel.uiState.value.narration as BattleNarration.AttackResult).targetName)
+
+        advanceUntilIdle()
+        assertTrue(repository.current.allies.first { it.fpid == otherAlly.fpid }.currentHp < otherHp)
+        assertEquals(enemyHp, repository.current.enemies.map { it.currentHp })
+        assertEquals(1, repository.current.allies.first { it.fpid == actor }.turnCount)
+    }
+
+    /** 洗脳された味方に、届く味方がいなければ「届かない」を表示して手番を終えること(1人だけの編成)。 */
+    @Test
+    fun brainwashedAlly_withNoOtherAlly_showsCannotReach() = runTest(dispatcher) {
+        val (viewModel, repository) = createViewModel()
+        advanceUntilIdle()
+        val actorName = viewModel.uiState.value.nameOf(checkNotNull(repository.current.currentActorFpid))
+
+        repository.giveActor(AilmentState(StatusAilment.BRAINWASH, 1))
+        runCurrent()
+        assertEquals(BattleNarration.BrainwashLead(actorName), viewModel.uiState.value.narration)
+        advanceTimeBy(800)
+        runCurrent()
+
+        assertEquals(BattleNarration.EnemyCannotReach(actorName), viewModel.uiState.value.narration)
+        advanceUntilIdle()
+        assertEquals(1, repository.current.allies[0].turnCount)
+    }
+
+    /** 発狂した味方の手番は「〇〇は発狂している!」のあと、乱数に従って(ここでは最後の候補の敵を)攻撃し、手番を終えること。 */
+    @Test
+    fun madAlly_actsAutomatically() = runTest(dispatcher) {
+        val (viewModel, repository) = createViewModel()
+        advanceUntilIdle()
+        val actorName = viewModel.uiState.value.nameOf(checkNotNull(repository.current.currentActorFpid))
+        val lastEnemyHp = repository.current.enemies.last().currentHp
+
+        repository.giveActor(AilmentState(StatusAilment.MADNESS, 1))
+        runCurrent()
+
+        assertEquals(BattleNarration.MadnessLead(actorName), viewModel.uiState.value.narration)
+        assertFalse(viewModel.uiState.value.isAttackEnabled)
+        advanceTimeBy(800)
+        runCurrent()
+        assertTrue(viewModel.uiState.value.narration is BattleNarration.AttackResult)
+
+        advanceUntilIdle()
+        assertTrue(repository.current.enemies.last().currentHp < lastEnemyHp)
+        assertEquals(1, repository.current.allies[0].turnCount)
+    }
+
+    /** 発狂した味方が何もしない判定のとき、「しかし〇〇は何もしなかった!」を表示して手番を終えること(何も攻撃しない)。 */
+    @Test
+    fun madAlly_idle_showsDidNothing() = runTest(dispatcher) {
+        val (viewModel, repository) = createViewModel(hitRandom = ConstantIntRandom(0))
+        advanceUntilIdle()
+        val actorName = viewModel.uiState.value.nameOf(checkNotNull(repository.current.currentActorFpid))
+        val hpBefore = repository.current.allies[0].currentHp
+        val enemyHp = repository.current.enemies.map { it.currentHp }
+
+        repository.giveActor(AilmentState(StatusAilment.MADNESS, 1))
+        runCurrent()
+        advanceTimeBy(800)
+        runCurrent()
+
+        assertEquals(BattleNarration.MadnessIdle(actorName), viewModel.uiState.value.narration)
+        // 何もしなかったので、この時点ではHPが誰も減っていない(手番を終えたあとは敵の攻撃で減る)。
+        assertEquals(hpBefore, repository.current.allies[0].currentHp)
+        assertEquals(enemyHp, repository.current.enemies.map { it.currentHp })
+        advanceUntilIdle()
+        assertEquals(1, repository.current.allies[0].turnCount)
+    }
+
+    /** 洗脳された敵は、ほかの敵を攻撃し、味方は攻撃しないこと(敵が洗脳されているときも前置きの文は同じ)。 */
+    @Test
+    fun brainwashedEnemy_attacksOtherEnemy() = runTest(dispatcher) {
+        val (viewModel, repository) = createViewModel()
+        advanceUntilIdle()
+        // 味方の手番中に敵全員を洗脳(残り1)してから防御で手番を終えると、次の敵の手番は洗脳されたものになる。
+        repository.updateBattleField { f ->
+            f.copy(enemies = f.enemies.map { it.copy(ailments = listOf(AilmentState(StatusAilment.BRAINWASH, 1))) })
+        }
+        viewModel.onDefendClick()
+        var guard = 0
+        while (viewModel.uiState.value.narration !is BattleNarration.BrainwashLead && guard++ < 200) {
+            advanceTimeBy(50)
+            runCurrent()
+        }
+        val actor = checkNotNull(repository.current.currentActorFpid)
+        val other = repository.current.enemies.first { it.fpid != actor }
+        val allyHp = repository.current.allies[0].currentHp
+
+        assertEquals(BattleNarration.BrainwashLead(viewModel.uiState.value.nameOf(actor)), viewModel.uiState.value.narration)
+        advanceTimeBy(800)
+        runCurrent()
+        assertEquals(viewModel.uiState.value.nameOf(other.fpid), (viewModel.uiState.value.narration as BattleNarration.AttackResult).targetName)
+        assertTrue(repository.current.enemies.first { it.fpid == other.fpid }.currentHp < other.currentHp)
+        assertEquals(allyHp, repository.current.allies[0].currentHp)
+        advanceUntilIdle()
+    }
+
+    /** 恐怖によるスタンは、通常のスタンの文ではなく「〇〇は恐怖で体がすくんだ!」を表示して手番を飛ばすこと。通常のスタンは従来どおり。 */
+    @Test
+    fun fearStun_showsFearFrozenNarration() = runTest(dispatcher) {
+        val (viewModel, repository) = createViewModel()
+        advanceUntilIdle()
+
+        repository.giveActor(AilmentState(StatusAilment.FEAR, 3), AilmentState(StatusAilment.STUN, 1, causedByFear = true))
+        runCurrent()
+
+        assertTrue(viewModel.uiState.value.isProcessing)
+        assertEquals(BattleNarration.FearFrozen("味方"), viewModel.uiState.value.narration)
+        advanceUntilIdle()
+        val ally = repository.current.allies[0]
+        assertEquals(1, ally.turnCount)
+        assertEquals(listOf(StatusAilment.FEAR), ally.ailments.map { it.ailment })
+    }
+
+    /** 魅了と挑発が重なって通常攻撃・スキル・防御のどれも選べない味方の手番は、「〇〇は何もできない!」を出して自動で手番を終えること。 */
+    @Test
+    fun nothingToDo_isSkippedAutomatically() = runTest(dispatcher) {
+        val (viewModel, repository) = createViewModel()
+        advanceUntilIdle()
+        assertTrue(viewModel.uiState.value.isAttackEnabled)
+
+        repository.giveActor(AilmentState(StatusAilment.CHARM, 1), AilmentState(StatusAilment.TAUNT, 1))
+        runCurrent()
+
+        assertTrue(viewModel.uiState.value.isProcessing)
+        assertEquals(BattleNarration.NothingToDo("味方"), viewModel.uiState.value.narration)
+        advanceUntilIdle()
+        assertEquals(1, repository.current.allies[0].turnCount)
+    }
+
+    /** 魅了中は「攻撃」が無効で「防御」は有効、挑発中は「攻撃」が有効で「防御」が無効になること。 */
+    @Test
+    fun charmAndTaunt_toggleAttackAndDefendButtons() = runTest(dispatcher) {
+        val (viewModel, repository) = createViewModel()
+        advanceUntilIdle()
+
+        repository.giveActor(AilmentState(StatusAilment.CHARM, 3))
+        runCurrent()
+        assertFalse(viewModel.uiState.value.isAttackEnabled)
+        assertTrue(viewModel.uiState.value.isDefendEnabled)
+
+        repository.giveActor(AilmentState(StatusAilment.TAUNT, 3))
+        runCurrent()
+        assertTrue(viewModel.uiState.value.isAttackEnabled)
+        assertFalse(viewModel.uiState.value.isDefendEnabled)
+    }
+
     /** 対象選択中に選べない相手(レンジ外の敵・選べない味方)をタップしても、何も起きないこと。 */
     @Test
     fun tapUnselectableTargets_doesNothing() = runTest(dispatcher) {
@@ -1632,6 +1807,20 @@ class BattleViewModelTest {
         override fun nextInt(until: Int): Int = until - 1
 
         override fun nextDouble(): Double = rolls.removeFirstOrNull() ?: 0.0
+    }
+
+    /**
+     * `nextInt(until)`が常に[value](範囲外なら`until - 1`)を返し、`nextDouble`が0.0(必ず命中)を返すテスト用の乱数。
+     * 発狂の「何もしない」判定(`nextInt(100) < 60`)を確実に起こしたいときに使う。
+     *
+     * @property value `nextInt(until)`が返す値。
+     */
+    private class ConstantIntRandom(private val value: Int) : Random() {
+        override fun nextBits(bitCount: Int): Int = error("nextDouble・nextInt(until)以外は使わない")
+
+        override fun nextInt(until: Int): Int = if (value < until) value else until - 1
+
+        override fun nextDouble(): Double = 0.0
     }
 
     /** テスト用の、1体のキャラクターだけを返す[CharacterRepository]。 */

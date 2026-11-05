@@ -14,6 +14,7 @@ paths:
 
 - **攻撃の文の組み立て**: `AttackResult.toNarrations` / `toNarrationSteps`(`ui/battle/model/AttackNarrations.kt`)
 - **他の文**: スキル(バフ・デバフ)は`SkillNarrations.kt`(`stat-modifiers.md`)、状態異常は`AilmentNarrations.kt`(`status-ailments.md`)、文の型は`BattleNarration.kt`、文と表示の組は`NarrationStep.kt`
+- **精神系の文**(`mental-ailments.md`が正): 付与「Bは洗脳された!」「Bは発狂した!」「Bは魅了された!」「Bは恐怖に陥った!」「Bは挑発された!」/洗脳の手番の前置き「Aは洗脳されている!」/発狂の手番の前置き「Aは発狂している!」・何もしないとき「しかしAは何もしなかった!」/恐怖のスタン「Aは恐怖で体がすくんだ!」/何もできない手番「Aは何もできない!」(`BattleNarration.BrainwashLead`/`MadnessLead`/`MadnessIdle`/`FearFrozen`/`NothingToDo`)
 - **各仕組み固有の文**: クリティカル(`critical.md`)・ブレイク(`break.md`)・防御(`defense.md`)・属性耐性(`element-resistance.md`)・先制(`preemptive.md`)・技名(`skill-catalog.md`のローリング・ソバット)。それぞれのファイルが正。
 
 ## 攻撃のナレーションの形

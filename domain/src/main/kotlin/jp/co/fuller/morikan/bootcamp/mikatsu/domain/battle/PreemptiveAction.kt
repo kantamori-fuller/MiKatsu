@@ -2,6 +2,7 @@ package jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle
 
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleAlly
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleField
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleFieldPawn
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleStat
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.ActiveSkill
 import kotlin.random.Random
@@ -32,24 +33,29 @@ private fun BattleAlly.preemptivePriority(): Int =
 /**
  * 使用者が、スキルを今使えるかどうかを返す。
  *
- * CTが明けていて([BattleAlly.isOnCooldown])、コストを払え([canAfford])、選べる相手がいる([selectableTargets]が空でない)ことを
- * すべて満たすと`true`。手番かどうか・ブレイク中かどうかは見ない。スキル一覧の使用可否と、先制行動の予約・取り消しの判定が同じ基準になるよう
- * ここに集約している。
+ * CTが明けていて([BattleFieldPawn.isOnCooldown])、(味方なら)コストを払え([canAfford])、選べる相手がいる([selectableTargets]が空でない。
+ * 魅了・洗脳・発狂による対象の変化を含む)ことをすべて満たし、さらに挑発中でない(挑発中は基礎威力のあるスキルだけ。
+ * [BattleFieldPawn.isRestrictedToAttackSkills])と`true`。手番かどうか・ブレイク中かどうかは見ない。
+ * スキル一覧の使用可否と、先制行動の予約・取り消しの判定、発狂で選べるスキルの候補が同じ基準になるようここに集約している。
+ * 敵はコストを払わないので、CTと対象だけを見る。
  *
  * @receiver 判定の基になる戦闘フィールド。
- * @param actorFpid 使用者(味方)のFPID。
+ * @param actorFpid 使用者のFPID。
  * @param skill 使おうとするアクティブスキル。
- * @return 使えるなら`true`。使用者が味方として見つからなければ`false`。
+ * @return 使えるなら`true`。使用者が見つからなければ`false`。
  */
 fun BattleField.isSkillUsable(actorFpid: Int, skill: ActiveSkill): Boolean {
-    val actor = allies.firstOrNull { it.fpid == actorFpid } ?: return false
-    return !actor.isOnCooldown(skill.id) && actor.canAfford(skill) && selectableTargets(actorFpid, skill).isNotEmpty()
+    val actor = allPawns.firstOrNull { it.fpid == actorFpid } ?: return false
+    if (actor.isRestrictedToAttackSkills && skill.basePower == null) return false
+    val affordable = (actor as? BattleAlly)?.canAfford(skill) ?: true
+    return !actor.isOnCooldown(skill.id) && affordable && selectableTargets(actorFpid, skill).isNotEmpty()
 }
 
 /**
  * 味方が、先制の手番で行動できる状態かどうか。
  *
- * 戦闘不能でなく、ブレイク中でも状態異常による行動不能でもなく、いま使える([isSkillUsable])先制行動スキルが1つ以上あれば`true`。
+ * 戦闘不能でなく、ブレイク中でも状態異常による行動不能でもなく、洗脳・発狂で自動で動いてもおらず([BattleFieldPawn.isAutoActing])、
+ * いま使える([isSkillUsable]。魅了の対象の制限・挑発の攻撃技の制限を含む)先制行動スキルが1つ以上あれば`true`。
  * 予約の条件の一部であり、先制の手番が先頭に来た時点で取り消すかどうかの判定にも使う。
  *
  * @receiver 判定の基になる戦闘フィールド。
@@ -58,7 +64,7 @@ fun BattleField.isSkillUsable(actorFpid: Int, skill: ActiveSkill): Boolean {
  */
 internal fun BattleField.canActPreemptively(fpid: Int): Boolean {
     val ally = allies.firstOrNull { it.fpid == fpid } ?: return false
-    if (ally.isDefeated || ally.isBroken || ally.isIncapacitated) return false
+    if (ally.isDefeated || ally.isBroken || ally.isIncapacitated || ally.isAutoActing) return false
     return ally.preemptiveSkills().any { isSkillUsable(fpid, it) }
 }
 
@@ -66,7 +72,7 @@ internal fun BattleField.canActPreemptively(fpid: Int): Boolean {
  * 個体が、いま先制行動を予約できるかどうか。UIのカードのタップも同じ関数で判定する。
  *
  * 次をすべて満たすときだけ`true`。
- * - 味方で、戦闘不能でなく、ブレイク中でない。
+ * - 味方で、戦闘不能でなく、ブレイク中でなく、洗脳・発狂でもない。
  * - 勝敗が決まっていない。
  * - 現在の行動者ではない。
  * - まだ予約していない([BattleField.pendingPreemptive])、かつ先制の手番として行動順に入っていない([BattleField.preemptiveTurns])。

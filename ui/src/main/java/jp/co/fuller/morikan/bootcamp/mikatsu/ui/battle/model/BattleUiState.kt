@@ -125,7 +125,8 @@ sealed interface BattleSelection {
  * @property selection プレイヤーが行動を選択している途中の段階。「攻撃」「スキル」ボタンの押下で
  *   遷移し、キャンセルまたは対象の選択で[BattleSelection.None]に戻る。
  * @property skills 現在の手番の味方が使えるアクティブスキルの一覧。手番が味方でなければ空。
- * @property attackTargetIds 通常攻撃で選べる対象のFPID。手番が味方でなければ空。
+ * @property attackTargetIds 通常攻撃で選べる対象のFPID。手番が味方でなければ空。魅了で反対の陣営が選べないときは空になる(「攻撃」ボタンが無効)。
+ * @property canDefend 手番の味方が防御できるか(`domain`の`defend`が成立するか)。挑発中などは`false`で、「防御」ボタンが無効になる。
  * @property outcome 戦闘の勝敗。決着がついていなければ`null`。
  * @property progress マップの進行度(今いる戦闘が何戦目か)。最初は1。
  * @property unitDetails 全個体の詳細。FPIDから[BattleUnitDetailUiModel]への対応表で、戦闘フィールドの更新のたびに組み立て直す。
@@ -143,6 +144,7 @@ data class BattleUiState(
     val selection: BattleSelection = BattleSelection.None,
     val skills: List<BattleSkillUiModel> = emptyList(),
     val attackTargetIds: Set<Int> = emptySet(),
+    val canDefend: Boolean = true,
     val outcome: BattleOutcome? = null,
     val processingNarration: BattleNarration? = null,
     val progress: Int = 1,
@@ -186,10 +188,11 @@ data class BattleUiState(
     /**
      * 「防御」ボタンを押下できるかどうか。
      *
-     * プレイヤーの手番で、演出中でなく、勝敗が決まっておらず、先制の手番でなく、選択状態が[BattleSelection.None]のときのみ`true`となる。
+     * プレイヤーの手番で、演出中でなく、勝敗が決まっておらず、先制の手番でなく、選択状態が[BattleSelection.None]で、
+     * 防御できる([canDefend]。挑発中は不可)ときのみ`true`となる。
      */
     val isDefendEnabled: Boolean
-        get() = isInputAcceptable && !isPreemptiveTurn && selection == BattleSelection.None
+        get() = isInputAcceptable && !isPreemptiveTurn && selection == BattleSelection.None && canDefend
 
     /**
      * 選択中に「キャンセル」ボタンを押下できるかどうか。

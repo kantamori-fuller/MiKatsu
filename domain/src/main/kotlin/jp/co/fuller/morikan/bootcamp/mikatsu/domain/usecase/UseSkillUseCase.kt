@@ -26,7 +26,8 @@ class UseSkillUseCase(
      * 使用者から対象へスキルを使う。
      *
      * 使用者が現在の行動者ではない場合、スキルを持っていない場合、コストが足りない場合、
-     * 対象がレンジ外・陣営違い・戦闘不能などで選べない場合は、何も変更せずに`null`を返す。
+     * 対象がレンジ外・陣営違い・戦闘不能などで選べない場合、使用者が洗脳・発狂で自動で動く個体の場合
+     * (プレイヤーは操作できない。自動行動は[ExecuteAutoTurnUseCase]が行う)は、何も変更せずに`null`を返す。
      * 命中率のあるスキルが外れた場合は、コストだけ消費して成功として結果を返す。
      *
      * @param actorFpid スキルを使う個体のFPID。
@@ -38,7 +39,8 @@ class UseSkillUseCase(
         // updateBattleFieldのtransformは再実行され得るため、最後に計算した結果を外の変数に残す。
         var result: SkillUseResult? = null
         battleRepository.updateBattleField { field ->
-            val use = field.performActiveSkill(actorFpid, skillId, targetFpid, random)
+            val isAuto = field.allPawns.firstOrNull { it.fpid == actorFpid }?.isAutoActing == true
+            val use = if (isAuto) null else field.performActiveSkill(actorFpid, skillId, targetFpid, random)
             result = use?.second
             use?.first ?: field
         }

@@ -43,6 +43,41 @@ sealed interface BattleNarration {
     data class EnemyCannotReach(val actorName: String) : BattleNarration
 
     /**
+     * 洗脳された個体の手番の前置き(「Aは洗脳されている!」)。味方・敵どちらにも使う。続けて攻撃の結果(または「届かない」)を出す。
+     *
+     * @property actorName 洗脳されている個体の表示名。
+     */
+    data class BrainwashLead(val actorName: String) : BattleNarration
+
+    /**
+     * 発狂した個体の手番の前置き(「Aは発狂している!」)。味方・敵どちらにも使う。続けてスキル/攻撃の結果(または[MadnessIdle])を出す。
+     *
+     * @property actorName 発狂している個体の表示名。
+     */
+    data class MadnessLead(val actorName: String) : BattleNarration
+
+    /**
+     * 発狂した個体が何もしなかったことを伝える(「しかしAは何もしなかった!」)。
+     *
+     * @property actorName 何もしなかった個体の表示名。
+     */
+    data class MadnessIdle(val actorName: String) : BattleNarration
+
+    /**
+     * 恐怖によるスタンで手番を飛ばすことを伝える(「Aは恐怖で体がすくんだ!」。通常のスタンの「動けない!」の代わり)。
+     *
+     * @property actorName 体がすくんだ個体の表示名。
+     */
+    data class FearFrozen(val actorName: String) : BattleNarration
+
+    /**
+     * 選べる行動が何もない手番を飛ばすことを伝える(「Aは何もできない!」)。手動で操作する味方の手番の自動スキップと、魅了した敵の手番で使う。
+     *
+     * @property actorName 何もできない個体の表示名。
+     */
+    data class NothingToDo(val actorName: String) : BattleNarration
+
+    /**
      * 対象1体への攻撃が1回命中したときの結果(誰が誰にどれだけのダメージを与えたか)を伝える。
      *
      * @property attackerName 攻撃した個体の表示名。

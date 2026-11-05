@@ -17,7 +17,7 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.AttackUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.DefendUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.DeleteCharacterUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.EndTurnUseCase
-import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.ExecuteEnemyTurnUseCase
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.ExecuteAutoTurnUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.GetBattleFieldUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.GetCharacterUseCase
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase.GetNormalAttackUseCase
@@ -207,15 +207,15 @@ object UseCaseModule {
      * @param skillRepository 注入される[SkillRepository]。
      * @param enemyTargetSelector 注入される[EnemyTargetSelector]。
      * @param random 注入される[Random]。
-     * @return 敵の手番の攻撃を実行する[ExecuteEnemyTurnUseCase]。
+     * @return CPUが動かす手番(敵・洗脳・発狂)の行動を実行する[ExecuteAutoTurnUseCase]。
      */
     @Provides
-    fun provideExecuteEnemyTurnUseCase(
+    fun provideExecuteAutoTurnUseCase(
         battleRepository: BattleRepository,
         skillRepository: SkillRepository,
         enemyTargetSelector: EnemyTargetSelector,
         random: Random,
-    ): ExecuteEnemyTurnUseCase = ExecuteEnemyTurnUseCase(battleRepository, skillRepository, enemyTargetSelector, random)
+    ): ExecuteAutoTurnUseCase = ExecuteAutoTurnUseCase(battleRepository, skillRepository, enemyTargetSelector, random)
 
     /**
      * 行動順・攻撃対象の選択に使う乱数を提供する。UseCaseが乱数を引数で受け取れる(テストで固定できる)ようにするため。

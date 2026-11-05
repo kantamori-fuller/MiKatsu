@@ -60,6 +60,7 @@ fun BattleField.advanceToNextTurn(random: Random): BattleField = advanceToNextTu
  * 現在の行動者が決まったところで、その個体に手番開始のTP(6〜8)を加える([gainTurnStartTp])。ブレイクで自動的に飛ばされる手番でも受け取る。
  * 先制の手番も通常の手番と同じく、ここで防御の解除と手番開始のTPを受け取る。
  * 乱数は同時手番のくじの後に引く。勝敗が決まっていれば加えない。
+ * そのあと、行動者が恐怖なら30%でその手番だけスタンさせる([rollFearAtTurnStart]。防御の解除・手番開始のTPの後。TPの乱数の後に引く。先制の手番でも判定する)。
  * 一度決めた順番は[BattleField.turnQueue]に保存されるため、再度呼んでもくじは引き直さない(ただし新しい手番として呼ぶたびにTPは加わるため、1回の手番につき1回だけ呼ぶこと)。
  *
  * @receiver 更新前の戦闘フィールド。
@@ -80,6 +81,7 @@ fun BattleField.advanceToNextTurnWithCancellations(random: Random): Pair<BattleF
             .copy(turnQueue = remainingQueue, preemptiveTurns = settled.preemptiveTurns.filter { it in remainingQueue }.toSet())
             .releaseDefense(actor)
             .gainTurnStartTp(actor, random)
+            .rollFearAtTurnStart(actor, random)
         return next to cancelled
     }
 
@@ -109,6 +111,7 @@ fun BattleField.advanceToNextTurnWithCancellations(random: Random): Pair<BattleF
         .flatMap { group -> group.map { it.fpid }.shuffled(random) }
     // 手番開始のTPは、同時手番のくじ(shuffle)の後に引く。
     val next = advanced.copy(turnQueue = queue, preemptiveTurns = emptySet()).releaseDefense(queue.first()).gainTurnStartTp(queue.first(), random)
+        .rollFearAtTurnStart(queue.first(), random)
     return next to cancelled
 }
 

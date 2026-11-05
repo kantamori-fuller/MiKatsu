@@ -56,6 +56,21 @@ object StatusAilmentFormula {
     /** 汚染・呪怨(MP)の割合ダメージの分母(最大MPの1/8)。 */
     internal const val MP_DENOMINATOR = 8
 
+    /** 恐怖が手番の開始時にスタンを引き起こす確率(%)。 */
+    const val FEAR_STUN_PERCENT = 30
+
+    /** 発狂が手番で何もしない確率(%)。 */
+    const val MADNESS_IDLE_PERCENT = 60
+
+    /** 精神系の状態異常(洗脳・発狂・魅了・恐怖・挑発)。enum順がそのまま強さの順(洗脳が最強)。 */
+    private val MENTAL = setOf(
+        StatusAilment.BRAINWASH,
+        StatusAilment.MADNESS,
+        StatusAilment.CHARM,
+        StatusAilment.FEAR,
+        StatusAilment.TAUNT,
+    )
+
     /** 行動不能にする状態異常。ブレイクと違い、被ダメージ増加・被必中は付かない。 */
     private val INCAPACITATING = setOf(
         StatusAilment.STUN,
@@ -183,6 +198,27 @@ object StatusAilmentFormula {
     }
 
     /**
+     * 精神系の状態異常(洗脳・発狂・魅了・恐怖・挑発)かを返す。精神系どうしは強さで排他になる([isBlockedByStrongerMental])。
+     *
+     * @param ailment 調べる状態異常。
+     * @return 精神系なら`true`。
+     */
+    fun isMental(ailment: StatusAilment): Boolean = ailment in MENTAL
+
+    /**
+     * 付与しようとする精神系の状態異常が、すでにかかっているより強い精神系のせいで付与できないかを返す。
+     *
+     * 強さは 洗脳 > 発狂 > 魅了 > 恐怖 > 挑発(enum順)。精神系でない状態異常は常に`false`。
+     * 同じ種類は排他ではなく、残りターンの長い方で上書きする([inflictAilment])。
+     *
+     * @param ailment 付与しようとする状態異常。
+     * @param current かかっている状態異常。
+     * @return より強い精神系がかかっていて付与できないなら`true`。
+     */
+    fun isBlockedByStrongerMental(ailment: StatusAilment, current: List<AilmentState>): Boolean =
+        isMental(ailment) && current.any { isMental(it.ailment) && it.ailment.ordinal < ailment.ordinal }
+
+    /**
      * 解除の対象となる、ダメージで解除される状態異常(睡眠・凍結)かを返す。
      *
      * @param ailment 調べる状態異常。
@@ -261,6 +297,8 @@ internal fun BattleField.updateAilments(fpid: Int, transform: (List<AilmentState
  *
  * - 戦闘不能の個体・石化中の個体(石化以外)には付与できない(失敗)。
  * - 火傷と凍傷・火傷と凍結は排他で、既に片方がある個体に後からかけた方は失敗([isExcluded])。
+ * - 精神系(洗脳・発狂・魅了・恐怖・挑発)どうしは強さで排他。より強い精神系がかかっていれば失敗([isBlockedByStrongerMental])、
+ *   より弱い精神系がかかっていれば、それを(何も出さずに)消して付与する。同じ種類は下の「同じ状態異常」と同じ。
  * - 石化は付与した個体の他の状態異常をすべて解除する。
  * - 同じ状態異常が既にあれば、残りターンを長い方で上書きする(感染の分母はそのまま)。
  * - 対象本人の手番中([BattleField.currentActorFpid])に付与したものは[AilmentState.grantedDuringOwnTurn]を立てる。
@@ -276,11 +314,18 @@ internal fun BattleField.inflictAilment(fpid: Int, ailment: StatusAilment, durat
     if (pawn.isDefeated) return this to false
     if (pawn.hasAilment(StatusAilment.PETRIFY) && ailment != StatusAilment.PETRIFY) return this to false
     if (StatusAilmentFormula.isExcluded(ailment, pawn.ailments)) return this to false
+    if (StatusAilmentFormula.isBlockedByStrongerMental(ailment, pawn.ailments)) return this to false
     val granted = fpid == currentActorFpid
     val existing = pawn.ailments.firstOrNull { it.ailment == ailment }
     val fresh = AilmentState(ailment, durationTurns, grantedDuringOwnTurn = granted)
     val updated = this.updateAilments(fpid) { list ->
-        val kept = if (ailment == StatusAilment.PETRIFY) list.filter { it.ailment == StatusAilment.PETRIFY } else list
+        val kept = when {
+            ailment == StatusAilment.PETRIFY -> list.filter { it.ailment == StatusAilment.PETRIFY }
+            // 自分より弱い精神系は消える(消えたことの文は出さない)。
+            StatusAilmentFormula.isMental(ailment) ->
+                list.filterNot { StatusAilmentFormula.isMental(it.ailment) && it.ailment.ordinal > ailment.ordinal }
+            else -> list
+        }
         when {
             existing == null -> kept + fresh
             existing.remainingTurns >= durationTurns -> kept
@@ -407,11 +452,34 @@ internal fun BattleField.processTurnEndAilments(fpid: Int, random: Random): Pair
                 }
             }
         }
-        if (remaining <= 0) events += TurnEndEvent.Cured(fpid, ailment, field)
+        // 恐怖によるスタンは、その手番だけの扱いなので「治った」の文は出さない。
+        if (remaining <= 0 && !state.causedByFear) events += TurnEndEvent.Cured(fpid, ailment, field)
     }
     return field to events
 }
 
+
+/**
+ * 恐怖([StatusAilment.FEAR])の個体が、自分の手番の開始時に30%でその手番だけスタンするかを判定し、スタンさせた[BattleField]を返す。
+ *
+ * 防御の解除・手番開始のTPの**後**に、[advanceToNextTurnWithCancellations]の両方の分岐から呼ぶ(乱数はTPの乱数の後に1回引く)。
+ * 戦闘不能・ブレイク中・すでに状態異常で行動不能の個体、恐怖でない個体には判定せず、乱数も引かない。
+ * スタンは残り1ターン・`grantedDuringOwnTurn = false`で付けるので、その手番の終了([processTurnEndAilments])で減って解除される
+ * (手番中の付与として`true`にすると2手番動けなくなる)。恐怖由来だと分かるよう[AilmentState.causedByFear]を立てる。
+ * 先制の手番でも判定する(先制の取り消しの判定はこれより前に済んでいる)。
+ *
+ * @receiver 手番開始のTPまで済んだ戦闘フィールド。
+ * @param fpid 手番が来た個体のFPID。
+ * @param random 判定の乱数(`nextInt(100) < 30`でスタン)。
+ * @return 判定後の戦闘フィールド。スタンしなければ変わらない。
+ */
+internal fun BattleField.rollFearAtTurnStart(fpid: Int, random: Random): BattleField {
+    val pawn = allPawns.firstOrNull { it.fpid == fpid } ?: return this
+    if (!pawn.hasAilment(StatusAilment.FEAR) || pawn.isDefeated || pawn.isBroken || pawn.isIncapacitated) return this
+    if (random.nextInt(100) >= StatusAilmentFormula.FEAR_STUN_PERCENT) return this
+    val stun = AilmentState(StatusAilment.STUN, remainingTurns = 1, grantedDuringOwnTurn = false, causedByFear = true)
+    return updateAilments(fpid) { it + stun }
+}
 
 /**
  * ブレイクゲージの計算に使う、麻痺を反映したブレイク耐性を返す。保存している[BattleFieldPawn.breakResistance]は書き換えない。

@@ -3,6 +3,7 @@ package jp.co.fuller.morikan.bootcamp.mikatsu.domain.model
 /**
  * 状態異常(ネガティブエフェクトの一種)の種類。ステータスの段階式バフ・デバフ([BattleStat])とは別の仕組みで、
  * 個体ごとに種類ごとに1つだけ持つ([AilmentState])。この宣言順が、扱い・表示・手番終了時の処理の順になる。
+ * 末尾の洗脳・発狂・魅了・恐怖・挑発は精神系で、宣言順がそのまま強さの順(洗脳が最強)になる(詳細は`mental-ailments.md`)。
  * 効果の計算・付与・手番終了時の処理は`StatusAilmentFormula`が唯一の実装箇所。
  */
 enum class StatusAilment {
@@ -56,6 +57,21 @@ enum class StatusAilment {
 
     /** 烙印。HPの回復量が1以上なら1になる。 */
     BRAND,
+
+    /** 洗脳(精神系で最強)。操作できなくなり、同じ陣営の自分以外を通常攻撃だけで自動で攻撃する。 */
+    BRAINWASH,
+
+    /** 発狂(精神系)。操作できなくなり、60%で何もせず、そうでなければ陣営を無視して(自分を含む)スキルと相手をランダムに選んで使う。 */
+    MADNESS,
+
+    /** 魅了(精神系)。反対の陣営の個体を対象に選べなくなる。 */
+    CHARM,
+
+    /** 恐怖(精神系)。自分の手番の開始時に30%でその手番だけスタンする。 */
+    FEAR,
+
+    /** 挑発(精神系で最弱)。攻撃技(基礎威力のあるスキル)しか使えず、防御もできない。 */
+    TAUNT,
 }
 
 /**
@@ -68,10 +84,13 @@ enum class StatusAilment {
  *   フラグを下ろすだけ(バフ・デバフの`StatModifier.grantedDuringOwnTurn`と同じ考え方)。
  * @property infectionDenominator 感染のときだけ使う、ダメージの分母(最大HPの1/分母)。16から始まり、ダメージのたびに2ずつ減って最小2で止まる。
  *   感染以外では使わない。
+ * @property causedByFear 恐怖([StatusAilment.FEAR])によるスタンかどうか。`true`のスタンは、その手番だけで消え、
+ *   画面が通常のスタンの文ではなく「恐怖で体がすくんだ!」を出し分けるための印(画面側で推測しない)。スタン以外では使わない。
  */
 data class AilmentState(
     val ailment: StatusAilment,
     val remainingTurns: Int,
     val grantedDuringOwnTurn: Boolean = false,
     val infectionDenominator: Int = 16,
+    val causedByFear: Boolean = false,
 )
