@@ -19,11 +19,11 @@ sealed interface BattleNarration {
      */
     data class SelectAction(val actorName: String) : BattleNarration
 
-    /** 攻撃対象を選ぶ状態(対象選択状態)。敵の選択を促す。 */
-    data object SelectTarget : BattleNarration
-
-    /** 使うスキルを選ぶ状態(スキル一覧の表示中)。スキルの選択を促す。 */
+    /** 使うスキルを選ぶ状態(先制の手番のスキル一覧の表示中)。通常攻撃はできないので、スキルの選択だけを促す。 */
     data object SelectSkill : BattleNarration
+
+    /** 使うスキルを選ぶ状態(先制でない手番のスキル一覧の表示中)。スキルの選択と、敵のタップによる通常攻撃を促す。 */
+    data object SelectSkillOrAttack : BattleNarration
 
     /** スキルの対象となる味方を選ぶ状態。味方の選択を促す。 */
     data object SelectAllyTarget : BattleNarration

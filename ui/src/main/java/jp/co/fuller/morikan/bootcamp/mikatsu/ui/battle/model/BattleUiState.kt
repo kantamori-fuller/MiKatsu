@@ -31,7 +31,7 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.StatusAilment
  * @property tp 現在のTP(0〜[maxTp])。カードの右上に円ゲージと数値で表示する。
  * @property maxTp 最大TP。円ゲージの割合(`tp / maxTp`)の分母。
  * @property canReservePreemptive いま先制行動を予約できる個体か(`canReservePreemptive`の結果)。`true`ならカードに細いオレンジの枠を付ける
- *   (対象選択中は予約できないため[BattleUiState.reservableAllyIds]で除かれる)。
+ *   (スキルの選択中は予約できないため[BattleUiState.reservableAllyIds]で除かれる)。
  * @property isPreemptiveWaiting 先制行動を予約済み、または先制の手番を待っている(いまの行動者ではない)個体か。`true`ならカードに「先制待ち」を表示する。
  * @property ailments かかっている状態異常(enum順)。カードに短いラベルで並べる。なければ空。
  */
@@ -87,18 +87,16 @@ data class BattleSkillUiModel(
 /**
  * プレイヤーが行動を選択している途中の段階(選択状態)。
  *
- * 通常攻撃の対象選択と、スキルの「スキル選択→味方の対象選択」の流れを1つの型で表し、
+ * 「スキル」ボタンから始まる「スキル一覧→スキルの対象選択」の流れを1つの型で表し、
  * 同時に複数の選択状態にならないことを型で保証することを目的とする。
+ * 通常攻撃は専用の状態を持たず、[SkillList]の間に敵のカードをタップして発動する。
  */
 sealed interface BattleSelection {
 
     /** 何も選択していない(行動選択の状態)。 */
     data object None : BattleSelection
 
-    /** 通常攻撃の対象を選んでいる。 */
-    data object AttackTarget : BattleSelection
-
-    /** 使うスキルを一覧から選んでいる。 */
+    /** 使うスキルを一覧から選んでいる。先制の手番でなければ、敵のカードをタップして通常攻撃もできる。 */
     data object SkillList : BattleSelection
 
     /**
@@ -119,13 +117,13 @@ sealed interface BattleSelection {
  * @property currentActorId 現在の手番の個体のFPID([BattleUnitUiModel.id])。手番の個体がいなければ`null`。
  * @property isPlayerTurn 現在の手番が味方かどうか。
  * @property isPreemptiveTurn 現在の手番が先制の手番(行動順に割り込んだ手番)かどうか。`true`の間は、スキル一覧に先制スキルだけを出し、
- *   攻撃・防御・撤退を無効にし、スキル一覧からはキャンセルできない(先制はやめられない)。
+ *   防御・撤退を無効にし、通常攻撃もできず、スキル一覧からはキャンセルできない(先制はやめられない)。
  * @property isProcessing 演出中(敵の行動や攻撃結果の表示中)で、入力を受け付けない状態かどうか。
  *   表示用の値であり、演出中かどうかの実際の判定はViewModelが持つジョブで行う。
- * @property selection プレイヤーが行動を選択している途中の段階。「攻撃」「スキル」ボタンの押下で
+ * @property selection プレイヤーが行動を選択している途中の段階。「スキル」ボタンの押下で
  *   遷移し、キャンセルまたは対象の選択で[BattleSelection.None]に戻る。
  * @property skills 現在の手番の味方が使えるアクティブスキルの一覧。手番が味方でなければ空。
- * @property attackTargetIds 通常攻撃で選べる対象のFPID。手番が味方でなければ空。魅了で反対の陣営が選べないときは空になる(「攻撃」ボタンが無効)。
+ * @property attackTargetIds 通常攻撃で選べる対象のFPID。手番が味方でなければ空。魅了で反対の陣営が選べないときは空になる(通常攻撃できる相手がいない)。
  * @property canDefend 手番の味方が防御できるか(`domain`の`defend`が成立するか)。挑発中などは`false`で、「防御」ボタンが無効になる。
  * @property outcome 戦闘の勝敗。決着がついていなければ`null`。
  * @property progress マップの進行度(今いる戦闘が何戦目か)。最初は1。
@@ -159,31 +157,28 @@ data class BattleUiState(
     private val isInputAcceptable: Boolean
         get() = isPlayerTurn && !isProcessing && outcome == null
 
-    /** 攻撃対象となる敵を選択している状態かどうか。 */
-    val isSelectingTarget: Boolean
-        get() = selection == BattleSelection.AttackTarget
-
     /** スキルの選択中(スキル一覧または味方の対象選択)かどうか。 */
     val isSelectingSkill: Boolean
         get() = selection is BattleSelection.SkillList || selection is BattleSelection.SkillTarget
 
     /**
-     * 「攻撃」ボタンを押下できるかどうか。
+     * 先制の手番でなく、通常攻撃できる相手([attackTargetIds])が1体以上いるかどうか。
      *
-     * プレイヤーの手番で、演出中でなく、勝敗が決まっておらず、スキルの選択中でなく、
-     * 通常攻撃で選べる相手([attackTargetIds])が1体以上いて、先制の手番でないときのみ`true`となる。
+     * スキル一覧の間に敵のカードをタップして通常攻撃できる状態を表す。スキルを1つも持たないキャラが「スキル」ボタンを押せるかの判定にも使う。
      */
-    val isAttackEnabled: Boolean
-        get() = isInputAcceptable && !isPreemptiveTurn && !isSelectingSkill && attackTargetIds.isNotEmpty()
+    private val canBasicAttack: Boolean
+        get() = !isPreemptiveTurn && attackTargetIds.isNotEmpty()
 
     /**
      * 「スキル」ボタンを押下できるかどうか。
      *
-     * [isAttackEnabled]と同じ条件に加え、手番の味方が使えるスキルを1つ以上持ち、
-     * 攻撃対象の選択中でないときのみ`true`となる。
+     * プレイヤーの手番で、演出中でなく、勝敗が決まっておらず、かつ
+     * 「使えるかに関係なくAスキル([skills])を1つ以上持つ」または「先制の手番でなく通常攻撃できる相手がいる」ときのみ`true`となる。
+     * Aスキルを持たないキャラでも、通常攻撃できる相手がいれば押せる(一覧は空のまま表示する)。
+     * スキルの選択中も有効のまま(ボタンは「選択中」表示で残る)。
      */
     val isSkillEnabled: Boolean
-        get() = isInputAcceptable && skills.isNotEmpty() && !isSelectingTarget
+        get() = isInputAcceptable && (skills.isNotEmpty() || canBasicAttack)
 
     /**
      * 「防御」ボタンを押下できるかどうか。
@@ -212,14 +207,15 @@ data class BattleUiState(
     /**
      * いま、カードのタップで先制行動を予約できる味方のFPIDの集合。
      *
-     * 攻撃・スキルの対象選択中([BattleSelection.AttackTarget]・[BattleSelection.SkillTarget])は、カードのタップを対象選びに使うため空になる。
-     * それ以外は、[BattleUnitUiModel.canReservePreemptive]な味方すべて。
+     * 選択状態が[BattleSelection.None]のときだけ、[BattleUnitUiModel.canReservePreemptive]な味方すべて。
+     * スキルの選択中([BattleSelection.SkillList]・[BattleSelection.SkillTarget])は空になる
+     * (一覧の間は味方のタップで何も起きず、対象選択中はカードのタップを対象選びに使うため)。
      */
     val reservableAllyIds: Set<Int>
-        get() = if (selection == BattleSelection.AttackTarget || selection is BattleSelection.SkillTarget) {
-            emptySet()
-        } else {
+        get() = if (selection == BattleSelection.None) {
             partySlots.filterNotNull().filter { it.canReservePreemptive }.map { it.id }.toSet()
+        } else {
+            emptySet()
         }
 
     /**
@@ -234,12 +230,12 @@ data class BattleUiState(
     /**
      * 現在の選択状態で、タップして対象にできる個体のFPID。
      *
-     * 通常攻撃の対象選択中は[attackTargetIds]、スキルの対象選択中は選んだスキルの
+     * スキル一覧の間(先制の手番を除く)は通常攻撃の対象[attackTargetIds]、スキルの対象選択中は選んだスキルの
      * [BattleSkillUiModel.targetIds]、それ以外は空となる。敵・味方どちらのカードにも共通で用いる。
      */
     val selectableTargetIds: Set<Int>
         get() = when (val current = selection) {
-            BattleSelection.AttackTarget -> attackTargetIds
+            BattleSelection.SkillList -> if (isPreemptiveTurn) emptySet() else attackTargetIds
             is BattleSelection.SkillTarget -> skills.firstOrNull { it.id == current.skillId }?.targetIds.orEmpty()
             else -> emptySet()
         }
@@ -247,16 +243,16 @@ data class BattleUiState(
     /**
      * 現在の状態に応じて表示すべきバトルナレーター。
      *
-     * 演出中は[processingNarration]、選択状態に応じて[BattleNarration.SelectTarget]・
-     * [BattleNarration.SelectSkill]・[BattleNarration.SelectAllyTarget]、
+     * 演出中は[processingNarration]、選択状態に応じて、スキル一覧の間は
+     * [BattleNarration.SelectSkillOrAttack](先制の手番なら[BattleNarration.SelectSkill])・[BattleNarration.SelectAllyTarget]、
      * プレイヤーの手番なら[BattleNarration.SelectAction]となる。該当しなければ`null`。
      */
     val narration: BattleNarration?
         get() = when {
             processingNarration != null -> processingNarration
             outcome != null -> null
-            selection == BattleSelection.AttackTarget -> BattleNarration.SelectTarget
-            selection == BattleSelection.SkillList -> BattleNarration.SelectSkill
+            selection == BattleSelection.SkillList ->
+                if (isPreemptiveTurn) BattleNarration.SelectSkill else BattleNarration.SelectSkillOrAttack
             selection is BattleSelection.SkillTarget -> BattleNarration.SelectAllyTarget
             isPlayerTurn && currentActorId != null -> BattleNarration.SelectAction(nameOf(currentActorId))
             else -> null

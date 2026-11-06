@@ -89,7 +89,6 @@ fun BattleScreen(
         onAllyClick = viewModel::onAllyClick,
         onUnitLongPress = viewModel::onUnitLongPress,
         onNarrationClick = viewModel::onNarrationClick,
-        onAttackClick = viewModel::onAttackClick,
         onSkillClick = viewModel::onSkillClick,
         onSkillSelected = viewModel::onSkillSelected,
         onDefendClick = viewModel::onDefendClick,
@@ -105,17 +104,17 @@ fun BattleScreen(
  *
  * ViewModelに依存せず、[uiState]とコールバックだけで描画することでPreviewできるようにする(戦闘画面の描画本体)。
  * 画面上部に敵陣営(最大6体)のカードを2行×3列で並べ(前衛が味方に近い下側、後衛が上側)、画面下部には編成画面と同じ形の陣形の表
- * (縦2マス×横3マス)に味方陣営のカードを配置し、その下にコマンド選択部分(攻撃・スキル・撤退)を
+ * (縦2マス×横3マス)に味方陣営のカードを配置し、その下にコマンド選択部分(スキル・防御・撤退の横1列)を
  * 配置する。手番が来た味方は自動で行動者となり、選択中と同じ見た目で強調表示される。
- * 攻撃ボタンはプレイヤーの手番で演出中でなく、攻撃が届く相手がいるときのみ押下できる。陣形の上にはバトルナレーターを表示する。
- * 攻撃ボタン押下後は対象選択状態となり、ボタン表示が「選択中」「キャンセル」に変わって
- * 攻撃が届く相手のカードを選択できるようになる。スキルボタン押下後はスキル一覧(名前とMP消費量)が表示され、
+ * スキルボタンはプレイヤーの手番で演出中でなく、Aスキルを持つか通常攻撃が届く相手がいるときのみ押下できる。陣形の上にはバトルナレーターを表示する。
+ * スキルボタン押下後はスキル一覧(名前とMP消費量)が表示され、ボタン表示が「選択中」「キャンセル」に変わる。
+ * スキルを選ばずに、点滅枠の付いた敵のカードをタップすると通常攻撃になる(先制の手番を除く)。
  * スキルを選ぶとそのスキルが届く相手のカードを選択できるようになる。選べる相手のカードは、
  * 点滅する太い枠線で強調され、敵・味方どちらのカードでもタップできる(それ以外のカードはタップできない)。戦闘不能のカードはグレーアウトされる。勝敗が決まると
  * 画面全体に結果を重ねて表示する。勝利時は「次に進む」ボタンで[onNextBattleClick]を呼び、
  * 敗北時はオーバーレイのタップで[onDefeat]を呼ぶ。敵カードの下の空きには進行度を表示する。
  * 先制行動を予約できる味方のカードは細いオレンジの枠で示し、タップで予約する(予約済みのカードには「先制待ち」を表示する)。
- * 先制の手番では、スキル一覧に先制スキルだけを出し、攻撃・防御・撤退を無効にする。
+ * 先制の手番では、スキル一覧に先制スキルだけを出し、通常攻撃・防御・撤退を無効にする。
  * カードを長押しすると[UnitDetailPopup]で個体の詳細を重ねて表示する。
  * 他の画面と異なりトップバーは表示しない。
  *
@@ -125,10 +124,9 @@ fun BattleScreen(
  * @param onDefeat 敗北表示がタップされたときに呼ばれるコールバック。
  *   メインメニューへの遷移をNavHost側に委ねる。
  * @param onEnemyClick 選べる敵のカードがタップされたときに、敵のFPIDを引数に呼ばれる。
- * @param onAllyClick 選べる味方(対象選び中)または先制行動を予約できる味方のカードがタップされたときに、味方のFPIDを引数に呼ばれる。
+ * @param onAllyClick 選べる味方(スキルの対象選び中)または先制行動を予約できる味方のカードがタップされたときに、味方のFPIDを引数に呼ばれる。
  * @param onUnitLongPress カードが長押しされたときに、個体のFPIDを引数に呼ばれる。
  * @param onNarrationClick ナレーション欄がタップされたときに呼ばれる。
- * @param onAttackClick 「攻撃」ボタンが押されたときに呼ばれる。
  * @param onSkillClick 「スキル」ボタンが押されたときに呼ばれる。
  * @param onSkillSelected スキル一覧でスキルが選ばれたときに、スキルIDを引数に呼ばれる。
  * @param onDefendClick 「防御」ボタンが押されたときに呼ばれる。
@@ -146,7 +144,6 @@ internal fun BattleScreenContent(
     onAllyClick: (Int) -> Unit,
     onUnitLongPress: (Int) -> Unit,
     onNarrationClick: () -> Unit,
-    onAttackClick: () -> Unit,
     onSkillClick: () -> Unit,
     onSkillSelected: (Int) -> Unit,
     onDefendClick: () -> Unit,
@@ -226,38 +223,19 @@ internal fun BattleScreenContent(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
+                    Button(
+                        onClick = onSkillClick,
+                        enabled = uiState.isSkillEnabled,
+                        contentPadding = PaddingValues(horizontal = 14.dp),
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Text(
+                            stringResource(
+                                if (uiState.isSelectingSkill) R.string.action_selecting else R.string.action_skill,
+                            ),
+                        )
+                    }
                     if (!uiState.isSelectingSkill) {
-                        Button(
-                            onClick = onAttackClick,
-                            enabled = uiState.isAttackEnabled,
-                            contentPadding = PaddingValues(horizontal = 14.dp),
-                            modifier = Modifier.weight(1f),
-                        ) {
-                            Text(
-                                stringResource(
-                                    if (uiState.isSelectingTarget) R.string.action_selecting else R.string.action_attack,
-                                ),
-                            )
-                        }
-                    }
-
-                    if (!uiState.isSelectingTarget) {
-                        Button(
-                            onClick = onSkillClick,
-                            enabled = uiState.isSkillEnabled,
-                            contentPadding = PaddingValues(horizontal = 14.dp),
-                            modifier = Modifier.weight(1f),
-                        ) {
-                            Text(
-                                stringResource(
-                                    if (uiState.isSelectingSkill) R.string.action_selecting else R.string.action_skill,
-                                ),
-                            )
-                        }
-                    }
-
-
-                    if (!uiState.isSelectingTarget && !uiState.isSelectingSkill) {
                         Button(
                             onClick = onDefendClick,
                             enabled = uiState.isDefendEnabled,
@@ -485,7 +463,6 @@ private fun BattleNarration.toText(): String = when (this) {
         actorName
     )
 
-    BattleNarration.SelectTarget -> stringResource(R.string.battle_narration_select_target)
     is BattleNarration.EnemyTurn -> stringResource(R.string.battle_narration_enemy_turn, actorName)
     is BattleNarration.EnemyCannotReach -> stringResource(
         R.string.battle_narration_enemy_cannot_reach,
@@ -493,6 +470,7 @@ private fun BattleNarration.toText(): String = when (this) {
     )
 
     BattleNarration.SelectSkill -> stringResource(R.string.battle_narration_select_skill)
+    BattleNarration.SelectSkillOrAttack -> stringResource(R.string.battle_narration_select_skill_or_attack)
     BattleNarration.SelectAllyTarget -> stringResource(R.string.battle_narration_select_ally_target)
     is BattleNarration.AttackResult -> stringResource(
         when (critical) {
@@ -857,7 +835,6 @@ private fun BattleContentPreview(uiState: BattleUiState) {
             onAllyClick = {},
             onUnitLongPress = {},
             onNarrationClick = {},
-            onAttackClick = {},
             onSkillClick = {},
             onSkillSelected = {},
             onDefendClick = {},
@@ -875,28 +852,21 @@ private fun BattleScreenPlayerTurnPreview() {
     BattleContentPreview(previewBattleUiState())
 }
 
-/** スキル一覧を開いた状態(TP代替で使えるスキルと、HPが足りず使えないスキルの「TP40(HP-12)」表示と、CT中で使えないスキルの「CT残り1」表示を含む)を確認するためのPreview。 */
+/** スキル一覧を開いた状態(通常攻撃できる敵に点滅枠が付き、ナレーションは「スキルを選択してください(対象をタップで通常攻撃)」。TP代替で使えるスキルと、HPが足りず使えないスキルの「TP40(HP-12)」表示と、CT中で使えないスキルの「CT残り1」表示を含む)を確認するためのPreview。 */
 @Preview(showBackground = true, name = "戦闘(スキル一覧)")
 @Composable
 private fun BattleScreenSkillListPreview() {
     BattleContentPreview(previewBattleUiState().copy(selection = BattleSelection.SkillList))
 }
 
-/** 通常攻撃の対象選択中(選べる敵に点滅枠)の状態を確認するためのPreview。 */
-@Preview(showBackground = true, name = "戦闘(対象選択)")
+/** スキルの対象選択中(選んだスキルの対象になる敵に点滅枠)の状態を確認するためのPreview。 */
+@Preview(showBackground = true, name = "戦闘(スキルの対象選択)")
 @Composable
-private fun BattleScreenTargetSelectionPreview() {
-    val base = previewBattleUiState()
-    BattleContentPreview(
-        base.copy(
-            selection = BattleSelection.AttackTarget,
-            attackTargetIds = base.enemySlots.filterNotNull().filter { !it.isDefeated }
-                .map { it.id }.toSet(),
-        ),
-    )
+private fun BattleScreenSkillTargetSelectionPreview() {
+    BattleContentPreview(previewBattleUiState().copy(selection = BattleSelection.SkillTarget(5)))
 }
 
-/** 先制の手番(先制スキルだけの一覧。攻撃・防御・撤退は無効)を確認するためのPreview。 */
+/** 先制の手番(先制スキルだけの一覧。通常攻撃の枠は出ず、防御・撤退は無効)を確認するためのPreview。 */
 @Preview(showBackground = true, name = "戦闘(先制の手番のスキル一覧)")
 @Composable
 private fun BattleScreenPreemptiveSkillListPreview() {
@@ -974,7 +944,7 @@ private fun BattleScreenNothingToDoPreview() {
     )
 }
 
-/** 挑発・魅了などで攻撃・防御が無効になっている手番(防御ボタンが無効)を確認するためのPreview。 */
+/** 挑発・魅了などで防御が無効になっている手番(防御ボタンが無効。通常攻撃できる相手もいない)を確認するためのPreview。 */
 @Preview(showBackground = true, name = "戦闘(防御できない手番)")
 @Composable
 private fun BattleScreenCannotDefendPreview() {
