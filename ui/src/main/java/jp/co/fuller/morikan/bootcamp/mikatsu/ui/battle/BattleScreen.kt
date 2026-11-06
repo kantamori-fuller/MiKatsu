@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
@@ -32,7 +31,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import jp.co.fuller.morikan.bootcamp.mikatsu.core.theme.MiKatsuTheme
@@ -41,19 +39,19 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.CriticalType
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.Formation
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.StatusAilment
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.R
-import jp.co.fuller.morikan.bootcamp.mikatsu.ui.components.FormationGrid
-import jp.co.fuller.morikan.bootcamp.mikatsu.ui.components.FormationSlotFrame
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.components.UnitDetailPopup
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.components.UnitStatCard
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.AreaHitEntry
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleNarration
-import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.inflictedNarrationRes
-import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.labelRes
-import kotlin.math.abs
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleSelection
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleSkillUiModel
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleUiState
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleUnitUiModel
+import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.inflictedNarrationRes
+import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.labelRes
+import jp.co.fuller.morikan.bootcamp.mikatsu.ui.components.FormationGrid
+import jp.co.fuller.morikan.bootcamp.mikatsu.ui.components.FormationSlotFrame
+import kotlin.math.abs
 
 /** 勝敗表示のオーバーレイ背景の不透明度。 */
 private const val OVERLAY_ALPHA = 0.6f
@@ -228,41 +226,53 @@ internal fun BattleScreenContent(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
-                    Button(
-                        onClick = onAttackClick,
-                        enabled = uiState.isAttackEnabled,
-                        modifier = Modifier.weight(1f),
-                    ) {
-                        Text(
-                            stringResource(
-                                if (uiState.isSelectingTarget) R.string.action_selecting else R.string.action_attack,
-                            ),
-                        )
-                    }
-                    Button(
-                        onClick = onSkillClick,
-                        enabled = uiState.isSkillEnabled,
-                        contentPadding = PaddingValues(horizontal = 14.dp),
-                        modifier = Modifier.weight(1f),
-                    ) {
-                        Text(
-                            stringResource(
-                                if (uiState.isSelectingSkill) R.string.action_selecting else R.string.action_skill,
-                            ),
-                        )
+                    if (!uiState.isSelectingSkill) {
+                        Button(
+                            onClick = onAttackClick,
+                            enabled = uiState.isAttackEnabled,
+                            contentPadding = PaddingValues(horizontal = 14.dp),
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            Text(
+                                stringResource(
+                                    if (uiState.isSelectingTarget) R.string.action_selecting else R.string.action_attack,
+                                ),
+                            )
+                        }
                     }
 
-                    Button(
-                        onClick = onDefendClick,
-                        enabled = uiState.isDefendEnabled,
-                        modifier = Modifier.weight(1f),
-                    ) {
-                        Text(stringResource(R.string.action_defend))
+                    if (!uiState.isSelectingTarget) {
+                        Button(
+                            onClick = onSkillClick,
+                            enabled = uiState.isSkillEnabled,
+                            contentPadding = PaddingValues(horizontal = 14.dp),
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            Text(
+                                stringResource(
+                                    if (uiState.isSelectingSkill) R.string.action_selecting else R.string.action_skill,
+                                ),
+                            )
+                        }
                     }
+
+
+                    if (!uiState.isSelectingTarget && !uiState.isSelectingSkill) {
+                        Button(
+                            onClick = onDefendClick,
+                            enabled = uiState.isDefendEnabled,
+                            contentPadding = PaddingValues(horizontal = 14.dp),
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            Text(stringResource(R.string.action_defend))
+                        }
+                    }
+
                     val isSelecting = uiState.selection != BattleSelection.None
                     Button(
                         onClick = if (isSelecting) onCancelClick else onRetreat,
                         enabled = if (isSelecting) uiState.isCancelEnabled else uiState.isRetreatEnabled,
+                        contentPadding = PaddingValues(horizontal = 14.dp),
                         modifier = Modifier.weight(1f),
                     ) {
                         Text(
@@ -318,11 +328,17 @@ private fun SkillList(
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 val costs = listOfNotNull(
-                    skill.mpCost.takeIf { it > 0 }?.let { stringResource(R.string.battle_skill_cost_mp_format, it) },
-                    skill.hpCost.takeIf { it > 0 }?.let { stringResource(R.string.battle_skill_cost_hp_format, it) },
+                    skill.mpCost.takeIf { it > 0 }
+                        ?.let { stringResource(R.string.battle_skill_cost_mp_format, it) },
+                    skill.hpCost.takeIf { it > 0 }
+                        ?.let { stringResource(R.string.battle_skill_cost_hp_format, it) },
                     skill.tpCost.takeIf { it > 0 }?.let {
                         if (skill.substituteHpCost > 0) {
-                            stringResource(R.string.battle_skill_cost_tp_substitute_format, it, skill.substituteHpCost)
+                            stringResource(
+                                R.string.battle_skill_cost_tp_substitute_format,
+                                it,
+                                skill.substituteHpCost
+                            )
                         } else {
                             stringResource(R.string.battle_skill_cost_tp_format, it)
                         }
@@ -342,7 +358,10 @@ private fun SkillList(
                         stringResource(
                             R.string.battle_skill_item_format,
                             nameWithCosts,
-                            stringResource(R.string.battle_skill_cooldown_format, skill.remainingCoolTime),
+                            stringResource(
+                                R.string.battle_skill_cooldown_format,
+                                skill.remainingCoolTime
+                            ),
                         )
                     } else {
                         nameWithCosts
@@ -428,7 +447,8 @@ private fun EnemyGrid(
         slotContent = { slot, slotModifier ->
             val displayRow = slot / Formation.COLUMNS
             val column = slot % Formation.COLUMNS
-            val enemy = enemySlots.getOrNull((Formation.ROWS - 1 - displayRow) * Formation.COLUMNS + column)
+            val enemy =
+                enemySlots.getOrNull((Formation.ROWS - 1 - displayRow) * Formation.COLUMNS + column)
             if (enemy != null) {
                 val isSelectable = enemy.id in selectableTargetIds
                 UnitStatCard(
@@ -460,16 +480,25 @@ private fun EnemyGrid(
  */
 @Composable
 private fun BattleNarration.toText(): String = when (this) {
-    is BattleNarration.SelectAction -> stringResource(R.string.battle_narration_select_action, actorName)
+    is BattleNarration.SelectAction -> stringResource(
+        R.string.battle_narration_select_action,
+        actorName
+    )
+
     BattleNarration.SelectTarget -> stringResource(R.string.battle_narration_select_target)
     is BattleNarration.EnemyTurn -> stringResource(R.string.battle_narration_enemy_turn, actorName)
-    is BattleNarration.EnemyCannotReach -> stringResource(R.string.battle_narration_enemy_cannot_reach, actorName)
+    is BattleNarration.EnemyCannotReach -> stringResource(
+        R.string.battle_narration_enemy_cannot_reach,
+        actorName
+    )
+
     BattleNarration.SelectSkill -> stringResource(R.string.battle_narration_select_skill)
     BattleNarration.SelectAllyTarget -> stringResource(R.string.battle_narration_select_ally_target)
     is BattleNarration.AttackResult -> stringResource(
         when (critical) {
             CriticalType.NONE ->
                 if (isCriticalBlocked) R.string.battle_narration_attack_result_critical_blocked else R.string.battle_narration_attack_result
+
             CriticalType.CRITICAL -> R.string.battle_narration_attack_result_critical
             CriticalType.BAD_CRITICAL -> R.string.battle_narration_attack_result_bad_critical
         },
@@ -478,104 +507,337 @@ private fun BattleNarration.toText(): String = when (this) {
         damage,
         skillName ?: stringResource(R.string.action_attack),
     )
+
     is BattleNarration.SkillResult ->
-        stringResource(R.string.battle_narration_skill_result, actorName, targetName, skillName, healedAmount)
-    is BattleNarration.AttackMissed -> stringResource(R.string.battle_narration_attack_missed, attackerName, targetName, skillName ?: stringResource(R.string.action_attack))
+        stringResource(
+            R.string.battle_narration_skill_result,
+            actorName,
+            targetName,
+            skillName,
+            healedAmount
+        )
+
+    is BattleNarration.AttackMissed -> stringResource(
+        R.string.battle_narration_attack_missed,
+        attackerName,
+        targetName,
+        skillName ?: stringResource(R.string.action_attack)
+    )
+
     is BattleNarration.ShotHit -> stringResource(
         when (critical) {
             CriticalType.NONE ->
                 if (isCriticalBlocked) R.string.battle_narration_shot_critical_blocked else R.string.battle_narration_shot_hit
+
             CriticalType.CRITICAL -> R.string.battle_narration_shot_critical
             CriticalType.BAD_CRITICAL -> R.string.battle_narration_shot_bad_critical
         },
         shotNumber,
         damage,
     )
-    is BattleNarration.ShotMissed -> stringResource(R.string.battle_narration_shot_missed, shotNumber)
+
+    is BattleNarration.ShotMissed -> stringResource(
+        R.string.battle_narration_shot_missed,
+        shotNumber
+    )
+
     is BattleNarration.AttackTotal ->
-        stringResource(R.string.battle_narration_attack_total, attackerName, targetName, totalDamage, shotCount, hitCount)
-    is BattleNarration.AreaAttackStart -> stringResource(R.string.battle_narration_area_attack_start, attackerName, skillName ?: stringResource(R.string.action_attack))
-    is BattleNarration.AreaAttackAllMissed -> stringResource(R.string.battle_narration_area_attack_all_missed, attackerName, skillName ?: stringResource(R.string.action_attack))
+        stringResource(
+            R.string.battle_narration_attack_total,
+            attackerName,
+            targetName,
+            totalDamage,
+            shotCount,
+            hitCount
+        )
+
+    is BattleNarration.AreaAttackStart -> stringResource(
+        R.string.battle_narration_area_attack_start,
+        attackerName,
+        skillName ?: stringResource(R.string.action_attack)
+    )
+
+    is BattleNarration.AreaAttackAllMissed -> stringResource(
+        R.string.battle_narration_area_attack_all_missed,
+        attackerName,
+        skillName ?: stringResource(R.string.action_attack)
+    )
+
     is BattleNarration.AreaMissed -> stringResource(
         R.string.battle_narration_area_missed,
         targetNames.joinToString(stringResource(R.string.battle_narration_area_missed_separator)),
     )
+
     is BattleNarration.AreaHit -> stringResource(
         R.string.battle_narration_area_hit,
         entries
-            .map { stringResource(R.string.battle_narration_area_hit_entry, it.targetName, it.damage) }
+            .map {
+                stringResource(
+                    R.string.battle_narration_area_hit_entry,
+                    it.targetName,
+                    it.damage
+                )
+            }
             .joinToString(stringResource(R.string.battle_narration_area_hit_separator)),
     )
-    is BattleNarration.InRound -> stringResource(R.string.battle_narration_in_round, shotNumber, narration.toText())
+
+    is BattleNarration.InRound -> stringResource(
+        R.string.battle_narration_in_round,
+        shotNumber,
+        narration.toText()
+    )
+
     is BattleNarration.AreaAttackTotal -> stringResource(
         R.string.battle_narration_area_attack_total,
         attackerName,
         entries
-            .map { stringResource(R.string.battle_narration_area_total_entry, it.targetName, it.damage) }
+            .map {
+                stringResource(
+                    R.string.battle_narration_area_total_entry,
+                    it.targetName,
+                    it.damage
+                )
+            }
             .joinToString(stringResource(R.string.battle_narration_area_hit_separator)),
     )
-    is BattleNarration.AreaCritical -> stringResource(R.string.battle_narration_area_critical, targetName)
-    is BattleNarration.AreaBadCritical -> stringResource(R.string.battle_narration_area_bad_critical, targetName)
-    is BattleNarration.AreaCriticalBlocked -> stringResource(R.string.battle_narration_area_critical_blocked, targetName)
+
+    is BattleNarration.AreaCritical -> stringResource(
+        R.string.battle_narration_area_critical,
+        targetName
+    )
+
+    is BattleNarration.AreaBadCritical -> stringResource(
+        R.string.battle_narration_area_bad_critical,
+        targetName
+    )
+
+    is BattleNarration.AreaCriticalBlocked -> stringResource(
+        R.string.battle_narration_area_critical_blocked,
+        targetName
+    )
+
     is BattleNarration.Defend -> stringResource(R.string.battle_narration_defend, actorName)
-    is BattleNarration.PreemptiveAction -> stringResource(R.string.battle_narration_preemptive_action, actorName)
-    is BattleNarration.PreemptiveFailed -> stringResource(R.string.battle_narration_preemptive_failed, actorName)
+    is BattleNarration.PreemptiveAction -> stringResource(
+        R.string.battle_narration_preemptive_action,
+        actorName
+    )
+
+    is BattleNarration.PreemptiveFailed -> stringResource(
+        R.string.battle_narration_preemptive_failed,
+        actorName
+    )
+
     is BattleNarration.Broke -> stringResource(R.string.battle_narration_broke, targetName)
-    is BattleNarration.BreakStunned -> stringResource(R.string.battle_narration_break_stunned, actorName)
-    is BattleNarration.BreakRecovered -> stringResource(R.string.battle_narration_break_recovered, actorName)
-    is BattleNarration.SkillUsed -> stringResource(R.string.battle_narration_skill_used, actorName, skillName)
-    is BattleNarration.SkillMissed -> stringResource(R.string.battle_narration_skill_missed, actorName, skillName)
+    is BattleNarration.BreakStunned -> stringResource(
+        R.string.battle_narration_break_stunned,
+        actorName
+    )
+
+    is BattleNarration.BreakRecovered -> stringResource(
+        R.string.battle_narration_break_recovered,
+        actorName
+    )
+
+    is BattleNarration.SkillUsed -> stringResource(
+        R.string.battle_narration_skill_used,
+        actorName,
+        skillName
+    )
+
+    is BattleNarration.SkillMissed -> stringResource(
+        R.string.battle_narration_skill_missed,
+        actorName,
+        skillName
+    )
+
     is BattleNarration.StatStageChanged -> stringResource(
         if (stages >= 0) R.string.battle_narration_stat_up else R.string.battle_narration_stat_down,
         targetName,
         stringResource(stat.labelRes),
         abs(stages),
     )
-    is BattleNarration.AttackNullified -> stringResource(R.string.battle_narration_attack_nullified, attackerName, targetName, skillName ?: stringResource(R.string.action_attack))
-    is BattleNarration.AttackLead -> stringResource(R.string.battle_narration_attack_lead, attackerName, targetName, skillName ?: stringResource(R.string.action_attack))
-    is BattleNarration.ShotLanded -> stringResource(R.string.battle_narration_shot_landed, shotNumber)
-    is BattleNarration.ShotNullified -> stringResource(R.string.battle_narration_shot_nullified, shotNumber)
+
+    is BattleNarration.AttackNullified -> stringResource(
+        R.string.battle_narration_attack_nullified,
+        attackerName,
+        targetName,
+        skillName ?: stringResource(R.string.action_attack)
+    )
+
+    is BattleNarration.AttackLead -> stringResource(
+        R.string.battle_narration_attack_lead,
+        attackerName,
+        targetName,
+        skillName ?: stringResource(R.string.action_attack)
+    )
+
+    is BattleNarration.ShotLanded -> stringResource(
+        R.string.battle_narration_shot_landed,
+        shotNumber
+    )
+
+    is BattleNarration.ShotNullified -> stringResource(
+        R.string.battle_narration_shot_nullified,
+        shotNumber
+    )
+
     is BattleNarration.AreaNullified -> stringResource(
         R.string.battle_narration_area_nullified,
         targetNames.joinToString(stringResource(R.string.battle_narration_area_missed_separator)),
     )
-    is BattleNarration.AttackAbsorbed -> stringResource(R.string.battle_narration_attack_absorbed, targetName, healedAmount)
-    is BattleNarration.AttackReflected -> stringResource(R.string.battle_narration_attack_reflected, targetName, attackerName, damage)
-    is BattleNarration.AttackReflectedNullified -> stringResource(R.string.battle_narration_attack_reflected_nullified, targetName, attackerName)
+
+    is BattleNarration.AttackAbsorbed -> stringResource(
+        R.string.battle_narration_attack_absorbed,
+        targetName,
+        healedAmount
+    )
+
+    is BattleNarration.AttackReflected -> stringResource(
+        R.string.battle_narration_attack_reflected,
+        targetName,
+        attackerName,
+        damage
+    )
+
+    is BattleNarration.AttackReflectedNullified -> stringResource(
+        R.string.battle_narration_attack_reflected_nullified,
+        targetName,
+        attackerName
+    )
+
     is BattleNarration.AttackReflectedAbsorbed ->
-        stringResource(R.string.battle_narration_attack_reflected_absorbed, targetName, attackerName, healedAmount)
-    is BattleNarration.SkillNullified -> stringResource(R.string.battle_narration_skill_nullified, actorName, skillName, targetName)
-    is BattleNarration.EffectNullified -> stringResource(R.string.battle_narration_effect_nullified, targetName)
-    is BattleNarration.EffectReflected -> stringResource(R.string.battle_narration_effect_reflected, targetName)
-    is BattleNarration.EffectReflectedNullified -> stringResource(R.string.battle_narration_effect_reflected_nullified, actorName)
+        stringResource(
+            R.string.battle_narration_attack_reflected_absorbed,
+            targetName,
+            attackerName,
+            healedAmount
+        )
+
+    is BattleNarration.SkillNullified -> stringResource(
+        R.string.battle_narration_skill_nullified,
+        actorName,
+        skillName,
+        targetName
+    )
+
+    is BattleNarration.EffectNullified -> stringResource(
+        R.string.battle_narration_effect_nullified,
+        targetName
+    )
+
+    is BattleNarration.EffectReflected -> stringResource(
+        R.string.battle_narration_effect_reflected,
+        targetName
+    )
+
+    is BattleNarration.EffectReflectedNullified -> stringResource(
+        R.string.battle_narration_effect_reflected_nullified,
+        actorName
+    )
+
     is BattleNarration.MultiSkillResult ->
-        stringResource(R.string.battle_narration_multi_skill_result, actorName, skillName, targetCount, totalHealed)
+        stringResource(
+            R.string.battle_narration_multi_skill_result,
+            actorName,
+            skillName,
+            targetCount,
+            totalHealed
+        )
+
     is BattleNarration.AilmentInflicted -> ailment.inflictedNarrationRes
         ?.let { stringResource(it, targetName) }
-        ?: stringResource(R.string.battle_narration_ailment_inflicted, targetName, stringResource(ailment.labelRes))
-    is BattleNarration.BrainwashLead -> stringResource(R.string.battle_narration_brainwash_lead, actorName)
-    is BattleNarration.MadnessLead -> stringResource(R.string.battle_narration_madness_lead, actorName)
-    is BattleNarration.MadnessIdle -> stringResource(R.string.battle_narration_madness_idle, actorName)
-    is BattleNarration.FearFrozen -> stringResource(R.string.battle_narration_fear_frozen, actorName)
-    is BattleNarration.NothingToDo -> stringResource(R.string.battle_narration_nothing_to_do, actorName)
+        ?: stringResource(
+            R.string.battle_narration_ailment_inflicted,
+            targetName,
+            stringResource(ailment.labelRes)
+        )
+
+    is BattleNarration.BrainwashLead -> stringResource(
+        R.string.battle_narration_brainwash_lead,
+        actorName
+    )
+
+    is BattleNarration.MadnessLead -> stringResource(
+        R.string.battle_narration_madness_lead,
+        actorName
+    )
+
+    is BattleNarration.MadnessIdle -> stringResource(
+        R.string.battle_narration_madness_idle,
+        actorName
+    )
+
+    is BattleNarration.FearFrozen -> stringResource(
+        R.string.battle_narration_fear_frozen,
+        actorName
+    )
+
+    is BattleNarration.NothingToDo -> stringResource(
+        R.string.battle_narration_nothing_to_do,
+        actorName
+    )
     // 「しかしBには効かなかった!」は反射の無効と同じ文言なので、文字列リソースを共有する。
-    is BattleNarration.AilmentAllFailed -> stringResource(R.string.battle_narration_effect_reflected_nullified, targetName)
+    is BattleNarration.AilmentAllFailed -> stringResource(
+        R.string.battle_narration_effect_reflected_nullified,
+        targetName
+    )
+
     is BattleNarration.AilmentFailed -> stringResource(
         R.string.battle_narration_ailment_failed,
         targetName,
         stringResource(ailment?.labelRes ?: R.string.battle_ailment_instant_death),
     )
-    is BattleNarration.InstantDeathSucceeded -> stringResource(R.string.battle_narration_instant_death, targetName)
+
+    is BattleNarration.InstantDeathSucceeded -> stringResource(
+        R.string.battle_narration_instant_death,
+        targetName
+    )
+
     is BattleNarration.AilmentIncapacitated ->
-        stringResource(R.string.battle_narration_ailment_incapacitated, actorName, stringResource(ailment.labelRes))
+        stringResource(
+            R.string.battle_narration_ailment_incapacitated,
+            actorName,
+            stringResource(ailment.labelRes)
+        )
+
     is BattleNarration.AilmentHpDamage ->
-        stringResource(R.string.battle_narration_ailment_hp_damage, targetName, stringResource(ailment.labelRes), damage)
-    is BattleNarration.AilmentMpLoss -> stringResource(R.string.battle_narration_ailment_mp_loss, targetName, amount)
-    is BattleNarration.AilmentTpLoss -> stringResource(R.string.battle_narration_ailment_tp_loss, targetName, amount)
-    is BattleNarration.AilmentSpread -> stringResource(R.string.battle_narration_ailment_spread, fromName, toName)
+        stringResource(
+            R.string.battle_narration_ailment_hp_damage,
+            targetName,
+            stringResource(ailment.labelRes),
+            damage
+        )
+
+    is BattleNarration.AilmentMpLoss -> stringResource(
+        R.string.battle_narration_ailment_mp_loss,
+        targetName,
+        amount
+    )
+
+    is BattleNarration.AilmentTpLoss -> stringResource(
+        R.string.battle_narration_ailment_tp_loss,
+        targetName,
+        amount
+    )
+
+    is BattleNarration.AilmentSpread -> stringResource(
+        R.string.battle_narration_ailment_spread,
+        fromName,
+        toName
+    )
+
     is BattleNarration.AilmentCured ->
-        stringResource(R.string.battle_narration_ailment_cured, targetName, stringResource(ailment.labelRes))
-    is BattleNarration.UnitDefeated -> stringResource(R.string.battle_narration_unit_defeated, targetName)
+        stringResource(
+            R.string.battle_narration_ailment_cured,
+            targetName,
+            stringResource(ailment.labelRes)
+        )
+
+    is BattleNarration.UnitDefeated -> stringResource(
+        R.string.battle_narration_unit_defeated,
+        targetName
+    )
+
     is BattleNarration.AilmentReleasedByDamage -> if (ailment == StatusAilment.SLEEP) {
         stringResource(R.string.battle_narration_woke_up, targetName)
     } else {
@@ -589,9 +851,19 @@ private fun BattleContentPreview(uiState: BattleUiState) {
     MiKatsuTheme(darkTheme = false) {
         BattleScreenContent(
             uiState = uiState,
-            onRetreat = {}, onDefeat = {}, onEnemyClick = {}, onAllyClick = {}, onUnitLongPress = {},
-            onNarrationClick = {}, onAttackClick = {}, onSkillClick = {}, onSkillSelected = {},
-            onDefendClick = {}, onCancelClick = {}, onUnitDetailDismiss = {}, onNextBattleClick = {},
+            onRetreat = {},
+            onDefeat = {},
+            onEnemyClick = {},
+            onAllyClick = {},
+            onUnitLongPress = {},
+            onNarrationClick = {},
+            onAttackClick = {},
+            onSkillClick = {},
+            onSkillSelected = {},
+            onDefendClick = {},
+            onCancelClick = {},
+            onUnitDetailDismiss = {},
+            onNextBattleClick = {},
         )
     }
 }
@@ -618,7 +890,8 @@ private fun BattleScreenTargetSelectionPreview() {
     BattleContentPreview(
         base.copy(
             selection = BattleSelection.AttackTarget,
-            attackTargetIds = base.enemySlots.filterNotNull().filter { !it.isDefeated }.map { it.id }.toSet(),
+            attackTargetIds = base.enemySlots.filterNotNull().filter { !it.isDefeated }
+                .map { it.id }.toSet(),
         ),
     )
 }
@@ -658,7 +931,10 @@ private fun BattleScreenPreemptiveReservationPreview() {
 private fun BattleScreenDetailPopupPreview() {
     val detail = previewUnitDetail()
     BattleContentPreview(
-        previewBattleUiState().copy(unitDetails = mapOf(detail.id to detail), detailUnitId = detail.id),
+        previewBattleUiState().copy(
+            unitDetails = mapOf(detail.id to detail),
+            detailUnitId = detail.id
+        ),
     )
 }
 
@@ -667,7 +943,10 @@ private fun BattleScreenDetailPopupPreview() {
 @Composable
 private fun BattleScreenBrainwashTurnPreview() {
     BattleContentPreview(
-        previewBattleUiState().copy(isProcessing = true, processingNarration = BattleNarration.BrainwashLead("味方")),
+        previewBattleUiState().copy(
+            isProcessing = true,
+            processingNarration = BattleNarration.BrainwashLead("味方")
+        ),
     )
 }
 
@@ -676,7 +955,10 @@ private fun BattleScreenBrainwashTurnPreview() {
 @Composable
 private fun BattleScreenFearFrozenPreview() {
     BattleContentPreview(
-        previewBattleUiState().copy(isProcessing = true, processingNarration = BattleNarration.FearFrozen("味方")),
+        previewBattleUiState().copy(
+            isProcessing = true,
+            processingNarration = BattleNarration.FearFrozen("味方")
+        ),
     )
 }
 
@@ -685,7 +967,10 @@ private fun BattleScreenFearFrozenPreview() {
 @Composable
 private fun BattleScreenNothingToDoPreview() {
     BattleContentPreview(
-        previewBattleUiState().copy(isProcessing = true, processingNarration = BattleNarration.NothingToDo("味方")),
+        previewBattleUiState().copy(
+            isProcessing = true,
+            processingNarration = BattleNarration.NothingToDo("味方")
+        ),
     )
 }
 
@@ -693,7 +978,12 @@ private fun BattleScreenNothingToDoPreview() {
 @Preview(showBackground = true, name = "戦闘(防御できない手番)")
 @Composable
 private fun BattleScreenCannotDefendPreview() {
-    BattleContentPreview(previewBattleUiState().copy(canDefend = false, attackTargetIds = emptySet()))
+    BattleContentPreview(
+        previewBattleUiState().copy(
+            canDefend = false,
+            attackTargetIds = emptySet()
+        )
+    )
 }
 
 /** 勝利のオーバーレイを表示している状態を確認するためのPreview。 */
@@ -717,7 +1007,10 @@ private fun BattleScreenAreaMultiStrikeRoundPreview() {
     BattleContentPreview(
         previewBattleUiState().copy(
             isProcessing = true,
-            processingNarration = BattleNarration.InRound(2, BattleNarration.AreaHit(listOf(AreaHitEntry("ゴブリンB", 28)))),
+            processingNarration = BattleNarration.InRound(
+                2,
+                BattleNarration.AreaHit(listOf(AreaHitEntry("ゴブリンB", 28)))
+            ),
         ),
     )
 }
@@ -729,7 +1022,10 @@ private fun BattleScreenAreaMultiStrikeTotalPreview() {
     BattleContentPreview(
         previewBattleUiState().copy(
             isProcessing = true,
-            processingNarration = BattleNarration.AreaAttackTotal("味方", listOf(AreaHitEntry("ゴブリンA", 30), AreaHitEntry("ゴブリンB", 53))),
+            processingNarration = BattleNarration.AreaAttackTotal(
+                "味方",
+                listOf(AreaHitEntry("ゴブリンA", 30), AreaHitEntry("ゴブリンB", 53))
+            ),
         ),
     )
 }
