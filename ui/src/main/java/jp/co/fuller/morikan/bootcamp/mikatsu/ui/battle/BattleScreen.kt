@@ -6,6 +6,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
@@ -30,6 +32,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import jp.co.fuller.morikan.bootcamp.mikatsu.core.theme.MiKatsuTheme
@@ -223,7 +226,7 @@ internal fun BattleScreenContent(
                 Spacer(Modifier.height(24.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
                     Button(
                         onClick = onAttackClick,
@@ -239,6 +242,7 @@ internal fun BattleScreenContent(
                     Button(
                         onClick = onSkillClick,
                         enabled = uiState.isSkillEnabled,
+                        contentPadding = PaddingValues(horizontal = 14.dp),
                         modifier = Modifier.weight(1f),
                     ) {
                         Text(
@@ -247,12 +251,7 @@ internal fun BattleScreenContent(
                             ),
                         )
                     }
-                }
-                Spacer(Modifier.height(8.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                ) {
+
                     Button(
                         onClick = onDefendClick,
                         enabled = uiState.isDefendEnabled,
@@ -270,6 +269,7 @@ internal fun BattleScreenContent(
                             stringResource(if (isSelecting) R.string.action_cancel else R.string.action_retreat),
                         )
                     }
+
                 }
             }
         }
