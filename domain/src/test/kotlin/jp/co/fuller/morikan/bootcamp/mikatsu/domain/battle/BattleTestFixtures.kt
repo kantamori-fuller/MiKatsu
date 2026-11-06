@@ -28,7 +28,7 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillCostType
  * @param fpid 個体のFPID。
  * @param agility 素早さ。
  * @param luck 幸運。
- * @param hp 現在HP(最大HPも同値)。
+ * @param hp 現在HP(最大HPも同値。種族値には基礎HP分を引いた値を入れ、戦闘中の最大HPがこの値になるようにする)。
  * @param attack 破壊力。
  * @param defense 耐久力。
  * @param mp 現在MP(最大MPも同値)。
@@ -59,7 +59,7 @@ fun testAlly(
 ) = BattleAlly(
     fpid = fpid,
     character = Character(
-        id = fpid, name = "味方$fpid", hp = hp, mana = mp, attack = attack, defense = defense,
+        id = fpid, name = "味方$fpid", hp = hp - HitPointFormula.BASE_HP, mana = mp, attack = attack, defense = defense,
         manaOutput = manaOutput, manaResistance = manaResistance, agility = agility, luck = luck,
         elementResistances = elementResistances,
     ),
@@ -79,7 +79,7 @@ fun testAlly(
  * @param fpid 個体のFPID。
  * @param agility 素早さ。
  * @param luck 幸運。
- * @param hp 現在HP(最大HPも同値)。
+ * @param hp 現在HP(最大HPも同値。種族値には基礎HP分を引いた値を入れ、戦闘中の最大HPがこの値になるようにする)。
  * @param attack 破壊力。
  * @param defense 耐久力。
  * @param slot 敵陣営のスロット番号。省略時は0(前衛の左端)。
@@ -104,7 +104,7 @@ fun testEnemy(
 ) = BattleEnemy(
     fpid = fpid,
     enemy = Enemy(
-        id = 1, name = "敵", hp = hp, mana = 0, attack = attack, defense = defense,
+        id = 1, name = "敵", hp = hp - HitPointFormula.BASE_HP, mana = 0, attack = attack, defense = defense,
         manaOutput = manaOutput, manaResistance = manaResistance, agility = agility, luck = luck,
         elementResistances = elementResistances,
     ),

@@ -48,6 +48,17 @@ class GetBattleFieldUseCaseTpTest {
         assertEquals(listOf(10, 10), field.enemies.map { it.currentTp })
     }
 
+    /** 戦闘開始時は味方・敵とも、現在HP=最大HP=種族値+80(満タン)で始まること。 */
+    @Test
+    fun invoke_startsWithFullHpPlusBaseHp() = runBlocking {
+        val field = useCase(Formation(List(Formation.SLOT_COUNT) { if (it == 0) 1 else null }))
+
+        assertEquals(listOf(180), field.allies.map { it.currentHp })
+        assertEquals(listOf(180), field.allies.map { it.maxHp })
+        assertEquals(listOf(130, 130), field.enemies.map { it.currentHp })
+        assertEquals(listOf(130, 130), field.enemies.map { it.maxHp })
+    }
+
     /** 次の戦闘へは味方のTPを持ち越して+10(上限100)し、敵は新しく0から+10になること。 */
     @Test
     fun createNextBattleField_carriesOverTpPlusTen() = runBlocking {

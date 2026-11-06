@@ -1,6 +1,7 @@
 package jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase
 
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.ActionTimeline
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.HitPointFormula
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.grantBattleStartTp
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleAlly
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleEnemy
@@ -53,7 +54,7 @@ class GetBattleFieldUseCase(
                     fpid = index + 1,
                     character = character,
                     slot = slot,
-                    currentHp = character.hp,
+                    currentHp = HitPointFormula.maxHpOf(character.hp),
                     currentMp = character.mana,
                     currentTp = 0,
                 )
@@ -130,7 +131,7 @@ class GetBattleFieldUseCase(
                 BattleEnemy(
                     fpid = firstFpid + slot,
                     enemy = enemy,
-                    currentHp = enemy.hp,
+                    currentHp = HitPointFormula.maxHpOf(enemy.hp),
                     slot = slot,
                     remainingDistance = ActionTimeline.BASE_DISTANCE,
                     turnCount = 0,

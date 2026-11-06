@@ -23,6 +23,7 @@
 | ファイル | 内容 | 主な実装箇所 |
 |---|---|---|
 | [ids.md](.claude/rules/battle/ids.md) | ID / EID / FPIDの違いと使い分け。**対象指定は必ずFPID** | `GetBattleFieldUseCase` |
+| [hit-points.md](.claude/rules/battle/hit-points.md) | 最大HP = 種族値 + 基礎HP80(味方・敵とも、戦闘時だけ加算) | `HitPointFormula.kt` |
 | [turn-system.md](.claude/rules/battle/turn-system.md) | 素早さによる個別ターン制、同時手番、**手番の開始・終了で起きることの早見表** | `ActionTimeline.kt`・`ActionSpeedFormula.kt` |
 | [formation-and-targeting.md](.claude/rules/battle/formation-and-targeting.md) | 前衛/後衛・繰り上がり、レンジ・陣営・範囲×対象選択 | `SkillTargeting.kt` |
 | [skills.md](.claude/rules/battle/skills.md) | スキルID(A/P別採番)、スキル一覧xlsxとの対応、通常攻撃、`performSkill`、CT、Pスキル、MP、特殊型攻撃 | `SkillUse.kt`・`SkillCooldownFormula.kt`・`PassiveSkillEffects.kt`・`SkillRepositoryImpl` |
