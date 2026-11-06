@@ -35,6 +35,7 @@
 | [break.md](.claude/rules/battle/break.md) | ブレイクゲージ、ブレイク中の効果、立ち上がり | `BreakFormula.kt` |
 | [defense.md](.claude/rules/battle/defense.md) | 防御の成立条件・効果・解除 | `DefenseFormula.kt` |
 | [element-resistance.md](.claude/rules/battle/element-resistance.md) | 12属性の耐性、倍率/無効/吸収/反射 | `ElementResistanceFormula.kt` |
+| [ailment-resistance.md](.claude/rules/battle/ailment-resistance.md) | 状態異常耐性(16項目・0〜100)。成功率×耐性/100(切り捨て)、感染の伝染への効き方、キャラ編集・詳細ポップアップ | `AilmentResistanceFormula.kt` |
 | [stat-modifiers.md](.claude/rules/battle/stat-modifiers.md) | ステータスのバフ・デバフ(段階・持続・永続)、`effectiveStat`の使い方 | `StatStageFormula.kt` |
 | [preemptive.md](.claude/rules/battle/preemptive.md) | 先制行動の予約・割り込み・取り消し・UI | `PreemptiveAction.kt`・`ActionTimeline.kt` |
 | [status-ailments.md](.claude/rules/battle/status-ailments.md) | 状態異常の付与・成功率・手番終了時のダメージ・行動不能・各効果 | `StatusAilmentFormula.kt` |

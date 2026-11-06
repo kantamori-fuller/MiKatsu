@@ -1,6 +1,8 @@
 package jp.co.fuller.morikan.bootcamp.mikatsu.ui.charactercreate.model
 
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.AilmentResistanceFormula
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.ElementResistanceFormula
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.AilmentResistanceType
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.ElementResistances
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillElement
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillLimits
@@ -46,6 +48,8 @@ enum class SkillPickerKind {
  * @property luck L. 幸運フィールドの入力値。
  * @property elementResistances 12属性の耐性の入力値(属性 → 表示文字列)。[ElementResistances.ORDER]の順で、新規作成時はすべて「100」。
  *   空欄や「-」だけの欄は、保存時に100として扱う。
+ * @property ailmentResistances 状態異常耐性16項目の入力値(項目 → 表示文字列)。[AilmentResistanceType]の順で、新規作成時はすべて「100」。
+ *   空欄は保存時に100として扱う。
  * @property activeSkillIds 設定済みのアクティブスキル(Aスキル)のスキルID。設定順に並ぶ。
  * @property passiveSkillIds 設定済みのパッシブスキル(Pスキル)のスキルID。設定順に並ぶ。
  * @property activeSkillCatalog 設定可能なアクティブスキルの一覧(マスターデータ)。
@@ -71,6 +75,8 @@ data class CharacterCreateUiState(
     val luck: String = "",
     val elementResistances: Map<SkillElement, String> =
         ElementResistances.ORDER.associateWith { ElementResistanceFormula.NEUTRAL.toString() },
+    val ailmentResistances: Map<AilmentResistanceType, String> =
+        AilmentResistanceType.entries.associateWith { AilmentResistanceFormula.NEUTRAL.toString() },
     val activeSkillIds: List<Int> = emptyList(),
     val passiveSkillIds: List<Int> = emptyList(),
     val activeSkillCatalog: List<SkillUiModel> = emptyList(),

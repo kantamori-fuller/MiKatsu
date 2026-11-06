@@ -28,8 +28,11 @@
     <string name="element_death">死</string>
     <string name="element_erosion">侵</string>
     <string name="element_dragon">龍</string>
-    <string name="label_element_resistance">%1$s耐性</string>
+    <string name="label_resistance">%1$s耐性</string>
     <string name="section_element_resistances">属性耐性</string>
+    <string name="section_ailment_resistances">状態異常耐性</string>
+    <string name="ailment_resistance_skill_seal">スキル封印</string>
+    <string name="ailment_resistance_mental">精神系</string>
     <string name="battle_detail_element_resistance_row">%1$s %2$d</string>
     <string name="label_name">名前</string>
     <string name="label_hp">H. 体力</string>

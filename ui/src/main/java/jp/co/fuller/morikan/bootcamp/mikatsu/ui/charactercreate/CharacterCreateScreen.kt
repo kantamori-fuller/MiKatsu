@@ -33,6 +33,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import jp.co.fuller.morikan.bootcamp.mikatsu.core.theme.MiKatsuTheme
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.AilmentResistanceType
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.ElementResistances
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillElement
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.R
@@ -82,6 +83,7 @@ fun CharacterCreateScreen(
         onAgilityChange = viewModel::onAgilityChange,
         onLuckChange = viewModel::onLuckChange,
         onElementResistanceChange = viewModel::onElementResistanceChange,
+        onAilmentResistanceChange = viewModel::onAilmentResistanceChange,
         onAddActiveSkillClick = viewModel::onAddActiveSkillClick,
         onAddPassiveSkillClick = viewModel::onAddPassiveSkillClick,
         onRemoveActiveSkill = viewModel::onRemoveActiveSkill,
@@ -109,6 +111,7 @@ fun CharacterCreateScreen(
  * @param onAgilityChange 敏捷の入力が変化したときに呼ばれる。
  * @param onLuckChange 幸運の入力が変化したときに呼ばれる。
  * @param onElementResistanceChange 属性耐性の入力が変化したときに、属性と入力後の文字列を引数に呼ばれる。
+ * @param onAilmentResistanceChange 状態異常耐性の入力が変化したときに、項目と入力後の文字列を引数に呼ばれる。
  * @param onAddActiveSkillClick Aスキルの「スキルを追加」が押されたときに呼ばれる。
  * @param onAddPassiveSkillClick Pスキルの「スキルを追加」が押されたときに呼ばれる。
  * @param onRemoveActiveSkill 設定済みAスキルの「削除」が押されたときに、スキルIDを引数に呼ばれる。
@@ -133,6 +136,7 @@ internal fun CharacterCreateScreenContent(
     onAgilityChange: (String) -> Unit,
     onLuckChange: (String) -> Unit,
     onElementResistanceChange: (SkillElement, String) -> Unit,
+    onAilmentResistanceChange: (AilmentResistanceType, String) -> Unit,
     onAddActiveSkillClick: () -> Unit,
     onAddPassiveSkillClick: () -> Unit,
     onRemoveActiveSkill: (Int) -> Unit,
@@ -212,10 +216,20 @@ internal fun CharacterCreateScreenContent(
             Spacer(Modifier.height(8.dp))
             ElementResistances.ORDER.forEach { element ->
                 StatField(
-                    label = stringResource(R.string.label_element_resistance, stringResource(element.labelRes)),
+                    label = stringResource(R.string.label_resistance, stringResource(element.labelRes)),
                     value = uiState.elementResistances[element].orEmpty(),
                     onValueChange = { onElementResistanceChange(element, it) },
                     keyboardType = KeyboardType.Text,
+                )
+            }
+            Spacer(Modifier.height(16.dp))
+            Text(stringResource(R.string.section_ailment_resistances), style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(8.dp))
+            AilmentResistanceType.entries.forEach { type ->
+                StatField(
+                    label = stringResource(R.string.label_resistance, stringResource(type.labelRes)),
+                    value = uiState.ailmentResistances[type].orEmpty(),
+                    onValueChange = { onAilmentResistanceChange(type, it) },
                 )
             }
             Spacer(Modifier.height(16.dp))
@@ -305,6 +319,7 @@ private val previewEditingState = CharacterCreateUiState(
     manaResistance = "10",
     agility = "25",
     luck = "5",
+    ailmentResistances = AilmentResistanceType.entries.associateWith { if (it.ordinal % 4 == 0) "0" else if (it.ordinal % 4 == 1) "50" else "100" },
     elementResistances = ElementResistances.ORDER.zip(listOf("50", "150", "100", "0", "100", "100", "100", "100", "-1", "100", "-999", "100")).toMap(),
     activeSkillIds = listOf(2),
     passiveSkillIds = listOf(1),
@@ -321,7 +336,7 @@ private fun CharacterCreateContentPreview(uiState: CharacterCreateUiState) {
             uiState = uiState,
             onBack = {}, onNameChange = {}, onHpChange = {}, onManaChange = {}, onAttackChange = {},
             onDefenseChange = {}, onManaOutputChange = {}, onManaResistanceChange = {},
-            onAgilityChange = {}, onLuckChange = {}, onElementResistanceChange = { _, _ -> },
+            onAgilityChange = {}, onLuckChange = {}, onElementResistanceChange = { _, _ -> }, onAilmentResistanceChange = { _, _ -> },
             onAddActiveSkillClick = {},
             onAddPassiveSkillClick = {}, onRemoveActiveSkill = {}, onRemovePassiveSkill = {},
             onSkillPicked = {}, onSkillPickerDismiss = {}, onSaveClick = {},

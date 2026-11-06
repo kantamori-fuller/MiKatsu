@@ -6,7 +6,10 @@ import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
 import dagger.hilt.android.lifecycle.HiltViewModel
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.AilmentResistanceFormula
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.ElementResistanceFormula
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.AilmentResistanceType
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.AilmentResistances
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.CharacterDraft
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.ElementResistances
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillElement
@@ -81,6 +84,9 @@ class CharacterCreateViewModel @AssistedInject constructor(
                             luck = character.luck.toString(),
                             elementResistances = ElementResistances.ORDER.associateWith { element ->
                                 character.elementResistances.of(element).toString()
+                            },
+                            ailmentResistances = AilmentResistanceType.entries.associateWith { type ->
+                                character.ailmentResistances.of(type).toString()
                             },
                             activeSkillIds = character.activeSkillIds,
                             passiveSkillIds = character.passiveSkillIds,
@@ -169,6 +175,34 @@ class CharacterCreateViewModel @AssistedInject constructor(
     fun onElementResistanceChange(element: SkillElement, value: String) {
         if (element !in ElementResistances.ORDER || !isValidResistanceInput(value)) return
         _uiState.update { it.copy(elementResistances = it.elementResistances + (element to value)) }
+    }
+
+    /**
+     * 状態異常耐性フィールドの入力が変化したときに呼ばれる。
+     *
+     * 入力できるのは、空欄、または半角数字のみで、整数として
+     * [AilmentResistanceFormula.MIN]〜[AilmentResistanceFormula.MAX]に収まるものだけ(先頭の「-」は不可)。
+     * それ以外の入力は弾いて状態を変えない。
+     *
+     * @param type 入力が変化した項目。
+     * @param value 入力後の文字列。
+     */
+    fun onAilmentResistanceChange(type: AilmentResistanceType, value: String) {
+        if (!isValidAilmentResistanceInput(value)) return
+        _uiState.update { it.copy(ailmentResistances = it.ailmentResistances + (type to value)) }
+    }
+
+    /**
+     * 状態異常耐性の入力途中の文字列として許せるかを判定する。
+     *
+     * @param value 検証対象の入力値。
+     * @return 空欄、または半角数字のみで、整数として0〜100に収まるなら`true`。
+     */
+    private fun isValidAilmentResistanceInput(value: String): Boolean {
+        if (value.isEmpty()) return true
+        if (!value.all { it in '0'..'9' }) return false
+        val parsed = value.toIntOrNull() ?: return false
+        return parsed in AilmentResistanceFormula.MIN..AilmentResistanceFormula.MAX
     }
 
     /**
@@ -299,6 +333,11 @@ class CharacterCreateViewModel @AssistedInject constructor(
                         // 空欄や「-」だけの欄は等倍(100)にする。
                         val value = state.elementResistances[element]?.toIntOrNull() ?: ElementResistanceFormula.NEUTRAL
                         resistances.with(element, ElementResistanceFormula.clamp(value))
+                    },
+                    ailmentResistances = AilmentResistanceType.entries.fold(AilmentResistances()) { resistances, type ->
+                        // 空欄は100にする。
+                        val value = state.ailmentResistances[type]?.toIntOrNull() ?: AilmentResistanceFormula.NEUTRAL
+                        resistances.with(type, AilmentResistanceFormula.clamp(value))
                     },
                     activeSkillIds = if (state.isSkillCatalogLoaded) state.activeSkills.map { it.id } else state.activeSkillIds,
                     passiveSkillIds = if (state.isSkillCatalogLoaded) state.passiveSkills.map { it.id } else state.passiveSkillIds,

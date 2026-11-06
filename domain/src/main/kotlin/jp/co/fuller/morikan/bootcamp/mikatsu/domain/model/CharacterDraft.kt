@@ -19,6 +19,7 @@ package jp.co.fuller.morikan.bootcamp.mikatsu.domain.model
  * @property activeSkillIds 設定したアクティブスキル(Aスキル)のID(アクティブ採番)。
  * @property passiveSkillIds 設定したパッシブスキル(Pスキル)のID(パッシブ採番。アクティブとは独立)。
  * @property elementResistances 入力された12属性の耐性。
+ * @property ailmentResistances 入力された状態異常耐性。
  */
 data class CharacterDraft(
     val id: Int?,
@@ -34,4 +35,5 @@ data class CharacterDraft(
     val activeSkillIds: List<Int> = emptyList(),
     val passiveSkillIds: List<Int> = emptyList(),
     val elementResistances: ElementResistances = ElementResistances(),
+    val ailmentResistances: AilmentResistances = AilmentResistances(),
 )

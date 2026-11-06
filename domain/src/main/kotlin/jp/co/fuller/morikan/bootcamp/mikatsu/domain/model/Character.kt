@@ -22,6 +22,7 @@ package jp.co.fuller.morikan.bootcamp.mikatsu.domain.model
  * @property passiveSkillIds 設定しているパッシブスキル(Pスキル)のID。パッシブスキルの採番で解決する。
  *   アクティブとは独立した採番なので、同じ数値でもアクティブスキルとは別のスキルを指す。設定順に並び、重複しない。
  * @property elementResistances 12属性の耐性([ElementResistances])。既定はすべて等倍(100)。
+ * @property ailmentResistances 状態異常耐性([AilmentResistances])。既定はすべて100(変化なし)。
  */
 data class Character(
     val id: Int,
@@ -37,4 +38,5 @@ data class Character(
     val activeSkillIds: List<Int> = emptyList(),
     val passiveSkillIds: List<Int> = emptyList(),
     val elementResistances: ElementResistances = ElementResistances(),
+    val ailmentResistances: AilmentResistances = AilmentResistances(),
 )

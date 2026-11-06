@@ -139,6 +139,12 @@ sealed interface BattleFieldPawn {
     val elementResistances: ElementResistances
 
     /**
+     * 状態異常耐性。味方は[Character.ailmentResistances]、敵は[Enemy.ailmentResistances]と同じ値。
+     * 成功率への掛け方は[jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.AilmentResistanceFormula]が行う。
+     */
+    val ailmentResistances: AilmentResistances
+
+    /**
      * クールタイム(CT)中のスキルの記録。使うと[SkillCooldown]が加わり、本人の手番が終わるたびに進み、明けると消える。
      * 戦闘中だけの値で、`Character`・`Enemy`には持たず、次の戦闘へは持ち越さない。
      */
