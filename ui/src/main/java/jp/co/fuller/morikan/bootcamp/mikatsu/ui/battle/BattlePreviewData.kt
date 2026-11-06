@@ -4,6 +4,7 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleStat
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BreakState
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.AilmentResistanceType
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.ElementResistances
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.StatusAilment
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.AilmentResistanceDetail
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.ElementResistanceDetail
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleSkillUiModel
@@ -27,7 +28,29 @@ internal fun previewAlly(
     isActive: Boolean = true,
 ): BattleUnitUiModel = BattleUnitUiModel(
     id = id, name = name, hp = hp, maxHp = 120, mana = 40, maxMana = 50,
-    isDefeated = false, isActive = isActive, tp = 30,
+    isDefeated = false, isActive = isActive, tp = 30,ailments = listOf(
+        StatusAilment.BRAINWASH,
+        StatusAilment.PARALYSIS,
+        StatusAilment.MP_SEAL,
+        StatusAilment.CONTAMINATION ,
+        StatusAilment.BLEED,
+        StatusAilment.BRAND,
+        StatusAilment.STUN,
+        StatusAilment.SHOCK,
+        StatusAilment.BURN,
+        StatusAilment.CHARM,
+        StatusAilment.CURSE,
+        StatusAilment.DIZZINESS,
+        StatusAilment.FEAR,
+        StatusAilment.FREEZE,
+        StatusAilment.FROSTBITE,
+        StatusAilment.INFECTION,
+        StatusAilment.MADNESS,
+        StatusAilment.PETRIFY,
+        StatusAilment.POISON,
+        StatusAilment.SLEEP,
+        StatusAilment.TAUNT,
+        StatusAilment.TP_SEAL),
 )
 
 /** Previewで使う、敵1体分のダミーのカード状態。 */
@@ -38,7 +61,29 @@ internal fun previewEnemy(
     isDefeated: Boolean = false,
 ): BattleUnitUiModel = BattleUnitUiModel(
     id = id, name = name, hp = hp, maxHp = 80, mana = 0, maxMana = 0,
-    isDefeated = isDefeated, isActive = false, breakGaugeFraction = 0.3f,
+    isDefeated = isDefeated, isActive = false, breakGaugeFraction = 0.3f, ailments = listOf(
+        StatusAilment.BRAINWASH,
+        StatusAilment.PARALYSIS,
+        StatusAilment.MP_SEAL,
+        StatusAilment.CONTAMINATION ,
+        StatusAilment.BLEED,
+        StatusAilment.BRAND,
+        StatusAilment.STUN,
+        StatusAilment.SHOCK,
+        StatusAilment.BURN,
+        StatusAilment.CHARM,
+        StatusAilment.CURSE,
+        StatusAilment.DIZZINESS,
+        StatusAilment.FEAR,
+        StatusAilment.FREEZE,
+        StatusAilment.FROSTBITE,
+        StatusAilment.INFECTION,
+        StatusAilment.MADNESS,
+        StatusAilment.PETRIFY,
+        StatusAilment.POISON,
+        StatusAilment.SLEEP,
+        StatusAilment.TAUNT,
+        StatusAilment.TP_SEAL),
 )
 
 /**
@@ -50,12 +95,13 @@ internal fun previewBattleUiState(): BattleUiState {
     val allies = listOf(previewAlly(1, "アリス"), previewAlly(2, "ボブ", hp = 120, isActive = false))
     val enemies = listOf(
         previewEnemy(3, "ゴブリンA"),
+        previewEnemy(6, "ゴブリンA"),
         previewEnemy(4, "ゴブリンB", hp = 0, isDefeated = true),
         previewEnemy(5, "オークA", hp = 80),
     )
     return BattleUiState(
-        enemySlots = enemies + List(3) { null },
-        partySlots = listOf(allies[0], null, allies[1], null, null, null),
+        enemySlots = enemies + List(6) { null },
+        partySlots = listOf(allies[0], null, allies[1], allies[1], null, null),
         currentActorId = 1,
         isPlayerTurn = true,
         skills = listOf(
