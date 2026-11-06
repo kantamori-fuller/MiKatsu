@@ -130,7 +130,7 @@ class DefenseTest {
     fun breakGauge_usesDamageAfterDefense() {
         val field = defendingAllyField().let { f ->
             f.copy(
-                allies = f.allies.map { it.copy(character = it.character.copy(hp = 100), currentHp = 100) },
+                allies = f.allies.map { it.copy(character = it.character.copy(hp = 100 - HitPointFormula.BASE_HP), currentHp = 100) },
                 enemies = f.enemies.map { it.copy(breakPointRate = 150) },
             )
         }
@@ -146,7 +146,7 @@ class DefenseTest {
         // 最大HP32・倍率300: 1発目の16ダメージでゲージ 16/32*100*3=150 → ブレイク。2発目は防御なしのブレイク中で31。
         val field = defendingAllyField().let { f ->
             f.copy(
-                allies = f.allies.map { it.copy(character = it.character.copy(hp = 32), currentHp = 32) },
+                allies = f.allies.map { it.copy(character = it.character.copy(hp = 32 - HitPointFormula.BASE_HP), currentHp = 32) },
                 enemies = f.enemies.map { it.copy(breakPointRate = 300) },
             )
         }

@@ -1,5 +1,6 @@
 package jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle
 
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.HitPointFormula
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.RandomEnemyTargetSelector
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.AilmentState
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleField
@@ -114,12 +115,12 @@ class BattleViewModelTest {
     ): Pair<BattleViewModel, FakeBattleRepository> {
         val battleRepository = FakeBattleRepository()
         val character = Character(
-            id = 1, name = "味方", hp = 1000, mana = allyMana, attack = 100, defense = 100,
+            id = 1, name = "味方", hp = 1000 - HitPointFormula.BASE_HP, mana = allyMana, attack = 100, defense = 100,
             manaOutput = 0, manaResistance = 0, agility = 1, luck = 0,
             activeSkillIds = activeSkillIds,
         )
         val enemy = Enemy(
-            id = 1, name = "ゴブリン", hp = enemyHp, mana = 0, attack = 100, defense = 100,
+            id = 1, name = "ゴブリン", hp = enemyHp - HitPointFormula.BASE_HP, mana = 0, attack = 100, defense = 100,
             manaOutput = 0, manaResistance = 0, agility = 4, luck = 0,
         )
         val random = Random(0)

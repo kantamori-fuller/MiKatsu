@@ -37,19 +37,27 @@ class ActionTimelineTest {
         return counts.getValue(1) to counts.getValue(2)
     }
 
-    /** 素早さ6倍の個体は、約2倍の回数行動すること。 */
+    /** 素早さ10倍の個体は、ちょうど2倍の回数行動すること。 */
     @Test
-    fun simulation_sixTimesAgility_actsAboutTwiceAsOften() {
-        val (slow, fast) = simulate(allyAgility = 100, enemyAgility = 600, slowActions = 100)
+    fun simulation_tenTimesAgility_actsTwiceAsOften() {
+        val (slow, fast) = simulate(allyAgility = 100, enemyAgility = 1000, slowActions = 100)
         assertEquals(200.0, fast.toDouble(), 200.0 * 0.02)
         assertEquals(100, slow)
     }
 
-    /** 素早さ3倍の個体は、約1.53倍の回数行動すること。 */
+    /** 素早さ5倍の個体は、約1.62倍の回数行動すること。 */
     @Test
-    fun simulation_threeTimesAgility_actsAbout1Point53TimesAsOften() {
+    fun simulation_fiveTimesAgility_actsAbout1Point62TimesAsOften() {
+        val (slow, fast) = simulate(allyAgility = 100, enemyAgility = 500, slowActions = 100)
+        assertEquals(162.0, fast.toDouble(), 162.0 * 0.02)
+        assertEquals(100, slow)
+    }
+
+    /** 素早さ3倍の個体は、約1.39倍の回数行動すること。 */
+    @Test
+    fun simulation_threeTimesAgility_actsAbout1Point39TimesAsOften() {
         val (slow, fast) = simulate(allyAgility = 100, enemyAgility = 300, slowActions = 100)
-        assertEquals(153.0, fast.toDouble(), 153.0 * 0.02)
+        assertEquals(139.0, fast.toDouble(), 139.0 * 0.02)
         assertEquals(100, slow)
     }
 

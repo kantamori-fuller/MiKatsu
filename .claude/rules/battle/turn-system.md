@@ -17,7 +17,7 @@ paths:
 
 ## 仕様
 
-- **remainingDistance と速度の式**: 各個体は`remainingDistance`(次の手番までに進む残り距離。開始時・行動後は`BASE_DISTANCE = 10000.0`)を持つ。速度は`素早さ^0.387`(`ActionSpeedFormula.speedOf`、素早さは1〜9999に丸める)で、素早さ6倍なら行動回数は約2倍、3倍なら約1.53倍になる。素早さは`effectiveStat(AGILITY)`(バフ・デバフ・麻痺の補正込み)。
+- **remainingDistance と速度の式**: 各個体は`remainingDistance`(次の手番までに進む残り距離。開始時・行動後は`BASE_DISTANCE = 10000.0`)を持つ。速度は`素早さ^log10(2)`(指数≒0.301。`ActionSpeedFormula.speedOf`、素早さは1〜9999に丸める)で、素早さ10倍なら行動回数はちょうど2倍(毎回1回多く行動)、5倍なら約1.62倍、3倍なら約1.39倍、2倍なら約1.23倍、100倍なら4倍になる。素早さは`effectiveStat(AGILITY)`(バフ・デバフ・麻痺の補正込み)。
 - **次の手番までの時間は保存しない**: `remainingDistance / speed`を毎回計算で求める。将来バフ/デバフで素早さが変わっても、進んだ距離は保たれたまま残り時間だけが即座に計算し直され、行動順に反映されるため。
 - **同時に手番が来たとき**: 幸運値(`luck`)が高い順(敵味方の区別なし)、同値ならランダム。決めた順番は`BattleField.turnQueue`に保存して確定し、計算し直してもくじは引き直さない(幸運が変わっても引き直さない)。先頭が現在の行動者(`currentActorFpid`)。
 - **turnCount**: 個体が終えた自分の手番の回数。ステータスのバフ・デバフの持続は、この手番終了のタイミングで数える(`stat-modifiers.md`)。

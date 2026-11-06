@@ -2,6 +2,7 @@ package jp.co.fuller.morikan.bootcamp.mikatsu.domain.usecase
 
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.ActionTimeline
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.BreakFormula
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.HitPointFormula
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.TEST_DIA
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.TEST_STEEL_BODY
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.testAlly
@@ -75,7 +76,7 @@ class AdvanceToNextBattleUseCaseTest {
         assertEquals(listOf(TEST_DIA), field.allies[0].activeSkills)
         assertEquals(listOf(TEST_STEEL_BODY), field.allies[0].passiveSkills)
         assertEquals(listOf(1, 2, 3, 4), field.allPawns.map { it.fpid })
-        assertEquals(listOf(goblin.hp, goblin.hp), field.enemies.map { it.currentHp })
+        assertEquals(listOf(HitPointFormula.maxHpOf(goblin.hp), HitPointFormula.maxHpOf(goblin.hp)), field.enemies.map { it.currentHp })
         assertEquals(listOf(0, 1), field.enemies.map { it.slot })
         assertTrue(field.enemies.all { it.turnCount == 0 })
         assertTrue(field.allies.all { it.turnCount == 0 })

@@ -2,6 +2,7 @@ package jp.co.fuller.morikan.bootcamp.mikatsu.domain.model
 
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.BreakFormula
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.CriticalFormula
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.HitPointFormula
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.PassiveSkill
 
 /**
@@ -50,7 +51,7 @@ data class BattleEnemy(
     override val ailments: List<AilmentState> = emptyList(),
     override val currentMp: Int = enemy.mana,
 ) : BattleFieldPawn {
-    override val maxHp: Int get() = enemy.hp
+    override val maxHp: Int get() = HitPointFormula.maxHpOf(enemy.hp)
     override val maxMp: Int get() = enemy.mana
     override val attack: Int get() = enemy.attack
     override val defense: Int get() = enemy.defense
