@@ -430,9 +430,12 @@ internal fun BattleField.processTurnEndAilments(fpid: Int, random: Random): Pair
             }
             if (candidates.isNotEmpty() && random.nextInt(100) < StatusAilmentFormula.INFECTION_SPREAD_PERCENT) {
                 val target = candidates[random.nextInt(candidates.size)]
-                val spread = AilmentState(StatusAilment.INFECTION, state.remainingTurns, grantedDuringOwnTurn = false)
-                field = field.updateAilments(target.fpid) { it + spread }
-                events += TurnEndEvent.Spread(fpid, target.fpid, field)
+                // うつる先の感染耐性で判定する。失敗したら伝染しない(引き直し・出来事なし)。
+                if (StatusAilmentFormula.rollSuccess(target.ailmentResistanceTo(StatusAilment.INFECTION), random)) {
+                    val spread = AilmentState(StatusAilment.INFECTION, state.remainingTurns, grantedDuringOwnTurn = false)
+                    field = field.updateAilments(target.fpid) { it + spread }
+                    events += TurnEndEvent.Spread(fpid, target.fpid, field)
+                }
             }
         }
         val remaining = state.remainingTurns - 1

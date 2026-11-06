@@ -2,7 +2,9 @@ package jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle
 
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleStat
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BreakState
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.AilmentResistanceType
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.ElementResistances
+import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.AilmentResistanceDetail
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.ElementResistanceDetail
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleSkillUiModel
 import jp.co.fuller.morikan.bootcamp.mikatsu.ui.battle.model.BattleUiState
@@ -104,4 +106,5 @@ internal fun previewUnitDetail(): BattleUnitDetailUiModel = BattleUnitDetailUiMo
     elementResistances = ElementResistances.ORDER.zip(
         listOf(50, 150, 100, 0, 100, 100, 100, 100, -1, 100, -999, 100),
     ) { element, value -> ElementResistanceDetail(element, value) },
+    ailmentResistances = AilmentResistanceType.entries.map { AilmentResistanceDetail(it, if (it.ordinal % 3 == 0) 50 else if (it.ordinal % 3 == 1) 0 else 100) },
 )

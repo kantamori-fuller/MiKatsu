@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import dagger.hilt.android.qualifiers.ApplicationContext
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle.AilmentResistanceFormula
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.AilmentResistances
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.Character
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.CharacterDraft
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.ElementResistances
@@ -73,6 +75,7 @@ class CharacterLocalDataSource @Inject constructor(@ApplicationContext context: 
             activeSkillIds = draft.activeSkillIds.distinct(),
             passiveSkillIds = draft.passiveSkillIds.distinct(),
             elementResistances = draft.elementResistances,
+            ailmentResistances = draft.ailmentResistances,
         )
         val index = characters.indexOfFirst { it.id == resolvedId }
         if (index >= 0) characters[index] = character else characters.add(character)
@@ -139,6 +142,7 @@ class CharacterLocalDataSource @Inject constructor(@ApplicationContext context: 
         activeSkillIds = getIntList("activeSkillIds"),
         passiveSkillIds = getIntList("passiveSkillIds"),
         elementResistances = optJSONObject("elementResistances").toElementResistances(),
+        ailmentResistances = optJSONObject("ailmentResistances").toAilmentResistances(),
     )
 
     /**
@@ -166,6 +170,29 @@ class CharacterLocalDataSource @Inject constructor(@ApplicationContext context: 
     private fun JSONObject?.toElementResistances(): ElementResistances {
         val values = this?.let { json -> json.keys().asSequence().associateWith { key -> json.getInt(key) } }
         return ElementResistancesStorageMapper.fromMap(values)
+    }
+
+    /**
+     * JSONオブジェクトを[AilmentResistances]へ変換する。
+     *
+     * 旧データ(キーなし)の互換と範囲の補正は[AilmentResistancesStorageMapper.fromMap]が担う。
+     *
+     * @receiver 変換元のJSONオブジェクト。キーが存在しなければ`null`。
+     * @return 変換後の耐性。
+     */
+    private fun JSONObject?.toAilmentResistances(): AilmentResistances {
+        val values = this?.let { json -> json.keys().asSequence().associateWith { key -> json.optInt(key, AilmentResistanceFormula.NEUTRAL) } }
+        return AilmentResistancesStorageMapper.fromMap(values)
+    }
+
+    /**
+     * [AilmentResistances]をファイル保存用のJSONオブジェクトへ変換する。
+     *
+     * @receiver 変換元の耐性。
+     * @return 変換後のJSONオブジェクト。
+     */
+    private fun AilmentResistances.toJson() = JSONObject().apply {
+        AilmentResistancesStorageMapper.toMap(this@toJson).forEach { (key, value) -> put(key, value) }
     }
 
     /**
@@ -198,6 +225,7 @@ class CharacterLocalDataSource @Inject constructor(@ApplicationContext context: 
         put("activeSkillIds", JSONArray(activeSkillIds))
         put("passiveSkillIds", JSONArray(passiveSkillIds))
         put("elementResistances", elementResistances.toJson())
+        put("ailmentResistances", ailmentResistances.toJson())
     }
 
     companion object {

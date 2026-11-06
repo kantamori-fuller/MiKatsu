@@ -1,5 +1,7 @@
 package jp.co.fuller.morikan.bootcamp.mikatsu.ui.charactercreate
 
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.AilmentResistanceType
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.AilmentResistances
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.Character
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.CharacterDraft
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.ElementResistances
@@ -72,7 +74,7 @@ class CharacterCreateViewModelTest {
         override suspend fun getCharacter(id: Int): Character? = existing?.takeIf { it.id == id }
         override suspend fun saveCharacter(draft: CharacterDraft): Character {
             saved = draft
-            return Character(1, draft.name, 0, 0, 0, 0, 0, 0, 0, 0, draft.activeSkillIds, draft.passiveSkillIds, draft.elementResistances)
+            return Character(1, draft.name, 0, 0, 0, 0, 0, 0, 0, 0, draft.activeSkillIds, draft.passiveSkillIds, draft.elementResistances, draft.ailmentResistances)
         }
         override suspend fun deleteCharacter(id: Int) = error("not used")
     }
@@ -360,5 +362,76 @@ class CharacterCreateViewModelTest {
         viewModel.onSaveClick()
         advanceUntilIdle()
         assertEquals(existing.elementResistances, checkNotNull(repository.saved).elementResistances)
+    }
+
+    /** 新規作成時は、状態異常耐性16項目がすべて「100」で、列挙の順に並ぶこと。 */
+    @Test
+    fun ailmentResistances_newCharacter_allHundred() = runTest(dispatcher) {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        assertEquals(AilmentResistanceType.entries, viewModel.uiState.value.ailmentResistances.keys.toList())
+        assertTrue(viewModel.uiState.value.ailmentResistances.values.all { it == "100" })
+    }
+
+    /** 空欄・0〜100の数字は入力でき、負数・範囲外・数字以外は弾かれて状態が変わらないこと。 */
+    @Test
+    fun ailmentResistances_inputValidation() = runTest(dispatcher) {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        fun input(value: String) = viewModel.onAilmentResistanceChange(AilmentResistanceType.POISON, value)
+        fun current() = viewModel.uiState.value.ailmentResistances.getValue(AilmentResistanceType.POISON)
+
+        for (accepted in listOf("", "0", "100", "50", "7")) {
+            input(accepted)
+            assertEquals(accepted, current())
+        }
+        input("50")
+        for (rejected in listOf("101", "-1", "-", "a", "1a", "5.5", "9999999999", "１", "1000")) {
+            input(rejected)
+            assertEquals("弾かれる: $rejected", "50", current())
+        }
+    }
+
+    /** 保存時、入力した状態異常耐性が反映され、空欄は100になること。 */
+    @Test
+    fun ailmentResistances_save_blankBecomesHundred() = runTest(dispatcher) {
+        val repository = FakeCharacterRepository()
+        val viewModel = createViewModel(repository = repository)
+        advanceUntilIdle()
+        viewModel.onNameChange("アリス")
+        viewModel.onAilmentResistanceChange(AilmentResistanceType.POISON, "0")
+        viewModel.onAilmentResistanceChange(AilmentResistanceType.MENTAL, "35")
+        viewModel.onAilmentResistanceChange(AilmentResistanceType.BURN, "")
+
+        viewModel.onSaveClick()
+        advanceUntilIdle()
+
+        val saved = checkNotNull(repository.saved).ailmentResistances
+        assertEquals(0, saved.of(AilmentResistanceType.POISON))
+        assertEquals(35, saved.of(AilmentResistanceType.MENTAL))
+        assertEquals(100, saved.of(AilmentResistanceType.BURN))
+        assertEquals(100, saved.of(AilmentResistanceType.SLEEP))
+    }
+
+    /** 編集時は保存されている状態異常耐性が各欄に表示され、そのまま保存すると同じ値になること。 */
+    @Test
+    fun ailmentResistances_edit_showsSavedValues() = runTest(dispatcher) {
+        val existing = Character(
+            id = 7, name = "ボブ", hp = 1, mana = 1, attack = 1, defense = 1, manaOutput = 1, manaResistance = 1, agility = 1, luck = 1,
+            ailmentResistances = AilmentResistances().with(AilmentResistanceType.FREEZE, 0).with(AilmentResistanceType.SKILL_SEAL, 20),
+        )
+        val repository = FakeCharacterRepository(existing)
+        val viewModel = createViewModel(characterId = 7, repository = repository)
+        advanceUntilIdle()
+
+        val shown = viewModel.uiState.value.ailmentResistances
+        assertEquals("0", shown.getValue(AilmentResistanceType.FREEZE))
+        assertEquals("20", shown.getValue(AilmentResistanceType.SKILL_SEAL))
+        assertEquals("100", shown.getValue(AilmentResistanceType.POISON))
+
+        viewModel.onSaveClick()
+        advanceUntilIdle()
+        assertEquals(existing.ailmentResistances, checkNotNull(repository.saved).ailmentResistances)
     }
 }

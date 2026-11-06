@@ -183,6 +183,11 @@ private fun UnitDetailContent(detail: BattleUnitDetailUiModel) {
         ValueRow(resistance.element.labelRes, resistance.value.toString())
     }
 
+    SectionTitle(R.string.section_ailment_resistances)
+    detail.ailmentResistances.forEach { resistance ->
+        ValueRow(resistance.type.labelRes, resistance.value.toString())
+    }
+
     SectionTitle(R.string.label_active_skills)
     SkillNames(detail.activeSkillNames)
     SectionTitle(R.string.label_passive_skills)

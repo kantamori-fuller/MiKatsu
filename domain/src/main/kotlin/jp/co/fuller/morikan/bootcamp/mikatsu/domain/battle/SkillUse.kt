@@ -317,7 +317,11 @@ private fun BattleField.applyEffects(skill: ActiveSkill, fpid: Int, random: Rand
             }
             is ActiveSkillEffect.InflictAilment -> {
                 var succeeded = false
-                if (StatusAilmentFormula.rollSuccess(effect.successRate, random)) {
+                if (StatusAilmentFormula.rollSuccess(
+                        AilmentResistanceFormula.effectiveSuccessRate(effect.successRate, field.allPawns.first { it.fpid == fpid }.ailmentResistanceTo(effect.ailment)),
+                        random,
+                    )
+                ) {
                     val (inflicted, applied) = field.inflictAilment(fpid, effect.ailment, effect.durationTurns)
                     field = inflicted
                     succeeded = applied
@@ -325,7 +329,10 @@ private fun BattleField.applyEffects(skill: ActiveSkill, fpid: Int, random: Rand
                 effectResults += EffectApplication.Ailment(effect.ailment, succeeded)
             }
             is ActiveSkillEffect.InstantDeath -> {
-                val succeeded = StatusAilmentFormula.rollSuccess(effect.successRate, random)
+                val succeeded = StatusAilmentFormula.rollSuccess(
+                    AilmentResistanceFormula.effectiveSuccessRate(effect.successRate, field.allPawns.first { it.fpid == fpid }.instantDeathResistance()),
+                    random,
+                )
                 if (succeeded) field = field.instantKill(fpid)
                 effectResults += EffectApplication.InstantDeath(succeeded)
             }

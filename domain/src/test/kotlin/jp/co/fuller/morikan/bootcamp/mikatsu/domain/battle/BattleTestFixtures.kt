@@ -1,5 +1,6 @@
 package jp.co.fuller.morikan.bootcamp.mikatsu.domain.battle
 
+import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.AilmentResistances
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleAlly
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.BattleEnemy
 import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.Character
@@ -39,6 +40,7 @@ import jp.co.fuller.morikan.bootcamp.mikatsu.domain.model.skill.SkillCostType
  * @param manaOutput マナ出力(C)。
  * @param manaResistance マナ耐性(D)。
  * @param elementResistances 12属性の耐性。
+ * @param ailmentResistances 状態異常耐性。
  * @return 生成した味方個体。
  */
 fun testAlly(
@@ -56,12 +58,14 @@ fun testAlly(
     manaOutput: Int = 0,
     manaResistance: Int = 0,
     elementResistances: ElementResistances = ElementResistances(),
+    ailmentResistances: AilmentResistances = AilmentResistances(),
 ) = BattleAlly(
     fpid = fpid,
     character = Character(
         id = fpid, name = "味方$fpid", hp = hp - HitPointFormula.BASE_HP, mana = mp, attack = attack, defense = defense,
         manaOutput = manaOutput, manaResistance = manaResistance, agility = agility, luck = luck,
         elementResistances = elementResistances,
+        ailmentResistances = ailmentResistances,
     ),
     currentHp = hp,
     currentMp = mp,
@@ -87,6 +91,7 @@ fun testAlly(
  * @param manaOutput マナ出力(C)。
  * @param manaResistance マナ耐性(D)。
  * @param elementResistances 12属性の耐性。
+ * @param ailmentResistances 状態異常耐性。
  * @return 生成した敵個体。
  */
 fun testEnemy(
@@ -101,12 +106,14 @@ fun testEnemy(
     manaOutput: Int = 0,
     manaResistance: Int = 0,
     elementResistances: ElementResistances = ElementResistances(),
+    ailmentResistances: AilmentResistances = AilmentResistances(),
 ) = BattleEnemy(
     fpid = fpid,
     enemy = Enemy(
         id = 1, name = "敵", hp = hp - HitPointFormula.BASE_HP, mana = 0, attack = attack, defense = defense,
         manaOutput = manaOutput, manaResistance = manaResistance, agility = agility, luck = luck,
         elementResistances = elementResistances,
+        ailmentResistances = ailmentResistances,
     ),
     currentHp = hp,
     slot = slot,
