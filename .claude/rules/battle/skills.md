@@ -60,7 +60,9 @@ paths:
 ## 通常攻撃(Aスキル1)
 
 - 全キャラクター・全敵が標準で持つ特別なスキルで、スキル枠を使わず、キャラ編集画面の一覧にもバトルの「スキル」一覧にも出ない(`SkillRepository.getNormalAttack()`で取得し、`getActiveSkills()`/`getActiveSkill(id)`には含まれない)。
-- 「攻撃」ボタンと敵の手番は`AttackUseCase`/`ExecuteEnemyTurnUseCase`がこのデータを`performAttack`へ渡して実行する。
+- 味方の通常攻撃と自動の手番は`AttackUseCase`/`ExecuteAutoTurnUseCase`がこのデータを`performAttack`へ渡して実行する。
+- **画面での使い方**: 専用のボタンは無い。「スキル」ボタンでスキル一覧を開き(選択状態`SkillList`)、スキルを選ばずに通常攻撃で選べる相手(`BattleUiState.attackTargetIds`。点滅する太い枠が付く)をタップすると発動する。一覧中のナレーションは「スキルを選択してください(対象をタップで通常攻撃)」。先制の手番のスキル一覧では使えない(`preemptive.md`)。
+- 「スキル」ボタンは、Aスキルを1つ以上持つ(使えるかは問わない)か、先制の手番でなく通常攻撃できる相手がいれば押せる。Aスキルが0個でも押せて、一覧は空のまま表示する。
 - 対象は`resolveTargets`で決め(範囲攻撃なら対象ごとに)、威力は基礎威力、発動回数の分だけ1回ずつ命中判定・ダメージ計算・軽減を行い(命中率は100)、対象が戦闘不能になったらその対象への攻撃を打ち切る。
 - 処理順は回数優先(1回目を全対象 → 2回目を全対象 …)で、結果の`AttackHit`・TPの対象は`resolveTargets`の順に組み立てる。
 - CT0なのでCTの影響を受けない。

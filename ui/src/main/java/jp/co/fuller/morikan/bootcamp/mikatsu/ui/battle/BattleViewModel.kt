@@ -86,8 +86,8 @@ private const val RESULT_DISPLAY_MS = 1200L
  * 編成画面で編成された陣形([formation])で[startBattleUseCase]により戦闘を開始し、
  * [observeBattleFieldUseCase]で購読した戦闘フィールド(現在HP・手番を含む。正はRepositoryが保持する)
  * をもとに、味方は陣形のマスごとに並べ直したうえで[uiState]として公開することを目的とする。
- * 手番が来た味方は自動で行動者となり、「攻撃」→対象のタップで[attackUseCase]による通常攻撃を、
- * 「スキル」→スキルの選択→対象のタップで[useSkillUseCase]によるスキルの使用を、「防御」で[defendUseCase]による防御を行う。
+ * 手番が来た味方は自動で行動者となり、「スキル」を押してスキル一覧を開き、スキルを選ばずに敵のカードをタップすると[attackUseCase]による通常攻撃を(先制の手番を除く)、
+ * スキルの選択→対象のタップで[useSkillUseCase]によるスキルの使用を、「防御」で[defendUseCase]による防御を行う。
  * タップできる対象は、通常攻撃のデータ([getNormalAttackUseCase])と手番の味方のスキルのレンジ・範囲・陣営の条件から
  * 求めた「選べる相手」だけで、敵・味方どちらのカードからでも選べる。
  * 手番が敵のとき、または洗脳・発狂した個体のときは、間とナレーションを挟みながら[executeAutoTurnUseCase]で自動的に行動させる
@@ -95,7 +95,7 @@ private const val RESULT_DISPLAY_MS = 1200L
  * 恐怖のスタンで手番を飛ばすときは専用の文(「〜は恐怖で体がすくんだ!」)、手動で操作する味方が何も選べない手番(魅了・挑発など)は
  * 「〜は何もできない!」を出して自動で飛ばす(判定は`domain`の`hasAnyManualAction`)。
  * 行動のたびに[endTurnUseCase]で手番を終える。
- * 味方のカードのタップ([onAllyClick])は、対象選択中でなければ[reservePreemptiveActionUseCase]で先制行動の予約になる。予約は行動中(敵・味方・演出中)でも
+ * 味方のカードのタップ([onAllyClick])は、選択状態がないとき(スキルの選択中でないとき)だけ[reservePreemptiveActionUseCase]で先制行動の予約になる。予約は行動中(敵・味方・演出中)でも
  * でき、現在の行動者の手番の終了([endTurnUseCase])で行動順に割り込む。先制の手番が始まったら「〇〇の先制行動!」を表示してから先制スキルだけの一覧を開き、
  * 取り消された先制の手番は、次の手番へ進む前に「〇〇は先制行動できなかった!」を表示する。
  * 演出中のナレーションは複数の文の列として1文ずつ順に表示し、ナレーション欄のタップ([onNarrationClick])で
@@ -228,22 +228,10 @@ class BattleViewModel @AssistedInject constructor(
     }
 
     /**
-     * 「攻撃」ボタンが押されたときに呼ばれる。
-     *
-     * 攻撃できる状態(プレイヤーの手番・演出中でない・勝敗未決・スキルの選択中でない・攻撃が届く相手がいる)であれば
-     * 対象選択状態へ移行する。それ以外の場合は何も行わない。
-     */
-    fun onAttackClick() {
-        _uiState.update {
-            if (!it.isAttackEnabled) it else it.copy(selection = BattleSelection.AttackTarget)
-        }
-    }
-
-    /**
      * 「スキル」ボタンが押されたときに呼ばれる。
      *
-     * スキルを選べる状態(プレイヤーの手番・演出中でない・勝敗未決・使えるスキルがある・攻撃対象の
-     * 選択中でない)であればスキル一覧の選択状態へ移行する。それ以外の場合は何も行わない。
+     * スキル一覧を開ける状態([BattleUiState.isSkillEnabled]。Aスキルを持つか、先制の手番でなく通常攻撃できる相手がいる)であれば
+     * スキル一覧の選択状態へ移行する。Aスキルを持たないキャラでも一覧は空のまま開く。それ以外の場合は何も行わない。
      */
     fun onSkillClick() {
         _uiState.update {
@@ -299,7 +287,7 @@ class BattleViewModel @AssistedInject constructor(
     /**
      * 「キャンセル」ボタンが押されたときに呼ばれる。
      *
-     * 攻撃の対象選択・スキル一覧・スキルの対象選択のいずれの状態からも、選択状態を解除して
+     * スキル一覧・スキルの対象選択のいずれの状態からも、選択状態を解除して
      * 行動選択に戻す。選択状態でなければ何も行わない。
      * 先制の手番では、スキルの対象選択からスキル一覧に戻るだけで、スキル一覧からはキャンセルできない(先制はやめられない)。
      */
@@ -325,8 +313,9 @@ class BattleViewModel @AssistedInject constructor(
     /**
      * 味方のカードがタップされたときに呼ばれる。
      *
-     * 通常攻撃・スキルの対象選択中は、敵のカードのタップと共通の対象選びとして[onTargetClick]に委ねる(その間は予約できない)。
-     * それ以外のときは、タップされた味方が先制行動を予約できる個体([BattleUiState.reservableAllyIds])なら、
+     * スキルの対象選択中は、敵のカードのタップと共通の対象選びとして[onTargetClick]に委ねる(その間は予約できない)。
+     * スキル一覧の間は通常攻撃の対象が敵だけなので何も起きず、予約もしない。
+     * 選択状態がないときは、タップされた味方が先制行動を予約できる個体([BattleUiState.reservableAllyIds])なら、
      * [reservePreemptiveActionUseCase]で予約する(確認はなく、取り消しもできない)。敵・味方どちらの行動中でも、演出中でも予約できる。
      * 予約を受け付けるかの最終判断はドメインが行い、通らなければ何も起きない。
      *
@@ -334,7 +323,7 @@ class BattleViewModel @AssistedInject constructor(
      */
     fun onAllyClick(fpid: Int) {
         val state = _uiState.value
-        if (state.selection == BattleSelection.AttackTarget || state.selection is BattleSelection.SkillTarget) {
+        if (state.selection is BattleSelection.SkillTarget) {
             onTargetClick(fpid)
             return
         }
@@ -346,7 +335,7 @@ class BattleViewModel @AssistedInject constructor(
      * 敵・味方どちらのカードがタップされたときにも共通の、対象選択の処理。
      *
      * プレイヤーの手番・演出中でない・タップされた個体が選べる相手([BattleUiState.selectableTargetIds])である、
-     * をすべて満たすときだけ、選択状態に応じて行動する。通常攻撃の対象選択中なら手番の味方がタップされた個体へ
+     * をすべて満たすときだけ、選択状態に応じて行動する。スキル一覧の間(先制の手番を除く)なら手番の味方がタップされた個体へ
      * 通常攻撃を、スキルの対象選択中なら選んでおいたスキルをタップされた個体へ使う。結果(範囲の場合は複数の対象
      * をまとめて)をナレーションで表示して間を置いたあと、手番を終える。条件を満たさなければ何も行わない。
      *
@@ -357,7 +346,7 @@ class BattleViewModel @AssistedInject constructor(
         val actorFpid = state.currentActorId ?: return
         if (!state.isPlayerTurn || isBusy || fpid !in state.selectableTargetIds) return
         when (val selection = state.selection) {
-            BattleSelection.AttackTarget -> launchPlayerAction(actorFpid) {
+            BattleSelection.SkillList -> launchPlayerAction(actorFpid) {
                 attackUseCase(attackerFpid = actorFpid, targetFpid = fpid)?.let(::attackSteps)
             }
             is BattleSelection.SkillTarget -> launchPlayerAction(actorFpid) {

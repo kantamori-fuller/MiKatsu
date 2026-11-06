@@ -63,9 +63,9 @@
     <string name="battle_outcome_tap_to_return_main_menu">タップしてメインメニューへ戻る</string>
     <string name="action_next">次に進む</string>
     <string name="map_progress_format">進行度: %1$d</string>
-    <string name="battle_narration_select_target">対象を選択してください</string>
     <string name="action_skill">スキル</string>
     <string name="battle_narration_select_skill">使うスキルを選択してください</string>
+    <string name="battle_narration_select_skill_or_attack">スキルを選択してください(対象をタップで通常攻撃)</string>
     <string name="battle_narration_select_ally_target">対象の味方を選択してください</string>
     <string name="battle_narration_skill_result">%1$sは%2$sに%3$sを使った！%2$sのHPが%4$d回復した！</string>
     <string name="battle_narration_attack_missed">%1$sが%2$sに%3$s! しかし外れた!</string>

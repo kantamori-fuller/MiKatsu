@@ -173,7 +173,7 @@ class BattleViewModelTest {
         val state = viewModel.uiState.value
         assertFalse(state.isProcessing)
         assertEquals(BattleNarration.SelectAction("味方"), state.narration)
-        assertTrue(state.isAttackEnabled)
+        assertTrue(state.isSkillEnabled)
         assertEquals(listOf("ゴブリンA", "ゴブリンB", null, null, null, null), state.enemySlots.map { it?.name })
     }
 
@@ -186,7 +186,7 @@ class BattleViewModelTest {
         var guard = 0
         while (viewModel.uiState.value.outcome == null && guard++ < 10) {
             assertTrue(viewModel.uiState.value.isPlayerTurn)
-            viewModel.onAttackClick()
+            viewModel.onSkillClick()
             val target = viewModel.uiState.value.enemySlots.filterNotNull().first { !it.isDefeated }
             viewModel.onEnemyClick(target.id)
             advanceUntilIdle()
@@ -208,7 +208,7 @@ class BattleViewModelTest {
         advanceUntilIdle()
         var guard = 0
         while (viewModel.uiState.value.outcome == null && guard++ < 10) {
-            viewModel.onAttackClick()
+            viewModel.onSkillClick()
             viewModel.onEnemyClick(viewModel.uiState.value.enemySlots.filterNotNull().first { !it.isDefeated }.id)
             advanceUntilIdle()
         }
@@ -239,8 +239,8 @@ class BattleViewModelTest {
 
         viewModel.onSkillClick()
         assertEquals(BattleSelection.SkillList, viewModel.uiState.value.selection)
-        assertEquals(BattleNarration.SelectSkill, viewModel.uiState.value.narration)
-        assertFalse(viewModel.uiState.value.isAttackEnabled)
+        assertEquals(BattleNarration.SelectSkillOrAttack, viewModel.uiState.value.narration)
+        assertTrue(viewModel.uiState.value.isSkillEnabled) // 一覧中もスキルボタンは有効のまま(「選択中」表示)
 
         viewModel.onSkillSelected(2)
         assertEquals(BattleSelection.SkillTarget(2), viewModel.uiState.value.selection)
@@ -276,12 +276,17 @@ class BattleViewModelTest {
         assertEquals(BattleSelection.SkillList, viewModel.uiState.value.selection)
     }
 
-    /** スキルを持たない味方では「スキル」が無効で、押しても何も起きないこと。 */
+    /** 手番の個体が味方でなくなると(演出中など)、スキルを持たない味方でも「スキル」は押せず、押しても何も起きないこと。 */
     @Test
-    fun noSkills_skillCommandDisabled() = runTest(dispatcher) {
-        val (viewModel, _) = createViewModel(allyMana = 100)
+    fun noSkills_duringProcessing_skillCommandDisabled() = runTest(dispatcher) {
+        val (viewModel, repository) = createViewModel(allyMana = 100)
         advanceUntilIdle()
+        viewModel.onEnemyClick(repository.current.enemies.first().fpid)
+        viewModel.onSkillClick()
+        viewModel.onEnemyClick(repository.current.enemies.first().fpid)
+        runCurrent()
 
+        assertTrue(viewModel.uiState.value.isProcessing)
         assertFalse(viewModel.uiState.value.isSkillEnabled)
         viewModel.onSkillClick()
         assertEquals(BattleSelection.None, viewModel.uiState.value.selection)
@@ -304,20 +309,19 @@ class BattleViewModelTest {
         assertEquals(BattleNarration.SelectAction("味方"), viewModel.uiState.value.narration)
     }
 
-    /** スキルの選択中は通常攻撃の対象選択へ移れず、攻撃の対象選択中はスキルを開けないこと。 */
+    /** スキル一覧の表示中に「スキル」ボタンを押し直しても、選択状態は変わらずスキル一覧のままであること。 */
     @Test
-    fun attackAndSkillSelection_areMutuallyExclusive() = runTest(dispatcher) {
+    fun skillClick_whileSkillList_keepsSkillList() = runTest(dispatcher) {
         val (viewModel, _) = createViewModel(allyMana = 100, activeSkillIds = listOf(2))
         advanceUntilIdle()
 
         viewModel.onSkillClick()
-        viewModel.onAttackClick()
+        viewModel.onSkillClick()
         assertEquals(BattleSelection.SkillList, viewModel.uiState.value.selection)
 
         viewModel.onCancelClick()
-        viewModel.onAttackClick()
         viewModel.onSkillClick()
-        assertEquals(BattleSelection.AttackTarget, viewModel.uiState.value.selection)
+        assertEquals(BattleSelection.SkillList, viewModel.uiState.value.selection)
     }
 
     /** 対象選択でない状態で味方をタップしても、スキルは発動しないこと。 */
@@ -332,7 +336,7 @@ class BattleViewModelTest {
         assertEquals(100, repository.current.allies[0].currentMp)
     }
 
-    /** 攻撃の対象選択中は届く敵だけが選べる相手になり、敵のカードをタップして通常攻撃できること。 */
+    /** スキル一覧の間は届く敵だけが選べる相手になり、敵のカードをタップして通常攻撃できること。 */
     @Test
     fun attackTargets_areReachableEnemies_andReflectedInSelectableIds() = runTest(dispatcher) {
         val (viewModel, repository) = createViewModel()
@@ -342,7 +346,7 @@ class BattleViewModelTest {
         assertEquals(enemyFpids, viewModel.uiState.value.attackTargetIds)
         assertEquals(emptySet<Int>(), viewModel.uiState.value.selectableTargetIds)
 
-        viewModel.onAttackClick()
+        viewModel.onSkillClick()
         assertEquals(enemyFpids, viewModel.uiState.value.selectableTargetIds)
 
         // 味方(選べない相手)をタップしても何も起きない。
@@ -356,7 +360,7 @@ class BattleViewModelTest {
         assertEquals(BattleNarration.AttackResult("味方", "ゴブリンA", 24), viewModel.uiState.value.narration)
     }
 
-    /** 前衛が生きている間、後衛の味方はレンジ1の通常攻撃が届かず、攻撃ボタンが無効になること。 */
+    /** 前衛が生きている間、後衛の味方はレンジ1の通常攻撃が届かず(スキルも無いので)スキルボタンが無効になること。 */
     @Test
     fun backRowAlly_cannotAttackWithRangeOne_whileFrontAlive() = runTest(dispatcher) {
         val (viewModel, _) = createViewModel(allySlots = listOf(0, 3))
@@ -365,8 +369,8 @@ class BattleViewModelTest {
         var guard = 0
         while (viewModel.uiState.value.partySlots[3]?.isActive != true && guard++ < 10) {
             // 前衛の味方の手番では通常攻撃が使えて、攻撃すると手番が進む。
-            assertTrue(viewModel.uiState.value.isAttackEnabled)
-            viewModel.onAttackClick()
+            assertTrue(viewModel.uiState.value.isSkillEnabled)
+            viewModel.onSkillClick()
             viewModel.onEnemyClick(viewModel.uiState.value.attackTargetIds.first())
             advanceUntilIdle()
         }
@@ -375,8 +379,8 @@ class BattleViewModelTest {
         assertTrue(state.partySlots[3]?.isActive == true)
         assertTrue(state.isPlayerTurn)
         assertEquals(emptySet<Int>(), state.attackTargetIds)
-        assertFalse(state.isAttackEnabled)
-        viewModel.onAttackClick()
+        assertFalse(state.isSkillEnabled)
+        viewModel.onSkillClick()
         assertEquals(BattleSelection.None, viewModel.uiState.value.selection)
     }
 
@@ -390,7 +394,7 @@ class BattleViewModelTest {
         assertNull(state.partySlots[0])
         assertEquals("味方", state.partySlots[3]?.name)
         assertEquals(2, state.attackTargetIds.size)
-        assertTrue(state.isAttackEnabled)
+        assertTrue(state.isSkillEnabled)
     }
 
     /** スキルの対象選択中は、そのスキルで選べる相手(味方)だけがタップでき、敵をタップしても何も起きないこと。 */
@@ -401,7 +405,7 @@ class BattleViewModelTest {
         val allyFpid = repository.current.allies[0].fpid
 
         viewModel.onSkillClick()
-        assertEquals(emptySet<Int>(), viewModel.uiState.value.selectableTargetIds)
+        assertEquals(viewModel.uiState.value.attackTargetIds, viewModel.uiState.value.selectableTargetIds)
         viewModel.onSkillSelected(2)
         assertEquals(setOf(allyFpid), viewModel.uiState.value.selectableTargetIds)
 
@@ -422,7 +426,7 @@ class BattleViewModelTest {
             val skill = viewModel.uiState.value.skills.single()
             assertTrue(skill.targetIds.isNotEmpty())
             assertTrue(skill.isUsable)
-            viewModel.onAttackClick()
+            viewModel.onSkillClick()
             viewModel.onEnemyClick(viewModel.uiState.value.attackTargetIds.first())
             advanceUntilIdle()
         }
@@ -442,7 +446,7 @@ class BattleViewModelTest {
         val (viewModel, repository) = createViewModel(normalAttack = areaAttack)
         advanceUntilIdle()
 
-        viewModel.onAttackClick()
+        viewModel.onSkillClick()
         viewModel.onEnemyClick(repository.current.enemies[0].fpid)
         runCurrent()
 
@@ -467,7 +471,7 @@ class BattleViewModelTest {
         advanceUntilIdle()
         rolls.queue(0.5, 0.5)
 
-        viewModel.onAttackClick()
+        viewModel.onSkillClick()
         viewModel.onEnemyClick(repository.current.enemies[0].fpid)
         runCurrent()
 
@@ -494,7 +498,7 @@ class BattleViewModelTest {
         advanceUntilIdle()
         rolls.queue(0.95)
 
-        viewModel.onAttackClick()
+        viewModel.onSkillClick()
         viewModel.onEnemyClick(repository.current.enemies[0].fpid)
         runCurrent()
 
@@ -517,7 +521,7 @@ class BattleViewModelTest {
         advanceUntilIdle()
         rolls.queue(0.5, 0.95)
 
-        viewModel.onAttackClick()
+        viewModel.onSkillClick()
         viewModel.onEnemyClick(repository.current.enemies[0].fpid)
         runCurrent()
 
@@ -542,7 +546,7 @@ class BattleViewModelTest {
         advanceUntilIdle()
         rolls.queue(0.95, 0.95)
 
-        viewModel.onAttackClick()
+        viewModel.onSkillClick()
         viewModel.onEnemyClick(repository.current.enemies[0].fpid)
         runCurrent()
         assertEquals(BattleNarration.AttackMissed("味方", "ゴブリンA"), viewModel.uiState.value.narration)
@@ -563,7 +567,7 @@ class BattleViewModelTest {
         advanceUntilIdle()
         rolls.queue(0.95, 0.5)
 
-        viewModel.onAttackClick()
+        viewModel.onSkillClick()
         viewModel.onEnemyClick(repository.current.enemies[0].fpid)
         runCurrent()
 
@@ -594,7 +598,7 @@ class BattleViewModelTest {
         advanceUntilIdle()
         rolls.queue(0.95, 0.95)
 
-        viewModel.onAttackClick()
+        viewModel.onSkillClick()
         viewModel.onEnemyClick(repository.current.enemies[0].fpid)
         runCurrent()
         assertEquals(BattleNarration.AreaAttackAllMissed("味方"), viewModel.uiState.value.narration)
@@ -614,7 +618,7 @@ class BattleViewModelTest {
         )
         advanceUntilIdle()
         rolls.queue(0.5, 0.95)
-        viewModel.onAttackClick()
+        viewModel.onSkillClick()
         viewModel.onEnemyClick(repository.current.enemies[0].fpid)
         runCurrent()
         assertEquals(BattleNarration.ShotHit(1, 24), viewModel.uiState.value.narration)
@@ -647,7 +651,7 @@ class BattleViewModelTest {
         assertEquals(selectAction, viewModel.uiState.value.narration)
 
         rolls.queue(0.5, 0.95)
-        viewModel.onAttackClick()
+        viewModel.onSkillClick()
         viewModel.onEnemyClick(repository.current.enemies[0].fpid)
         viewModel.onNarrationClick() // 演出ジョブが文を表示する前のタップは捨てられる
         runCurrent()
@@ -664,7 +668,7 @@ class BattleViewModelTest {
     fun narrationTap_repeatedOnLastSentence_endsTurnOnce() = runTest(dispatcher) {
         val (viewModel, repository) = createViewModel()
         advanceUntilIdle()
-        viewModel.onAttackClick()
+        viewModel.onSkillClick()
         viewModel.onEnemyClick(repository.current.enemies[0].fpid)
         runCurrent()
         assertEquals(BattleNarration.AttackResult("味方", "ゴブリンA", 24), viewModel.uiState.value.narration)
@@ -702,15 +706,15 @@ class BattleViewModelTest {
     fun brokenAlly_turnIsSkippedAutomatically() = runTest(dispatcher) {
         val (viewModel, repository) = createViewModel()
         advanceUntilIdle()
-        assertTrue(viewModel.uiState.value.isAttackEnabled)
+        assertTrue(viewModel.uiState.value.isSkillEnabled)
 
         repository.updateBattleField { f -> f.copy(allies = f.allies.map { it.copy(breakState = BreakState.BROKEN) }) }
         runCurrent()
 
         assertTrue(viewModel.uiState.value.isProcessing)
-        assertFalse(viewModel.uiState.value.isAttackEnabled)
+        assertFalse(viewModel.uiState.value.isSkillEnabled)
         assertEquals(BattleNarration.BreakStunned("味方"), viewModel.uiState.value.narration)
-        viewModel.onAttackClick()
+        viewModel.onSkillClick()
         assertEquals(BattleSelection.None, viewModel.uiState.value.selection)
 
         advanceTimeBy(1_200)
@@ -724,7 +728,7 @@ class BattleViewModelTest {
         assertEquals(1, ally.turnCount)
         assertEquals(BreakState.RECOVERING, ally.breakState)
         assertTrue(viewModel.uiState.value.isPlayerTurn)
-        assertTrue(viewModel.uiState.value.isAttackEnabled)
+        assertTrue(viewModel.uiState.value.isSkillEnabled)
     }
 
     /** ブレイク中の敵は攻撃せず、動けない旨のナレーションのあと手番を飛ばされ、立ち上がり状態になること。 */
@@ -735,7 +739,7 @@ class BattleViewModelTest {
         val allyHp = repository.current.allies[0].currentHp
         repository.updateBattleField { f -> f.copy(enemies = f.enemies.map { it.copy(breakState = BreakState.BROKEN) }) }
 
-        viewModel.onAttackClick()
+        viewModel.onSkillClick()
         viewModel.onEnemyClick(repository.current.enemies[0].fpid)
         runCurrent()
         // 同時に手番が来た敵の順番はTPの乱数で変わるため、最初に手番を飛ばされる敵を名前とFPIDで確かめる。
@@ -761,7 +765,7 @@ class BattleViewModelTest {
     fun stunnedAlly_turnIsSkipped_andTurnEndEventsAreNarrated() = runTest(dispatcher) {
         val (viewModel, repository) = createViewModel()
         advanceUntilIdle()
-        assertTrue(viewModel.uiState.value.isAttackEnabled)
+        assertTrue(viewModel.uiState.value.isSkillEnabled)
         val hpBefore = repository.current.allies[0].currentHp
 
         repository.updateBattleField { f ->
@@ -774,10 +778,10 @@ class BattleViewModelTest {
         runCurrent()
 
         assertTrue(viewModel.uiState.value.isProcessing)
-        assertFalse(viewModel.uiState.value.isAttackEnabled)
+        assertFalse(viewModel.uiState.value.isSkillEnabled)
         assertEquals(BattleNarration.AilmentIncapacitated("味方", StatusAilment.STUN), viewModel.uiState.value.narration)
         assertEquals(listOf(StatusAilment.POISON, StatusAilment.STUN), viewModel.uiState.value.partySlots[0]?.ailments)
-        viewModel.onAttackClick()
+        viewModel.onSkillClick()
         assertEquals(BattleSelection.None, viewModel.uiState.value.selection)
 
         advanceTimeBy(1_200)
@@ -954,7 +958,7 @@ class BattleViewModelTest {
 
         assertTrue(viewModel.uiState.value.isProcessing)
         assertEquals(BattleNarration.BrainwashLead(actorName), viewModel.uiState.value.narration)
-        assertFalse(viewModel.uiState.value.isAttackEnabled)
+        assertFalse(viewModel.uiState.value.isSkillEnabled)
         advanceTimeBy(800)
         runCurrent()
         assertTrue(viewModel.uiState.value.narration is BattleNarration.AttackResult)
@@ -996,7 +1000,7 @@ class BattleViewModelTest {
         runCurrent()
 
         assertEquals(BattleNarration.MadnessLead(actorName), viewModel.uiState.value.narration)
-        assertFalse(viewModel.uiState.value.isAttackEnabled)
+        assertFalse(viewModel.uiState.value.isSkillEnabled)
         advanceTimeBy(800)
         runCurrent()
         assertTrue(viewModel.uiState.value.narration is BattleNarration.AttackResult)
@@ -1078,7 +1082,7 @@ class BattleViewModelTest {
     fun nothingToDo_isSkippedAutomatically() = runTest(dispatcher) {
         val (viewModel, repository) = createViewModel()
         advanceUntilIdle()
-        assertTrue(viewModel.uiState.value.isAttackEnabled)
+        assertTrue(viewModel.uiState.value.isSkillEnabled)
 
         repository.giveActor(AilmentState(StatusAilment.CHARM, 1), AilmentState(StatusAilment.TAUNT, 1))
         runCurrent()
@@ -1089,7 +1093,7 @@ class BattleViewModelTest {
         assertEquals(1, repository.current.allies[0].turnCount)
     }
 
-    /** 魅了中は「攻撃」が無効で「防御」は有効、挑発中は「攻撃」が有効で「防御」が無効になること。 */
+    /** 魅了中は「スキル」(通常攻撃できる相手もスキルも無い)が無効で「防御」は有効、挑発中は「スキル」が有効で「防御」が無効になること。 */
     @Test
     fun charmAndTaunt_toggleAttackAndDefendButtons() = runTest(dispatcher) {
         val (viewModel, repository) = createViewModel()
@@ -1097,12 +1101,12 @@ class BattleViewModelTest {
 
         repository.giveActor(AilmentState(StatusAilment.CHARM, 3))
         runCurrent()
-        assertFalse(viewModel.uiState.value.isAttackEnabled)
+        assertFalse(viewModel.uiState.value.isSkillEnabled) // 通常攻撃できる相手がいず、スキルも無い
         assertTrue(viewModel.uiState.value.isDefendEnabled)
 
         repository.giveActor(AilmentState(StatusAilment.TAUNT, 3))
         runCurrent()
-        assertTrue(viewModel.uiState.value.isAttackEnabled)
+        assertTrue(viewModel.uiState.value.isSkillEnabled)
         assertFalse(viewModel.uiState.value.isDefendEnabled)
     }
 
@@ -1113,7 +1117,7 @@ class BattleViewModelTest {
         advanceUntilIdle()
         val allyFpid = repository.current.allies[0].fpid
         val backEnemyFpid = repository.current.enemies.first { it.slot == 3 }.fpid
-        viewModel.onAttackClick()
+        viewModel.onSkillClick()
         assertFalse(backEnemyFpid in viewModel.uiState.value.selectableTargetIds)
         val before = repository.current
 
@@ -1124,7 +1128,7 @@ class BattleViewModelTest {
         advanceUntilIdle()
 
         assertFalse(viewModel.uiState.value.isProcessing)
-        assertEquals(BattleSelection.AttackTarget, viewModel.uiState.value.selection)
+        assertEquals(BattleSelection.SkillList, viewModel.uiState.value.selection)
         assertEquals(before, repository.current)
     }
 
@@ -1133,7 +1137,7 @@ class BattleViewModelTest {
     fun longPress_opensAndDismissesDetail_withoutChangingSelection() = runTest(dispatcher) {
         val (viewModel, repository) = createViewModel()
         advanceUntilIdle()
-        viewModel.onAttackClick()
+        viewModel.onSkillClick()
         val allyFpid = repository.current.allies[0].fpid
         val enemyFpid = repository.current.enemies[0].fpid
 
@@ -1143,7 +1147,7 @@ class BattleViewModelTest {
         assertEquals("味方", viewModel.uiState.value.unitDetail?.name)
         viewModel.onUnitLongPress(enemyFpid)
         assertEquals(enemyFpid, viewModel.uiState.value.unitDetail?.id)
-        assertEquals(BattleSelection.AttackTarget, viewModel.uiState.value.selection)
+        assertEquals(BattleSelection.SkillList, viewModel.uiState.value.selection)
 
         repository.updateBattleField { f -> f.copy(enemies = f.enemies.map { if (it.fpid == enemyFpid) it.copy(currentHp = 0) else it }) }
         runCurrent()
@@ -1405,14 +1409,14 @@ class BattleViewModelTest {
         assertTrue(repository.current.allPawns.none { it.isDefending })
     }
 
-    /** 攻撃の対象選択中は「防御」を押せず、キャンセルして選択状態がNoneに戻ると押せること。 */
+    /** スキル一覧の選択中は「防御」を押せず、キャンセルして選択状態がNoneに戻ると押せること。 */
     @Test
     fun defend_disabledWhileSelecting() = runTest(dispatcher) {
         val (viewModel, repository) = createViewModel()
         advanceUntilIdle()
         assertTrue(viewModel.uiState.value.isDefendEnabled)
 
-        viewModel.onAttackClick()
+        viewModel.onSkillClick()
         assertFalse(viewModel.uiState.value.isDefendEnabled)
         viewModel.onDefendClick()
         runCurrent()
@@ -1518,12 +1522,13 @@ class BattleViewModelTest {
 
         val state = viewModel.uiState.value
         assertTrue(state.isPreemptiveTurn)
-        assertFalse(state.isAttackEnabled)
+        assertTrue(state.isSkillEnabled) // 一覧中もスキルボタンは有効のまま(「選択中」表示)
+        assertEquals(emptySet<Int>(), state.selectableTargetIds) // 先制の手番では通常攻撃の枠を出さない
         assertFalse(state.isDefendEnabled)
         assertFalse(state.isRetreatEnabled)
         assertFalse(state.isCancelEnabled)
 
-        viewModel.onAttackClick()
+        viewModel.onSkillClick()
         viewModel.onDefendClick()
         viewModel.onCancelClick() // スキル一覧からはキャンセルできない
         assertEquals(BattleSelection.SkillList, viewModel.uiState.value.selection)
@@ -1569,7 +1574,7 @@ class BattleViewModelTest {
         assertFalse(state.skills.first { it.id == QUICK_ID }.isUsable)
         assertEquals(1, state.skills.first { it.id == QUICK_ID }.remainingCoolTime)
         assertEquals(0, state.skills.first { it.id == 2 }.remainingCoolTime)
-        assertTrue(state.isAttackEnabled)
+        assertTrue(state.isSkillEnabled)
         assertTrue(state.isDefendEnabled)
     }
 
@@ -1599,7 +1604,7 @@ class BattleViewModelTest {
         assertTrue(quick.isUsable)
     }
 
-    /** 攻撃・スキルの対象選択中は、味方のカードのタップを予約に使わず、キャンセルで戻れば予約できること。 */
+    /** スキルの選択中(一覧・対象選択)は、味方のカードのタップを予約に使わず、キャンセルで戻れば予約できること。 */
     @Test
     fun cannotReserveWhileSelectingTarget() = runTest(dispatcher) {
         val (viewModel, repository) = createPreemptiveViewModel(allySlots = listOf(0, 1))
@@ -1608,7 +1613,7 @@ class BattleViewModelTest {
         val other = repository.current.allies.first { it.fpid != actor }.fpid
         assertEquals(setOf(other), viewModel.uiState.value.reservableAllyIds)
 
-        viewModel.onAttackClick()
+        viewModel.onSkillClick()
         assertEquals(emptySet<Int>(), viewModel.uiState.value.reservableAllyIds)
         viewModel.onAllyClick(other)
         runCurrent()
@@ -1643,8 +1648,10 @@ class BattleViewModelTest {
         assertEquals(first, repository.current.currentActorFpid)
         assertEquals(BattleSelection.SkillList, viewModel.uiState.value.selection)
 
-        // 先制の手番の最中に、もう1体が予約する(戦闘フィールドの更新が流れてくる)。
+        // 先制の手番のスキル一覧の間はタップで予約できない(何も起きない)ので、予約はフィールドへ直接入れて更新を流す。
         viewModel.onAllyClick(second)
+        assertTrue(repository.current.pendingPreemptive.isEmpty())
+        repository.updateBattleField { f -> f.copy(pendingPreemptive = f.pendingPreemptive + second) }
         runCurrent()
         advanceTimeBy(RESULT_MS * 3)
         runCurrent()
@@ -1868,5 +1875,120 @@ class BattleViewModelTest {
         override suspend fun advance() {
             state.update { it + 1 }
         }
+    }
+
+    /** スキル一覧の間(先制の手番でない)は敵のカードのタップで通常攻撃が発動し、手番が進むこと。 */
+    @Test
+    fun skillList_enemyTap_performsBasicAttack() = runTest(dispatcher) {
+        val (viewModel, repository) = createViewModel(allyMana = 100, activeSkillIds = listOf(2))
+        advanceUntilIdle()
+        val enemyFpid = repository.current.enemies.first().fpid
+
+        viewModel.onSkillClick()
+        assertEquals(BattleSelection.SkillList, viewModel.uiState.value.selection)
+        assertEquals(viewModel.uiState.value.attackTargetIds, viewModel.uiState.value.selectableTargetIds)
+        viewModel.onEnemyClick(enemyFpid)
+        runCurrent()
+
+        assertTrue(viewModel.uiState.value.isProcessing)
+        assertEquals(BattleSelection.None, viewModel.uiState.value.selection)
+        assertTrue(viewModel.uiState.value.narration is BattleNarration.AttackResult)
+        advanceUntilIdle()
+        assertTrue(repository.current.enemies.first { it.fpid == enemyFpid }.currentHp < 1000)
+        assertEquals(1, repository.current.allies[0].turnCount)
+    }
+
+    /** 先制の手番のスキル一覧では、敵のカードをタップしても通常攻撃されないこと。 */
+    @Test
+    fun preemptiveSkillList_enemyTap_doesNothing() = runTest(dispatcher) {
+        val (viewModel, repository) = createPreemptiveViewModel()
+        runCurrent()
+        viewModel.onAllyClick(repository.current.allies[0].fpid)
+        advanceTimeBy(2000 + RESULT_MS)
+        runCurrent()
+        assertTrue(viewModel.uiState.value.isPreemptiveTurn)
+        val before = repository.current
+
+        viewModel.onEnemyClick(repository.current.enemies.first().fpid)
+        runCurrent()
+
+        assertFalse(viewModel.uiState.value.isProcessing)
+        assertEquals(BattleSelection.SkillList, viewModel.uiState.value.selection)
+        assertEquals(before, repository.current)
+    }
+
+    /** スキル一覧の間に味方のカードをタップしても、先制の予約も通常攻撃も起きないこと。 */
+    @Test
+    fun skillList_allyTap_doesNotReserveOrAttack() = runTest(dispatcher) {
+        val (viewModel, repository) = createPreemptiveViewModel(allySlots = listOf(0, 1))
+        advanceUntilIdle()
+        val actor = checkNotNull(viewModel.uiState.value.currentActorId)
+        val other = repository.current.allies.first { it.fpid != actor }.fpid
+
+        viewModel.onSkillClick()
+        viewModel.onAllyClick(other)
+        viewModel.onAllyClick(actor)
+        runCurrent()
+
+        assertTrue(repository.current.pendingPreemptive.isEmpty())
+        assertFalse(viewModel.uiState.value.isProcessing)
+        assertEquals(BattleSelection.SkillList, viewModel.uiState.value.selection)
+    }
+
+    /** Aスキルを持たないキャラでも、通常攻撃できる相手がいればスキルボタンが押せ、一覧は空のまま開いて通常攻撃できること。 */
+    @Test
+    fun noActiveSkills_skillButtonStillEnabled_andBasicAttackWorks() = runTest(dispatcher) {
+        val (viewModel, repository) = createViewModel()
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.skills.isEmpty())
+        assertTrue(viewModel.uiState.value.isSkillEnabled)
+        viewModel.onSkillClick()
+        assertEquals(BattleSelection.SkillList, viewModel.uiState.value.selection)
+        assertEquals(BattleNarration.SelectSkillOrAttack, viewModel.uiState.value.narration)
+
+        viewModel.onEnemyClick(repository.current.enemies.first().fpid)
+        runCurrent()
+        assertTrue(viewModel.uiState.value.narration is BattleNarration.AttackResult)
+    }
+
+    /** 魅了で通常攻撃できる相手がおらずスキルも無いと、スキルボタンが無効で押しても何も起きないこと。 */
+    @Test
+    fun charmWithoutSkills_skillButtonDisabled() = runTest(dispatcher) {
+        val (viewModel, repository) = createViewModel()
+        advanceUntilIdle()
+
+        repository.giveActor(AilmentState(StatusAilment.CHARM, 3))
+        runCurrent()
+
+        assertEquals(emptySet<Int>(), viewModel.uiState.value.attackTargetIds)
+        assertFalse(viewModel.uiState.value.isSkillEnabled)
+        viewModel.onSkillClick()
+        assertEquals(BattleSelection.None, viewModel.uiState.value.selection)
+    }
+
+    /** 魅了でもAスキルがあればスキルボタンは有効で、スキル一覧の間は通常攻撃の枠が空になること。 */
+    @Test
+    fun charmWithSkills_skillButtonEnabled_noBasicAttackFrames() = runTest(dispatcher) {
+        val (viewModel, repository) = createViewModel(allyMana = 100, activeSkillIds = listOf(2))
+        advanceUntilIdle()
+
+        repository.giveActor(AilmentState(StatusAilment.CHARM, 3))
+        runCurrent()
+        assertTrue(viewModel.uiState.value.isSkillEnabled)
+        viewModel.onSkillClick()
+
+        assertEquals(BattleSelection.SkillList, viewModel.uiState.value.selection)
+        assertEquals(emptySet<Int>(), viewModel.uiState.value.selectableTargetIds)
+    }
+
+    /** 先制の手番のスキル一覧のナレーションは「使うスキルを選択してください」のままで、通常の手番とは別の文であること。 */
+    @Test
+    fun skillListNarration_differsBetweenNormalAndPreemptiveTurn() = runTest(dispatcher) {
+        val (viewModel, _) = createViewModel(allyMana = 100, activeSkillIds = listOf(2))
+        advanceUntilIdle()
+        viewModel.onSkillClick()
+        assertEquals(BattleNarration.SelectSkillOrAttack, viewModel.uiState.value.narration)
+        assertNotEquals(BattleNarration.SelectSkill, viewModel.uiState.value.narration)
     }
 }
